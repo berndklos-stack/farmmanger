@@ -2349,81 +2349,104 @@ export function ContractorView({
                 </div>
 
                 {activeMasterGroup === "personnel" && (
-                  <div className="form-row resource-form-row modal-form-row">
-                    <label>{t("masterData.personName")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.name} onChange={(event) => setDriverForm((current) => ({ ...current, name: event.target.value }))} /></label>
-                    {isResourceOrganizationLocked ? (
-                      <label>
-                        {t("masterData.assignedOrganization")}
-                        <input disabled readOnly value={fixedResourceOrganization?.name ?? t("masterData.noOrganizationAssigned")} />
-                        <small>{t("masterData.organizationLockedHint")}</small>
-                      </label>
-                    ) : (
-                      <label>
-                        {t("masterData.assignedOrganization")}
-                        <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.organizationId} onChange={(event) => setDriverForm((current) => ({ ...current, organizationId: event.target.value }))}>
-                          <option value="">{t("masterData.noOrganizationAssigned")}</option>
-                          {activeOrganizations.map((organization) => (
-                            <option key={organization.id} value={organization.id}>
-                              {organization.name} · {t(`masterData.${organization.kind === "farmer" ? "farmerOrganization" : "contractorOrganization"}`)}
-                            </option>
-                          ))}
-                        </select>
-                      </label>
-                    )}
-                    <label>{t("masterData.email")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.email} onChange={(event) => setDriverForm((current) => ({ ...current, email: event.target.value }))} type="email" /></label>
-                    <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
-                    <label>
-                      {t("masterData.driverPassword")}
-                      <span className="password-field">
-                        <input
-                          disabled={!permissions.canEditDrivers || showArchivedMasterData}
-                          value={driverForm.accessPassword}
-                          onChange={(event) => setDriverForm((current) => ({ ...current, accessPassword: event.target.value }))}
-                          type={showDriverPassword ? "text" : "password"}
-                        />
-                        <button
-                          aria-label={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
-                          className="password-toggle-button"
-                          disabled={showArchivedMasterData}
-                          onClick={() => setShowDriverPassword((current) => !current)}
-                          title={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
-                          type="button"
-                        >
-                          {showDriverPassword ? <EyeOff size={17} /> : <Eye size={17} />}
-                        </button>
-                      </span>
-                    </label>
-                    <div className="driver-access-actions">
-                      <button disabled={!permissions.canEditDrivers || showArchivedMasterData} className="secondary-action" onClick={() => setDriverForm((current) => ({ ...current, accessPassword: generateDriverPassword() }))} type="button">
-                        {t("masterData.generateDriverPassword")}
-                      </button>
-                      <button disabled={!driverForm.email || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessMail} type="button">
-                        <Mail size={16} /> {t("masterData.sendAccessByEmail")}
-                      </button>
-                      <button disabled={!driverForm.mobile || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessSms} type="button">
-                        <MessageSquare size={16} /> {t("masterData.sendAccessBySms")}
-                      </button>
-                    </div>
-                    <label>
-                      {t("masterData.driverJobVisibility")}
-                      <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.jobVisibility} onChange={(event) => setDriverForm((current) => ({ ...current, jobVisibility: event.target.value as Driver["jobVisibility"] }))}>
-                        <option value="contractor_all">{t("masterData.driverVisibility.contractor_all")}</option>
-                        <option value="assigned_only">{t("masterData.driverVisibility.assigned_only")}</option>
-                      </select>
-                    </label>
-                    <label>
-                      {t("masterData.defaultVehicle")}
-                      <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.vehicle} onChange={(event) => setDriverForm((current) => ({ ...current, vehicle: event.target.value }))}>
-                        <option value="">{t("masterData.noDefaultVehicle")}</option>
-                        {standardVehicleOptions.map((vehicle) => (
-                          <option key={vehicle.id} value={vehicle.name}>{vehicle.name} · {vehicle.type}</option>
-                        ))}
-                      </select>
-                    </label>
-                    <label>{t("masterData.licenseClasses")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.licenseClasses} onChange={(event) => setDriverForm((current) => ({ ...current, licenseClasses: event.target.value }))} /></label>
-                    <label>{t("masterData.maxDailyHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1} max={16} step={0.5} value={driverForm.maxDailyHours} onChange={(event) => setDriverForm((current) => ({ ...current, maxDailyHours: Number(event.target.value) }))} type="number" /></label>
-                    <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.resourceType} onChange={(event) => setDriverForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
-                    <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.operationType} onChange={(event) => setDriverForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
+                  <div className="driver-resource-form">
+                    <section className="driver-form-section">
+                      <h3>{t("masterData.driverSectionBase")}</h3>
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                        <label>{t("masterData.personName")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.name} onChange={(event) => setDriverForm((current) => ({ ...current, name: event.target.value }))} /></label>
+                        {isResourceOrganizationLocked ? (
+                          <label>
+                            {t("masterData.assignedOrganization")}
+                            <input disabled readOnly value={fixedResourceOrganization?.name ?? t("masterData.noOrganizationAssigned")} />
+                            <small>{t("masterData.organizationLockedHint")}</small>
+                          </label>
+                        ) : (
+                          <label>
+                            {t("masterData.assignedOrganization")}
+                            <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.organizationId} onChange={(event) => setDriverForm((current) => ({ ...current, organizationId: event.target.value }))}>
+                              <option value="">{t("masterData.noOrganizationAssigned")}</option>
+                              {activeOrganizations.map((organization) => (
+                                <option key={organization.id} value={organization.id}>
+                                  {organization.name} · {t(`masterData.${organization.kind === "farmer" ? "farmerOrganization" : "contractorOrganization"}`)}
+                                </option>
+                              ))}
+                            </select>
+                          </label>
+                        )}
+                      </div>
+                    </section>
+
+                    <section className="driver-form-section driver-access-section">
+                      <h3>{t("masterData.driverSectionAccess")}</h3>
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                        <label>{t("masterData.email")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.email} onChange={(event) => setDriverForm((current) => ({ ...current, email: event.target.value }))} type="email" /></label>
+                        <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
+                        <label className="driver-password-label">
+                          {t("masterData.driverPassword")}
+                          <span className="password-field">
+                            <input
+                              disabled={!permissions.canEditDrivers || showArchivedMasterData}
+                              value={driverForm.accessPassword}
+                              onChange={(event) => setDriverForm((current) => ({ ...current, accessPassword: event.target.value }))}
+                              type={showDriverPassword ? "text" : "password"}
+                            />
+                            <button
+                              aria-label={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
+                              className="password-toggle-button"
+                              disabled={showArchivedMasterData}
+                              onClick={() => setShowDriverPassword((current) => !current)}
+                              title={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
+                              type="button"
+                            >
+                              {showDriverPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                            </button>
+                          </span>
+                        </label>
+                        <div className="driver-access-actions">
+                          <button disabled={!permissions.canEditDrivers || showArchivedMasterData} className="secondary-action" onClick={() => setDriverForm((current) => ({ ...current, accessPassword: generateDriverPassword() }))} type="button">
+                            {t("masterData.generateDriverPassword")}
+                          </button>
+                          <button disabled={!driverForm.email || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessMail} type="button">
+                            <Mail size={16} /> {t("masterData.sendAccessByEmail")}
+                          </button>
+                          <button disabled={!driverForm.mobile || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessSms} type="button">
+                            <MessageSquare size={16} /> {t("masterData.sendAccessBySms")}
+                          </button>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="driver-form-section">
+                      <h3>{t("masterData.driverSectionPlanning")}</h3>
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                        <label>
+                          {t("masterData.driverJobVisibility")}
+                          <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.jobVisibility} onChange={(event) => setDriverForm((current) => ({ ...current, jobVisibility: event.target.value as Driver["jobVisibility"] }))}>
+                            <option value="contractor_all">{t("masterData.driverVisibility.contractor_all")}</option>
+                            <option value="assigned_only">{t("masterData.driverVisibility.assigned_only")}</option>
+                          </select>
+                        </label>
+                        <label>
+                          {t("masterData.defaultVehicle")}
+                          <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.vehicle} onChange={(event) => setDriverForm((current) => ({ ...current, vehicle: event.target.value }))}>
+                            <option value="">{t("masterData.noDefaultVehicle")}</option>
+                            {standardVehicleOptions.map((vehicle) => (
+                              <option key={vehicle.id} value={vehicle.name}>{vehicle.name} · {vehicle.type}</option>
+                            ))}
+                          </select>
+                        </label>
+                      </div>
+                    </section>
+
+                    <section className="driver-form-section">
+                      <h3>{t("masterData.driverSectionQualification")}</h3>
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                        <label>{t("masterData.licenseClasses")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.licenseClasses} onChange={(event) => setDriverForm((current) => ({ ...current, licenseClasses: event.target.value }))} /></label>
+                        <label>{t("masterData.maxDailyHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1} max={16} step={0.5} value={driverForm.maxDailyHours} onChange={(event) => setDriverForm((current) => ({ ...current, maxDailyHours: Number(event.target.value) }))} type="number" /></label>
+                        <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.resourceType} onChange={(event) => setDriverForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
+                        <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.operationType} onChange={(event) => setDriverForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
+                      </div>
+                    </section>
                   </div>
                 )}
 

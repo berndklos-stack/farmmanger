@@ -4328,6 +4328,7 @@ select {
 .driver-access-actions {
   display: flex;
   align-items: center;
+  align-self: end;
   gap: 8px;
   flex-wrap: wrap;
 }
@@ -4359,6 +4360,40 @@ select {
 .password-toggle-button:hover {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
+}
+
+.driver-resource-form {
+  display: grid;
+  gap: 14px;
+}
+
+.driver-form-section {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #fbfcf8;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.driver-form-section h3 {
+  margin: 0;
+  color: #263b2e;
+  font-size: 0.92rem;
+  font-weight: 1000;
+}
+
+.compact-driver-form-grid {
+  grid-template-columns: repeat(2, minmax(220px, 1fr));
+  gap: 10px;
+}
+
+.driver-access-section .compact-driver-form-grid {
+  grid-template-columns: repeat(3, minmax(180px, 1fr));
+}
+
+.driver-password-label {
+  min-width: 0;
 }
 
 .live-location-panel {
@@ -4745,6 +4780,11 @@ select {
 
   .create-template-row {
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .compact-driver-form-grid,
+  .driver-access-section .compact-driver-form-grid {
+    grid-template-columns: 1fr;
   }
 }
 
