@@ -2308,12 +2308,38 @@ export function App() {
   }
 
   async function signIn(email: string, password: string) {
+    const normalizedEmail = email.trim().toLowerCase();
+    const matchingDriver = driverRecords.find((driver) => (
+      driver.email?.trim().toLowerCase() === normalizedEmail
+      && driver.accessPassword
+      && driver.accessPassword === password
+      && !driver.archivedAt
+    ));
+    function signInDriverFromPersonnel(driver: Driver) {
+      setAuthProfile({
+        id: driver.profileId ?? driver.id,
+        fullName: driver.name,
+        email: driver.email ?? email,
+        role: "driver",
+        organizationId: driver.organizationId,
+        vehicleName: driver.vehicle,
+      });
+      setCurrentRoleState("driver");
+      window.localStorage.setItem("schlaglink.role", "driver");
+      setActiveView("driver");
+      setAuthError("");
+      setAuthLoading(false);
+    }
     const demoProfile = getDemoAuthProfile(email, password);
     if (demoProfile && !roleAllowedInAppMode(demoProfile.role, appMode)) {
       setAuthError(t(appMode === "driver" ? "auth.adminAppRequired" : "auth.driverAppRequired"));
       return;
     }
     if (!supabase) {
+      if (matchingDriver && roleAllowedInAppMode("driver", appMode)) {
+        signInDriverFromPersonnel(matchingDriver);
+        return;
+      }
       if (demoProfile) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
@@ -2329,13 +2355,6 @@ export function App() {
     setAuthError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
-      const normalizedEmail = email.trim().toLowerCase();
-      const matchingDriver = driverRecords.find((driver) => (
-        driver.email?.trim().toLowerCase() === normalizedEmail
-        && driver.accessPassword
-        && driver.accessPassword === password
-        && !driver.archivedAt
-      ));
       let accessDriver = matchingDriver;
       if (!accessDriver) {
         const { data: personnelDriver } = await supabase
@@ -2369,19 +2388,7 @@ export function App() {
         }
       }
       if (accessDriver && roleAllowedInAppMode("driver", appMode)) {
-        setAuthProfile({
-          id: accessDriver.profileId ?? accessDriver.id,
-          fullName: accessDriver.name,
-          email: accessDriver.email ?? email,
-          role: "driver",
-          organizationId: accessDriver.organizationId,
-          vehicleName: accessDriver.vehicle,
-        });
-        setCurrentRoleState("driver");
-        window.localStorage.setItem("schlaglink.role", "driver");
-        setActiveView("driver");
-        setAuthError("");
-        setAuthLoading(false);
+        signInDriverFromPersonnel(accessDriver);
         return;
       }
       if (accessDriver && !roleAllowedInAppMode("driver", appMode)) {
@@ -2420,7 +2427,7 @@ export function App() {
     canAssignDrivers: currentRole === "contractor_admin" || currentRole === "farmer_admin" || currentRole === "support_admin",
   };
 
-  if (isSupabaseConfigured && !authSession && !authProfile) {
+  if ((appMode === "driver" && (!authProfile || authProfile.role !== "driver")) || (isSupabaseConfigured && !authSession && !authProfile)) {
     return <AuthLogin appMode={appMode} error={authError} isLoading={authLoading} onSignIn={signIn} />;
   }
 
