@@ -1,0 +1,36 @@
+{
+  "name": "SchlagLink",
+  "short_name": "SchlagLink",
+  "description": "Flächen, Aufträge, Disposition und Fahrer-Rückmeldungen für landwirtschaftliche Einsätze.",
+  "start_url": "/?view=driver",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#f3f5ef",
+  "theme_color": "#24362c",
+  "categories": ["business", "productivity", "navigation"],
+  "icons": [
+    {
+      "src": "/pwa-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Fahreransicht",
+      "short_name": "Fahrer",
+      "description": "Offene Aufträge und Rückmeldungen für Fahrer öffnen.",
+      "url": "/?view=driver",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    },
+    {
+      "name": "Einsatzleitung",
+      "short_name": "Dispo",
+      "description": "Disposition und Live-Standorte öffnen.",
+      "url": "/?view=contractor",
+      "icons": [{ "src": "/pwa-icon.svg", "sizes": "any", "type": "image/svg+xml" }]
+    }
+  ]
+}
