@@ -41,6 +41,28 @@ const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
   { key: "report", labelKey: "nav.report", icon: FileText },
 ];
 
+type AppMode = "admin" | "driver" | "auto";
+
+function getAppModeFromPath(pathname = window.location.pathname): AppMode {
+  const normalized = pathname.toLowerCase();
+  if (normalized.startsWith("/fahrer") || normalized.startsWith("/driver")) return "driver";
+  if (normalized.startsWith("/admin")) return "admin";
+  return "auto";
+}
+
+function initialViewForAppMode(appMode: AppMode): ViewKey {
+  const requestedView = new URLSearchParams(window.location.search).get("view") as ViewKey | null;
+  if (requestedView && navItems.some((item) => item.key === requestedView)) return requestedView;
+  if (appMode === "driver") return "driver";
+  return "dashboard";
+}
+
+function roleAllowedInAppMode(role: UserRole, appMode: AppMode) {
+  if (appMode === "driver") return role === "driver";
+  if (appMode === "admin") return role !== "driver";
+  return true;
+}
+
 const contractorOrganizationId = "22222222-2222-4222-8222-222222222222";
 const farmerOrganizationId = "11111111-1111-4111-8111-111111111111";
 const klosContractorOrganizationId = "55555555-5555-4555-8555-555555555555";
@@ -684,11 +706,9 @@ function cloneJobTypeForOrganization(jobType: JobType, organizationId: string): 
 
 export function App() {
   const { t } = useTranslation();
+  const appMode = getAppModeFromPath();
   const loadedData = useSchlagLinkData();
-  const [activeView, setActiveView] = useState<ViewKey>(() => {
-    const requestedView = new URLSearchParams(window.location.search).get("view") as ViewKey | null;
-    return requestedView && navItems.some((item) => item.key === requestedView) ? requestedView : "dashboard";
-  });
+  const [activeView, setActiveView] = useState<ViewKey>(() => initialViewForAppMode(appMode));
   const [selectedFieldId, setSelectedFieldId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
   const [fieldRecords, setFieldRecords] = useState<Field[]>([]);
@@ -755,6 +775,7 @@ export function App() {
     window.localStorage.setItem("schlaglink.role", profile.role);
     setAuthError("");
     if (profile.role === "driver") setActiveView("driver");
+    if (profile.role !== "driver" && appMode !== "driver") setActiveView("dashboard");
   }
 
   useEffect(() => {
@@ -890,13 +911,15 @@ export function App() {
   }, [authProfile, driverRecords]);
   const currentDriverId = currentDriver?.id ?? null;
   const visibleNavItems = useMemo(() => {
+    if (appMode === "driver") return navItems.filter((item) => item.key === "driver");
+    if (appMode === "admin" && currentRole === "driver") return [];
     if (currentRole === "driver") return navItems.filter((item) => item.key === "driver");
     if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
     if (currentRole === "contractor_admin") return navItems.filter((item) => ["dashboard", "fields", "contractor", "masterData", "jobs", "report"].includes(item.key));
     if (currentRole === "farmer_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
     if (currentRole === "farmer_employee") return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
     return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
-  }, [currentRole]);
+  }, [appMode, currentRole]);
 
   useEffect(() => {
     if (visibleNavItems.some((item) => item.key === activeView)) return;
@@ -2274,6 +2297,10 @@ export function App() {
 
   async function signIn(email: string, password: string) {
     const demoProfile = getDemoAuthProfile(email, password);
+    if (demoProfile && !roleAllowedInAppMode(demoProfile.role, appMode)) {
+      setAuthError(t(appMode === "driver" ? "auth.driverAppRequired" : "auth.adminAppRequired"));
+      return;
+    }
     if (!supabase) {
       if (demoProfile) {
         setAuthProfile(demoProfile);
@@ -2311,7 +2338,7 @@ export function App() {
     setAuthProfile(null);
     setCurrentRoleState("farmer_admin");
     window.localStorage.setItem("schlaglink.role", "farmer_admin");
-    setActiveView("dashboard");
+    setActiveView(initialViewForAppMode(appMode));
   }
 
   const permissions = {
@@ -2322,7 +2349,39 @@ export function App() {
   };
 
   if (isSupabaseConfigured && !authSession && !authProfile) {
-    return <AuthLogin error={authError} isLoading={authLoading} onSignIn={signIn} />;
+    return <AuthLogin appMode={appMode} error={authError} isLoading={authLoading} onSignIn={signIn} />;
+  }
+
+  if (authProfile && !roleAllowedInAppMode(authProfile.role, appMode)) {
+    const targetHref = authProfile.role === "driver" ? "/fahrer" : "/admin";
+    return (
+      <main className="auth-shell">
+        <section className="auth-card">
+          <div className="brand auth-brand">
+            <div className="brand-mark">
+              <Tractor size={24} />
+            </div>
+            <div>
+              <strong>SchlagLink</strong>
+              <span>{t("app.brandSubtitle")}</span>
+            </div>
+          </div>
+          <div>
+            <p className="eyebrow">{t("auth.wrongAppEyebrow")}</p>
+            <h1>{t(appMode === "driver" ? "auth.adminSignedInTitle" : "auth.driverSignedInTitle")}</h1>
+            <p className="auth-copy">{t(appMode === "driver" ? "auth.adminSignedInCopy" : "auth.driverSignedInCopy")}</p>
+          </div>
+          <div className="auth-form">
+            <a className="primary-action wide auth-link-button" href={targetHref}>
+              {t(authProfile.role === "driver" ? "auth.openDriverApp" : "auth.openAdminApp")}
+            </a>
+            <button className="secondary-action wide" onClick={signOut} type="button">
+              {t("auth.signOut")}
+            </button>
+          </div>
+        </section>
+      </main>
+    );
   }
 
   return (
@@ -2385,6 +2444,31 @@ export function App() {
         sourceLabel: loadedData.isDemoMode ? "Demo-Modus aktiv" : "Supabase aktiv",
       }}
     >
+    {appMode === "driver" ? (
+      <main className="driver-app-only">
+        <header className="driver-app-topbar">
+          <div className="brand">
+            <div className="brand-mark">
+              <Tractor size={22} />
+            </div>
+            <div>
+              <strong>SchlagLink</strong>
+              <span>{t("nav.driver")}</span>
+            </div>
+          </div>
+          <div className="topbar-actions">
+            {authProfile && (
+              <div className="user-session-pill">
+                <span>{authProfile.fullName}</span>
+                <button onClick={signOut} type="button">{t("auth.signOut")}</button>
+              </div>
+            )}
+            <LanguageSwitcher />
+          </div>
+        </header>
+        <DriverView subtasks={activeSubtasks} jobs={activeJobs} onLocationUpdate={updateDriverLocation} onUpdateSubtask={updateSubtask} onUploadSubtaskPhotos={uploadSubtaskPhotos} onDeleteSubtaskPhoto={deleteSubtaskPhoto} />
+      </main>
+    ) : (
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
@@ -2588,6 +2672,7 @@ export function App() {
         )}
       </main>
     </div>
+    )}
     </DataProvider>
   );
 }

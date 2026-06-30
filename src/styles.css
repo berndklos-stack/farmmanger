@@ -109,6 +109,10 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.auth-link-button {
+  text-decoration: none;
+}
+
 .auth-form label {
   display: grid;
   gap: 6px;
@@ -165,6 +169,33 @@ textarea:focus-visible {
   height: 100dvh;
   min-height: 100vh;
   overflow: hidden;
+}
+
+.driver-app-only {
+  min-height: 100dvh;
+  background: var(--color-page);
+}
+
+.driver-app-topbar {
+  min-height: 60px;
+  border-bottom: 1px solid var(--color-border);
+  background: rgba(255, 255, 255, 0.96);
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 8px 14px;
+  position: sticky;
+  top: 0;
+  z-index: 30;
+}
+
+.driver-app-topbar .brand {
+  color: var(--color-ink);
+}
+
+.driver-app-topbar .user-session-pill {
+  min-height: 36px;
 }
 
 .sidebar {
