@@ -402,7 +402,8 @@ export function ContractorView({
   const activeContractorOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.kind === "contractor"), [activeOrganizations]);
   const defaultResourceOrganizationId = resourceOrganizationId ?? authProfile?.organizationId ?? activeContractorOrganizations[0]?.id ?? activeFarmerOrganizations[0]?.id ?? "";
   const isResourceOrganizationLocked = currentRole === "contractor_admin" || currentRole === "farmer_admin";
-  const fixedResourceOrganization = activeOrganizations.find((organization) => organization.id === defaultResourceOrganizationId);
+  const fixedResourceOrganization = activeOrganizations.find((organization) => organization.id === driverForm.organizationId)
+    ?? activeOrganizations.find((organization) => organization.id === defaultResourceOrganizationId);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(activeOrganizations[0]?.id ?? "");
   const selectedOrganization = accessibleOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? visibleOrganizations[0];
   const [organizationForm, setOrganizationForm] = useState({
@@ -705,9 +706,12 @@ export function ContractorView({
   }
 
   function saveDriver() {
+    const lockedOrganizationId = creatingResourceGroup === "personnel"
+      ? defaultResourceOrganizationId
+      : driverForm.organizationId || selectedDriver?.organizationId || defaultResourceOrganizationId;
     const payload = {
       ...driverForm,
-      organizationId: isResourceOrganizationLocked ? defaultResourceOrganizationId : driverForm.organizationId,
+      organizationId: isResourceOrganizationLocked ? lockedOrganizationId : driverForm.organizationId,
       licenseClasses: driverForm.licenseClasses.split(",").map((item) => item.trim()).filter(Boolean),
     };
     if (creatingResourceGroup === "personnel") {
