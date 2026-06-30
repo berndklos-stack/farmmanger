@@ -61,6 +61,8 @@
     "supabaseRequired": "Supabase måste vara konfigurerat för riktig inloggning.",
     "driverAppRequired": "Detta konto hör till förarappen. Öppna /fahrer.",
     "adminAppRequired": "Detta konto hör till adminappen. Öppna /admin.",
+    "driverLoginRequired": "Logga in med ett förarkonto.",
+    "adminLoginRequired": "Logga in med ett admin-, lantbrukar- eller arbetsledarkonto.",
     "wrongAppEyebrow": "Fel appområde",
     "adminSignedInTitle": "Adminkonto upptäckt",
     "adminSignedInCopy": "Du är inloggad som admin. Öppna adminappen.",

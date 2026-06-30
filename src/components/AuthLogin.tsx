@@ -33,8 +33,9 @@ export function AuthLogin({
   const { t } = useTranslation();
   const visibleDemoAccounts = demoAccounts.filter((account) => appMode === "auto" || account.app === appMode);
   const defaultDemoAccount = visibleDemoAccounts[0] ?? demoAccounts[0];
-  const [email, setEmail] = useState(defaultDemoAccount.email);
-  const [password, setPassword] = useState(defaultDemoAccount.password ?? "schlaglink-demo");
+  const showDemoAccounts = appMode !== "driver";
+  const [email, setEmail] = useState(appMode === "driver" ? "" : defaultDemoAccount.email);
+  const [password, setPassword] = useState(appMode === "driver" ? "" : defaultDemoAccount.password ?? "schlaglink-demo");
 
   async function submit() {
     await onSignIn(email.trim(), password);
@@ -77,14 +78,16 @@ export function AuthLogin({
             <LogIn size={18} /> {isLoading ? t("auth.signingIn") : t("auth.signIn")}
           </button>
         </div>
-        <div className="demo-login-grid">
-          <span>{t("auth.demoAccounts")}</span>
-          {visibleDemoAccounts.map((account) => (
-            <button disabled={isLoading} key={account.email} onClick={() => useDemoAccount(account.email, account.password)} type="button">
-              {t(account.labelKey)}
-            </button>
-          ))}
-        </div>
+        {showDemoAccounts && (
+          <div className="demo-login-grid">
+            <span>{t("auth.demoAccounts")}</span>
+            {visibleDemoAccounts.map((account) => (
+              <button disabled={isLoading} key={account.email} onClick={() => useDemoAccount(account.email, account.password)} type="button">
+                {t(account.labelKey)}
+              </button>
+            ))}
+          </div>
+        )}
       </section>
     </main>
   );

@@ -770,6 +770,16 @@ export function App() {
       return;
     }
     const profile = profileFromRow(data as ProfileRow);
+    if (!roleAllowedInAppMode(profile.role, appMode)) {
+      setAuthProfile(null);
+      setAuthSession(null);
+      setCurrentRoleState(appMode === "driver" ? "driver" : "farmer_admin");
+      window.localStorage.setItem("schlaglink.role", appMode === "driver" ? "driver" : "farmer_admin");
+      setActiveView(initialViewForAppMode(appMode));
+      setAuthError(t(appMode === "driver" ? "auth.driverLoginRequired" : "auth.adminLoginRequired"));
+      await supabase.auth.signOut();
+      return;
+    }
     setAuthProfile(profile);
     setCurrentRoleState(profile.role);
     window.localStorage.setItem("schlaglink.role", profile.role);
@@ -2300,7 +2310,7 @@ export function App() {
   async function signIn(email: string, password: string) {
     const demoProfile = getDemoAuthProfile(email, password);
     if (demoProfile && !roleAllowedInAppMode(demoProfile.role, appMode)) {
-      setAuthError(t(appMode === "driver" ? "auth.driverAppRequired" : "auth.adminAppRequired"));
+      setAuthError(t(appMode === "driver" ? "auth.adminAppRequired" : "auth.driverAppRequired"));
       return;
     }
     if (!supabase) {

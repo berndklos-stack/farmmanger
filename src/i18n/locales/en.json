@@ -61,6 +61,8 @@
     "supabaseRequired": "Supabase must be configured for real sign-in.",
     "driverAppRequired": "This account belongs to the driver app. Please open /fahrer.",
     "adminAppRequired": "This account belongs to the admin app. Please open /admin.",
+    "driverLoginRequired": "Please sign in with a driver account.",
+    "adminLoginRequired": "Please sign in with an admin, farmer or dispatcher account.",
     "wrongAppEyebrow": "Wrong app area",
     "adminSignedInTitle": "Admin account detected",
     "adminSignedInCopy": "You are signed in as an admin. Please open the admin app.",

@@ -61,6 +61,8 @@
     "supabaseRequired": "Für die echte Anmeldung muss Supabase konfiguriert sein.",
     "driverAppRequired": "Dieser Zugang gehört zur Fahrer-App. Bitte /fahrer öffnen.",
     "adminAppRequired": "Dieser Zugang gehört zur Admin-App. Bitte /admin öffnen.",
+    "driverLoginRequired": "Bitte mit einem Fahrer-Zugang anmelden.",
+    "adminLoginRequired": "Bitte mit einem Admin-, Landwirt- oder Einsatzleiter-Zugang anmelden.",
     "wrongAppEyebrow": "Falscher App-Bereich",
     "adminSignedInTitle": "Admin-Zugang erkannt",
     "adminSignedInCopy": "Du bist als Admin angemeldet. Bitte öffne die Admin-App.",
