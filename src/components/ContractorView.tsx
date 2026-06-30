@@ -1,4 +1,4 @@
-import { Archive, Building2, CalendarDays, CheckCircle, Plus, RadioTower, RotateCcw, Save, Settings, Trash2, Truck, UserMinus, UserPlus, X } from "lucide-react";
+import { Archive, Building2, CalendarDays, CheckCircle, Mail, MessageSquare, Plus, RadioTower, RotateCcw, Save, Settings, Trash2, Truck, UserMinus, UserPlus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -338,6 +338,8 @@ export function ContractorView({
     organizationId: "",
     vehicle: "",
     jobVisibility: "assigned_only" as Driver["jobVisibility"],
+    email: "",
+    accessPassword: "",
     mobile: "",
     licenseClasses: "",
     maxDailyHours: 8,
@@ -426,6 +428,8 @@ export function ContractorView({
       organizationId: driver.organizationId ?? defaultResourceOrganizationId,
       vehicle: standardVehicleExists ? driver.vehicle : "",
       jobVisibility: driver.jobVisibility ?? "assigned_only",
+      email: driver.email ?? "",
+      accessPassword: driver.accessPassword ?? "",
       mobile: driver.mobile ?? "",
       licenseClasses: driver.licenseClasses?.join(", ") ?? "",
       maxDailyHours: driver.maxDailyHours ?? 8,
@@ -679,6 +683,8 @@ export function ContractorView({
       organizationId: defaultResourceOrganizationId,
       vehicle: "",
       jobVisibility: "assigned_only",
+      email: "",
+      accessPassword: generateDriverPassword(),
       mobile: "",
       licenseClasses: "",
       maxDailyHours: 8,
@@ -711,6 +717,33 @@ export function ContractorView({
       appendResourceHistory({ resourceGroup: "personnel", resourceId: selectedDriver.id, event: "updated", title: payload.name, details: payload.vehicle });
     }
     closeResourceModal();
+  }
+
+  function generateDriverPassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const suffix = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+    return `SL-${suffix}`;
+  }
+
+  function driverAccessMessage() {
+    const appUrl = `${window.location.origin}/fahrer`;
+    return t("masterData.driverAccessMessage", {
+      appUrl,
+      email: driverForm.email || "-",
+      password: driverForm.accessPassword || "-",
+    });
+  }
+
+  function openDriverAccessMail() {
+    if (!driverForm.email) return;
+    const subject = encodeURIComponent(t("masterData.driverAccessMailSubject"));
+    const body = encodeURIComponent(driverAccessMessage());
+    window.location.href = `mailto:${encodeURIComponent(driverForm.email)}?subject=${subject}&body=${body}`;
+  }
+
+  function openDriverAccessSms() {
+    if (!driverForm.mobile) return;
+    window.location.href = `sms:${encodeURIComponent(driverForm.mobile)}?&body=${encodeURIComponent(driverAccessMessage())}`;
   }
 
   function createVehicle() {
@@ -2334,6 +2367,23 @@ export function ContractorView({
                         </select>
                       </label>
                     )}
+                    <label>{t("masterData.email")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.email} onChange={(event) => setDriverForm((current) => ({ ...current, email: event.target.value }))} type="email" /></label>
+                    <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
+                    <label>
+                      {t("masterData.driverPassword")}
+                      <input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.accessPassword} onChange={(event) => setDriverForm((current) => ({ ...current, accessPassword: event.target.value }))} />
+                    </label>
+                    <div className="driver-access-actions">
+                      <button disabled={!permissions.canEditDrivers || showArchivedMasterData} className="secondary-action" onClick={() => setDriverForm((current) => ({ ...current, accessPassword: generateDriverPassword() }))} type="button">
+                        {t("masterData.generateDriverPassword")}
+                      </button>
+                      <button disabled={!driverForm.email || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessMail} type="button">
+                        <Mail size={16} /> {t("masterData.sendAccessByEmail")}
+                      </button>
+                      <button disabled={!driverForm.mobile || !driverForm.accessPassword} className="secondary-action" onClick={openDriverAccessSms} type="button">
+                        <MessageSquare size={16} /> {t("masterData.sendAccessBySms")}
+                      </button>
+                    </div>
                     <label>
                       {t("masterData.driverJobVisibility")}
                       <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.jobVisibility} onChange={(event) => setDriverForm((current) => ({ ...current, jobVisibility: event.target.value as Driver["jobVisibility"] }))}>
@@ -2350,7 +2400,6 @@ export function ContractorView({
                         ))}
                       </select>
                     </label>
-                    <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
                     <label>{t("masterData.licenseClasses")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.licenseClasses} onChange={(event) => setDriverForm((current) => ({ ...current, licenseClasses: event.target.value }))} /></label>
                     <label>{t("masterData.maxDailyHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1} max={16} step={0.5} value={driverForm.maxDailyHours} onChange={(event) => setDriverForm((current) => ({ ...current, maxDailyHours: Number(event.target.value) }))} type="number" /></label>
                     <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.resourceType} onChange={(event) => setDriverForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>

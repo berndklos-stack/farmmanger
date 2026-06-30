@@ -151,6 +151,8 @@ export type Driver = {
   name: string;
   vehicle: string;
   jobVisibility?: "contractor_all" | "assigned_only";
+  email?: string;
+  accessPassword?: string;
   mobile?: string;
   licenseClasses?: string[];
   maxDailyHours?: number;

@@ -160,6 +160,7 @@ type DriverRow = {
   full_name: string | null;
   role: string | null;
   organization_id?: string | null;
+  email?: string | null;
   vehicle_name?: string | null;
   job_visibility?: Driver["jobVisibility"] | null;
   mobile?: string | null;
@@ -173,6 +174,8 @@ type PersonnelResourceRow = {
   id: string;
   organization_id?: string | null;
   full_name: string;
+  email?: string | null;
+  access_password?: string | null;
   vehicle_name: string | null;
   job_visibility?: Driver["jobVisibility"] | null;
   mobile: string | null;
@@ -449,6 +452,7 @@ function mapDrivers(driverRows: DriverRow[]): Driver[] {
       profileId: driver.id,
       organizationId: driver.organization_id ?? undefined,
       name: driver.full_name ?? "Fahrer",
+      email: driver.email ?? "",
       vehicle: driver.vehicle_name ?? "Fahrzeug",
       jobVisibility: driver.job_visibility ?? "assigned_only",
       mobile: driver.mobile ?? "",
@@ -472,6 +476,8 @@ function mapPersonnelResources(personnelRows: PersonnelResourceRow[], profileRow
     profileId: profile?.id,
     organizationId: person.organization_id ?? profile?.organization_id ?? undefined,
     name: person.full_name,
+    email: person.email ?? profile?.email ?? "",
+    accessPassword: person.access_password ?? "",
     vehicle: person.vehicle_name ?? profile?.vehicle_name ?? "",
     jobVisibility: person.job_visibility ?? profile?.job_visibility ?? "assigned_only",
     mobile: person.mobile ?? "",

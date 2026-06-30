@@ -14,6 +14,8 @@ create table if not exists personnel_resources (
   id uuid primary key default gen_random_uuid(),
   organization_id uuid references organizations(id) on delete cascade,
   full_name text not null,
+  email text,
+  access_password text,
   vehicle_name text,
   job_visibility text not null default 'assigned_only' check (job_visibility in ('contractor_all', 'assigned_only')),
   mobile text,
@@ -51,6 +53,8 @@ create table if not exists implements (
 );
 
 alter table personnel_resources add column if not exists vehicle_name text;
+alter table personnel_resources add column if not exists email text;
+alter table personnel_resources add column if not exists access_password text;
 alter table personnel_resources add column if not exists job_visibility text not null default 'assigned_only';
 alter table personnel_resources add column if not exists mobile text;
 alter table personnel_resources add column if not exists license_classes text[] not null default '{}';
@@ -111,6 +115,8 @@ insert into personnel_resources (
   id,
   organization_id,
   full_name,
+  email,
+  access_password,
   vehicle_name,
   job_visibility,
   mobile,
@@ -120,14 +126,16 @@ insert into personnel_resources (
   operation_type
 )
 values
-  ('50000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Max', 'Fendt 724', 'contractor_all', '+46 70 111 22 33', array['B', 'T', 'CE'], 10, 'Personal', 'Gülle'),
-  ('50000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Jens', 'John Deere 6250R', 'assigned_only', '+46 70 222 33 44', array['B', 'T', 'CE'], 9, 'Personal', 'Gülle'),
-  ('50000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Lisa', 'Claas Jaguar 950', 'assigned_only', '+46 70 333 44 55', array['B', 'T'], 8, 'Personal', 'Grünland'),
-  ('50000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Tom', 'John Deere 6250R', 'assigned_only', '+46 70 444 55 66', array['B', 'T'], 8, 'Personal', 'Saat'),
-  ('50000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Olof', 'MAN Agrar-LKW', 'contractor_all', '+46 70 555 66 77', array['B', 'T', 'CE'], 9, 'Personal', 'Transport')
+  ('50000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Max', 'max@schlaglink.app', 'schlaglink-demo', 'Fendt 724', 'contractor_all', '+46 70 111 22 33', array['B', 'T', 'CE'], 10, 'Personal', 'Gülle'),
+  ('50000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Jens', 'jens@schlaglink.app', 'schlaglink-demo', 'John Deere 6250R', 'assigned_only', '+46 70 222 33 44', array['B', 'T', 'CE'], 9, 'Personal', 'Gülle'),
+  ('50000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Lisa', 'lisa@schlaglink.app', 'schlaglink-demo', 'Claas Jaguar 950', 'assigned_only', '+46 70 333 44 55', array['B', 'T'], 8, 'Personal', 'Grünland'),
+  ('50000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Tom', 'tom@schlaglink.app', 'schlaglink-demo', 'John Deere 6250R', 'assigned_only', '+46 70 444 55 66', array['B', 'T'], 8, 'Personal', 'Saat'),
+  ('50000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Olof', 'olof@schlaglink.app', 'schlaglink-demo', 'MAN Agrar-LKW', 'contractor_all', '+46 70 555 66 77', array['B', 'T', 'CE'], 9, 'Personal', 'Transport')
 on conflict (id) do update set
   organization_id = excluded.organization_id,
   full_name = excluded.full_name,
+  email = excluded.email,
+  access_password = excluded.access_password,
   vehicle_name = excluded.vehicle_name,
   job_visibility = excluded.job_visibility,
   mobile = excluded.mobile,

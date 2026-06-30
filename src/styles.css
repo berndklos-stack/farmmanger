@@ -4325,6 +4325,19 @@ select {
   line-height: 1.25;
 }
 
+.driver-access-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.driver-access-actions .secondary-action {
+  min-height: 38px;
+  padding: 7px 10px;
+  font-size: 0.86rem;
+}
+
 .live-location-panel {
   display: grid;
   gap: 12px;

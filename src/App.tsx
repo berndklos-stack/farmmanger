@@ -1828,6 +1828,8 @@ export function App() {
       id: driver.id,
       organization_id: driver.organizationId ?? contractorOrganizationId,
       full_name: driver.name,
+      email: driver.email ?? "",
+      access_password: driver.accessPassword ?? "",
       vehicle_name: driver.vehicle,
       job_visibility: driver.jobVisibility ?? "assigned_only",
       mobile: driver.mobile ?? "",
@@ -2317,6 +2319,66 @@ export function App() {
     setAuthError("");
     const { error } = await supabase.auth.signInWithPassword({ email, password });
     if (error) {
+      const normalizedEmail = email.trim().toLowerCase();
+      const matchingDriver = driverRecords.find((driver) => (
+        driver.email?.trim().toLowerCase() === normalizedEmail
+        && driver.accessPassword
+        && driver.accessPassword === password
+        && !driver.archivedAt
+      ));
+      let accessDriver = matchingDriver;
+      if (!accessDriver) {
+        const { data: personnelDriver } = await supabase
+          .from("personnel_resources")
+          .select("*")
+          .ilike("email", normalizedEmail)
+          .eq("access_password", password)
+          .is("archived_at", null)
+          .maybeSingle();
+        if (personnelDriver) {
+          const row = personnelDriver as {
+            id: string;
+            organization_id?: string | null;
+            full_name: string;
+            email?: string | null;
+            access_password?: string | null;
+            vehicle_name?: string | null;
+            job_visibility?: Driver["jobVisibility"] | null;
+            mobile?: string | null;
+          };
+          accessDriver = {
+            id: row.id,
+            organizationId: row.organization_id ?? undefined,
+            name: row.full_name,
+            email: row.email ?? normalizedEmail,
+            accessPassword: row.access_password ?? password,
+            vehicle: row.vehicle_name ?? "",
+            jobVisibility: row.job_visibility ?? "assigned_only",
+            mobile: row.mobile ?? "",
+          };
+        }
+      }
+      if (accessDriver && roleAllowedInAppMode("driver", appMode)) {
+        setAuthProfile({
+          id: accessDriver.profileId ?? accessDriver.id,
+          fullName: accessDriver.name,
+          email: accessDriver.email ?? email,
+          role: "driver",
+          organizationId: accessDriver.organizationId,
+          vehicleName: accessDriver.vehicle,
+        });
+        setCurrentRoleState("driver");
+        window.localStorage.setItem("schlaglink.role", "driver");
+        setActiveView("driver");
+        setAuthError("");
+        setAuthLoading(false);
+        return;
+      }
+      if (accessDriver && !roleAllowedInAppMode("driver", appMode)) {
+        setAuthError(t("auth.driverAppRequired"));
+        setAuthLoading(false);
+        return;
+      }
       if (demoProfile && (error.status === 500 || error.status === 400)) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
