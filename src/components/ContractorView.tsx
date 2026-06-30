@@ -2352,7 +2352,7 @@ export function ContractorView({
                   <div className="driver-resource-form">
                     <section className="driver-form-section">
                       <h3>{t("masterData.driverSectionBase")}</h3>
-                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-base-grid">
                         <label>{t("masterData.personName")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.name} onChange={(event) => setDriverForm((current) => ({ ...current, name: event.target.value }))} /></label>
                         {isResourceOrganizationLocked ? (
                           <label>
@@ -2378,7 +2378,7 @@ export function ContractorView({
 
                     <section className="driver-form-section driver-access-section">
                       <h3>{t("masterData.driverSectionAccess")}</h3>
-                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-access-grid">
                         <label>{t("masterData.email")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.email} onChange={(event) => setDriverForm((current) => ({ ...current, email: event.target.value }))} type="email" /></label>
                         <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
                         <label className="driver-password-label">
@@ -2418,7 +2418,7 @@ export function ContractorView({
 
                     <section className="driver-form-section">
                       <h3>{t("masterData.driverSectionPlanning")}</h3>
-                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-planning-grid">
                         <label>
                           {t("masterData.driverJobVisibility")}
                           <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.jobVisibility} onChange={(event) => setDriverForm((current) => ({ ...current, jobVisibility: event.target.value as Driver["jobVisibility"] }))}>
@@ -2440,7 +2440,7 @@ export function ContractorView({
 
                     <section className="driver-form-section">
                       <h3>{t("masterData.driverSectionQualification")}</h3>
-                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid">
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-profile-grid">
                         <label>{t("masterData.licenseClasses")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.licenseClasses} onChange={(event) => setDriverForm((current) => ({ ...current, licenseClasses: event.target.value }))} /></label>
                         <label>{t("masterData.maxDailyHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1} max={16} step={0.5} value={driverForm.maxDailyHours} onChange={(event) => setDriverForm((current) => ({ ...current, maxDailyHours: Number(event.target.value) }))} type="number" /></label>
                         <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.resourceType} onChange={(event) => setDriverForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
