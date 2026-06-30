@@ -4338,6 +4338,29 @@ select {
   font-size: 0.86rem;
 }
 
+.password-field {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 40px;
+  align-items: center;
+  gap: 6px;
+}
+
+.password-toggle-button {
+  min-height: 44px;
+  border: 1px solid var(--color-border-strong);
+  border-radius: var(--radius);
+  background: var(--color-panel);
+  color: var(--color-brand-strong);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.password-toggle-button:hover {
+  border-color: var(--color-brand);
+  background: var(--color-brand-soft);
+}
+
 .live-location-panel {
   display: grid;
   gap: 12px;

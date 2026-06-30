@@ -1,4 +1,4 @@
-import { Archive, Building2, CalendarDays, CheckCircle, Mail, MessageSquare, Plus, RadioTower, RotateCcw, Save, Settings, Trash2, Truck, UserMinus, UserPlus, X } from "lucide-react";
+import { Archive, Building2, CalendarDays, CheckCircle, Eye, EyeOff, Mail, MessageSquare, Plus, RadioTower, RotateCcw, Save, Settings, Trash2, Truck, UserMinus, UserPlus, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -283,6 +283,7 @@ export function ContractorView({
   const [selectedJobTypeId, setSelectedJobTypeId] = useState(jobTypes[0]?.id ?? "");
   const [selectedTaskTemplateId, setSelectedTaskTemplateId] = useState(taskTemplates[0]?.id ?? "");
   const [jobTypeTaskToAdd, setJobTypeTaskToAdd] = useState("");
+  const [showDriverPassword, setShowDriverPassword] = useState(false);
   const [assignDriverId, setAssignDriverId] = useState(drivers[0]?.id ?? "");
   const [assignVehicleId, setAssignVehicleId] = useState(vehicles[0]?.id ?? "");
   const [assignImplementId, setAssignImplementId] = useState(implementsList[0]?.id ?? "");
@@ -678,6 +679,7 @@ export function ContractorView({
 
   function createDriver() {
     setCreatingResourceGroup("personnel");
+    setShowDriverPassword(false);
     setDriverForm({
       name: t("masterData.newDriverName"),
       organizationId: defaultResourceOrganizationId,
@@ -696,6 +698,7 @@ export function ContractorView({
 
   function openDriverEditor(driver: Driver) {
     setCreatingResourceGroup(null);
+    setShowDriverPassword(false);
     setSelectedDriverId(driver.id);
     setDriverForm(driverToForm(driver));
     setIsResourceModalOpen(true);
@@ -2371,7 +2374,24 @@ export function ContractorView({
                     <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
                     <label>
                       {t("masterData.driverPassword")}
-                      <input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.accessPassword} onChange={(event) => setDriverForm((current) => ({ ...current, accessPassword: event.target.value }))} />
+                      <span className="password-field">
+                        <input
+                          disabled={!permissions.canEditDrivers || showArchivedMasterData}
+                          value={driverForm.accessPassword}
+                          onChange={(event) => setDriverForm((current) => ({ ...current, accessPassword: event.target.value }))}
+                          type={showDriverPassword ? "text" : "password"}
+                        />
+                        <button
+                          aria-label={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
+                          className="password-toggle-button"
+                          disabled={showArchivedMasterData}
+                          onClick={() => setShowDriverPassword((current) => !current)}
+                          title={t(showDriverPassword ? "masterData.hideDriverPassword" : "masterData.showDriverPassword")}
+                          type="button"
+                        >
+                          {showDriverPassword ? <EyeOff size={17} /> : <Eye size={17} />}
+                        </button>
+                      </span>
                     </label>
                     <div className="driver-access-actions">
                       <button disabled={!permissions.canEditDrivers || showArchivedMasterData} className="secondary-action" onClick={() => setDriverForm((current) => ({ ...current, accessPassword: generateDriverPassword() }))} type="button">

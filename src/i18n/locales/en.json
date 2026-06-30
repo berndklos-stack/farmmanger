@@ -207,6 +207,8 @@
     "phone": "Phone",
     "email": "Email",
     "driverPassword": "Driver password",
+    "showDriverPassword": "Show password",
+    "hideDriverPassword": "Hide password",
     "generateDriverPassword": "Generate password",
     "sendAccessByEmail": "Access by email",
     "sendAccessBySms": "Access by SMS",

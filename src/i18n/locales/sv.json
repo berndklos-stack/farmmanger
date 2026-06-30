@@ -207,6 +207,8 @@
     "phone": "Telefon",
     "email": "E-post",
     "driverPassword": "Förarlösenord",
+    "showDriverPassword": "Visa lösenord",
+    "hideDriverPassword": "Dölj lösenord",
     "generateDriverPassword": "Skapa lösenord",
     "sendAccessByEmail": "Åtkomst via e-post",
     "sendAccessBySms": "Åtkomst via SMS",
