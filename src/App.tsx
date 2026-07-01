@@ -1069,6 +1069,7 @@ export function App() {
       updatedAt: timestamp,
       ...("status" in patch ? { statusChangedAt: timestamp } : {}),
       ...(patch.status === "erledigt" ? { completedAt: patch.completedAt ?? timestamp } : {}),
+      ...("status" in patch && patch.status !== "erledigt" ? { completedAt: undefined } : {}),
     };
     const shouldPersistDispatch = "activeDriverIds" in patch
       || "activeDriverNames" in patch
@@ -1415,7 +1416,7 @@ export function App() {
   }
 
   function setSubtaskStatus(id: string, status: Status) {
-    const progress = status === "erledigt" ? 100 : status === "in Arbeit" ? 25 : undefined;
+    const progress = status === "erledigt" ? 100 : status === "in Arbeit" ? 25 : status === "offen" || status === "reserviert" ? 0 : undefined;
     updateSubtask(id, progress === undefined ? { status } : { status, progress });
   }
 

@@ -406,8 +406,8 @@ function mapSubtasks(
         uploadedAt: report.created_at ?? new Date().toISOString(),
         uploadedByDriverId: report.created_by ?? undefined,
     }));
-    const activeAssignments = assignments.filter((assignment) => ["reserved", "active", "paused", "completed"].includes(assignment.status ?? ""));
-    const completed = assignments.find((assignment) => assignment.status === "completed");
+    const activeAssignments = assignments.filter((assignment) => ["reserved", "active", "paused"].includes(assignment.status ?? ""));
+    const completed = task.status === "completed" ? assignments.find((assignment) => assignment.status === "completed") : undefined;
     const feedbackAssignment = completed
       ?? activeAssignments.find((assignment) => assignment.completed_area_ha || assignment.completed_quantity || assignment.completed_trips || assignment.notes)
       ?? assignments.find((assignment) => assignment.notes);
@@ -420,7 +420,7 @@ function mapSubtasks(
       fieldId: task.field_id ?? "",
       taskId: task.id,
       status: toStatus(task.status ?? activeAssignments[0]?.status ?? completed?.status ?? null),
-      progress: completed ? 100 : task.status === "partial" ? 60 : activeAssignments.length > 0 ? 25 : 0,
+      progress: task.status === "completed" ? 100 : task.status === "partial" ? 60 : activeAssignments.length > 0 ? 25 : 0,
       activeDriverIds: activeAssignments.map((assignment) => {
         const profileId = assignment.driver_profile_id;
         return profileId ? profileToPersonnelId.get(profileId) ?? profileId : assignment.id;
