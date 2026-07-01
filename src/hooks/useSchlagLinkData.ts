@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { contractor, drivers, farmer, fields as mockFields, implementsList as mockImplements, jobs as mockJobs, organizations as mockOrganizations, subtasks as mockSubtasks, taskTemplates as mockTaskTemplates, vehicles as mockVehicles } from "../data/mockData";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import type { Driver, Field, FieldAttachment, FieldHazard, FieldHazardType, Implement, Job, Organization, ProgressMetric, Status, Subtask, SubtaskPhoto, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
@@ -15,12 +15,13 @@ type DataState = {
   isDemoMode: boolean;
   isLoading: boolean;
   error?: string;
+  refreshData: () => Promise<void>;
 };
 
 const offlineDataCacheKey = "schlaglink.offlineDataCache";
 const fieldReleaseMarker = "__schlaglink_released_contractors:";
 
-type CachedDataState = Omit<DataState, "isLoading" | "error">;
+type CachedDataState = Omit<DataState, "isLoading" | "error" | "refreshData">;
 
 function readOfflineDataCache(): CachedDataState | null {
   try {
@@ -552,7 +553,7 @@ function mapTaskTemplates(taskTemplateRows: TaskTemplateRow[]): TaskTemplate[] {
 
 export function useSchlagLinkData(): DataState {
   const cachedData = isSupabaseConfigured ? readOfflineDataCache() : null;
-  const [state, setState] = useState<DataState>({
+  const [state, setState] = useState<Omit<DataState, "refreshData">>({
     fields: cachedData?.fields ?? (isSupabaseConfigured ? [] : mockFields),
     drivers: cachedData?.drivers ?? (isSupabaseConfigured ? [] : drivers),
     vehicles: cachedData?.vehicles ?? (isSupabaseConfigured ? [] : mockVehicles),
@@ -566,123 +567,118 @@ export function useSchlagLinkData(): DataState {
     error: cachedData && isSupabaseConfigured ? "Offline-Daten geladen" : undefined,
   });
 
-  useEffect(() => {
-    let cancelled = false;
+  const refreshData = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      setState((current) => ({ ...current, isDemoMode: true, isLoading: false, error: undefined }));
+      return;
+    }
+    setState((current) => ({ ...current, isLoading: true, isDemoMode: false, error: undefined }));
 
-    async function loadSupabaseData() {
-      if (!isSupabaseConfigured || !supabase) return;
-      setState((current) => ({ ...current, isLoading: true, isDemoMode: false, error: undefined }));
+    const [
+      fieldsResult,
+      driversResult,
+      personnelResourcesResult,
+      vehiclesResult,
+      implementsResult,
+      organizationsResult,
+      boundariesResult,
+      hazardsResult,
+      documentsResult,
+      jobsResult,
+      jobFieldsResult,
+      tasksResult,
+      assignmentsResult,
+      taskReportsResult,
+      taskTemplatesResult,
+    ] = await Promise.all([
+      supabase.from("fields").select("*").order("name"),
+      supabase.from("profiles").select("*").eq("role", "driver").order("full_name"),
+      supabase.from("personnel_resources").select("*").order("full_name"),
+      supabase.from("vehicles").select("*").order("name"),
+      supabase.from("implements").select("*").order("name"),
+      supabase.from("organizations").select("*").order("name"),
+      supabase.from("field_boundaries").select("*"),
+      supabase.from("field_hazards").select("*"),
+      supabase.from("documents").select("*"),
+      supabase.from("jobs").select("*").order("created_at", { ascending: false }),
+      supabase.from("job_fields").select("*"),
+      supabase.from("job_tasks").select("*"),
+      supabase.from("task_assignments").select("*"),
+      supabase.from("task_reports").select("*"),
+      supabase.from("task_templates").select("*").order("name"),
+    ]);
 
-      const [
-        fieldsResult,
-        driversResult,
-        personnelResourcesResult,
-        vehiclesResult,
-        implementsResult,
-        organizationsResult,
-        boundariesResult,
-        hazardsResult,
-        documentsResult,
-        jobsResult,
-        jobFieldsResult,
-        tasksResult,
-        assignmentsResult,
-        taskReportsResult,
-        taskTemplatesResult,
-      ] = await Promise.all([
-        supabase.from("fields").select("*").order("name"),
-        supabase.from("profiles").select("*").eq("role", "driver").order("full_name"),
-        supabase.from("personnel_resources").select("*").order("full_name"),
-        supabase.from("vehicles").select("*").order("name"),
-        supabase.from("implements").select("*").order("name"),
-        supabase.from("organizations").select("*").order("name"),
-        supabase.from("field_boundaries").select("*"),
-        supabase.from("field_hazards").select("*"),
-        supabase.from("documents").select("*"),
-        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
-        supabase.from("job_fields").select("*"),
-        supabase.from("job_tasks").select("*"),
-        supabase.from("task_assignments").select("*"),
-        supabase.from("task_reports").select("*"),
-        supabase.from("task_templates").select("*").order("name"),
-      ]);
+    const firstError = [
+      fieldsResult.error,
+      driversResult.error,
+      organizationsResult.error,
+      boundariesResult.error,
+      hazardsResult.error,
+      documentsResult.error,
+      jobsResult.error,
+      jobFieldsResult.error,
+      tasksResult.error,
+      assignmentsResult.error,
+      taskReportsResult.error,
+    ].find(Boolean);
 
-      const firstError = [
-        fieldsResult.error,
-        driversResult.error,
-        organizationsResult.error,
-        boundariesResult.error,
-        hazardsResult.error,
-        documentsResult.error,
-        jobsResult.error,
-        jobFieldsResult.error,
-        tasksResult.error,
-        assignmentsResult.error,
-        taskReportsResult.error,
-      ].find(Boolean);
-
-      if (cancelled) return;
-
-      if (firstError) {
-        const fallbackCache = readOfflineDataCache();
-        if (fallbackCache) {
-          setState({
-            ...fallbackCache,
-            isLoading: false,
-            error: firstError.message,
-          });
-          return;
-        }
+    if (firstError) {
+      const fallbackCache = readOfflineDataCache();
+      if (fallbackCache) {
         setState({
-          fields: isSupabaseConfigured ? [] : mockFields,
-          drivers: isSupabaseConfigured ? [] : drivers,
-          vehicles: isSupabaseConfigured ? [] : mockVehicles,
-          implementsList: isSupabaseConfigured ? [] : mockImplements,
-          organizations: isSupabaseConfigured ? [] : mockOrganizations,
-          taskTemplates: isSupabaseConfigured ? [] : mockTaskTemplates,
-          jobs: isSupabaseConfigured ? [] : mockJobs,
-          subtasks: isSupabaseConfigured ? [] : mockSubtasks,
-          isDemoMode: !isSupabaseConfigured,
+          ...fallbackCache,
           isLoading: false,
           error: firstError.message,
         });
         return;
       }
-
-      const fieldRows = (fieldsResult.data ?? []) as FieldRow[];
-      const taskRows = (tasksResult.data ?? []) as JobTaskRow[];
-      const organizationRows = (organizationsResult.data ?? []) as OrganizationRow[];
-      const organizationRecords = organizationRows.length > 0 ? mapOrganizations(organizationRows) : mockOrganizations;
-      const profileRows = (driversResult.data ?? []) as DriverRow[];
-      const personnelRows = (personnelResourcesResult.data ?? []) as PersonnelResourceRow[];
-      const profileToPersonnelId = buildProfileToPersonnelIdMap(profileRows, personnelRows);
-      const profileToPersonnelName = buildProfileToPersonnelNameMap(profileRows, personnelRows);
-      const nextState: CachedDataState = {
-        fields: mapFields(fieldRows, (boundariesResult.data ?? []) as BoundaryRow[], (hazardsResult.data ?? []) as HazardRow[], (documentsResult.data ?? []) as DocumentRow[]),
-        drivers: personnelResourcesResult.error || personnelRows.length === 0
-          ? mapDrivers(profileRows)
-          : mapPersonnelResources(personnelRows, profileRows),
-        vehicles: vehiclesResult.error ? [] : mapVehicles((vehiclesResult.data ?? []) as VehicleRow[]),
-        implementsList: implementsResult.error ? [] : mapImplements((implementsResult.data ?? []) as ImplementRow[]),
-        organizations: organizationRecords,
-        taskTemplates: taskTemplatesResult.error ? mockTaskTemplates : mapTaskTemplates((taskTemplatesResult.data ?? []) as TaskTemplateRow[]),
-        jobs: mapJobs((jobsResult.data ?? []) as JobRow[], (jobFieldsResult.data ?? []) as JobFieldRow[], taskRows, organizationRecords),
-        subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], (taskReportsResult.data ?? []) as TaskReportRow[], profileToPersonnelId, profileToPersonnelName, (vehiclesResult.data ?? []) as VehicleRow[]),
-        isDemoMode: false,
-      };
-      writeOfflineDataCache(nextState);
       setState({
-        ...nextState,
+        fields: isSupabaseConfigured ? [] : mockFields,
+        drivers: isSupabaseConfigured ? [] : drivers,
+        vehicles: isSupabaseConfigured ? [] : mockVehicles,
+        implementsList: isSupabaseConfigured ? [] : mockImplements,
+        organizations: isSupabaseConfigured ? [] : mockOrganizations,
+        taskTemplates: isSupabaseConfigured ? [] : mockTaskTemplates,
+        jobs: isSupabaseConfigured ? [] : mockJobs,
+        subtasks: isSupabaseConfigured ? [] : mockSubtasks,
+        isDemoMode: !isSupabaseConfigured,
         isLoading: false,
+        error: firstError.message,
       });
+      return;
     }
 
-    loadSupabaseData();
-
-    return () => {
-      cancelled = true;
+    const fieldRows = (fieldsResult.data ?? []) as FieldRow[];
+    const taskRows = (tasksResult.data ?? []) as JobTaskRow[];
+    const organizationRows = (organizationsResult.data ?? []) as OrganizationRow[];
+    const organizationRecords = organizationRows.length > 0 ? mapOrganizations(organizationRows) : mockOrganizations;
+    const profileRows = (driversResult.data ?? []) as DriverRow[];
+    const personnelRows = (personnelResourcesResult.data ?? []) as PersonnelResourceRow[];
+    const profileToPersonnelId = buildProfileToPersonnelIdMap(profileRows, personnelRows);
+    const profileToPersonnelName = buildProfileToPersonnelNameMap(profileRows, personnelRows);
+    const nextState: CachedDataState = {
+      fields: mapFields(fieldRows, (boundariesResult.data ?? []) as BoundaryRow[], (hazardsResult.data ?? []) as HazardRow[], (documentsResult.data ?? []) as DocumentRow[]),
+      drivers: personnelResourcesResult.error || personnelRows.length === 0
+        ? mapDrivers(profileRows)
+        : mapPersonnelResources(personnelRows, profileRows),
+      vehicles: vehiclesResult.error ? [] : mapVehicles((vehiclesResult.data ?? []) as VehicleRow[]),
+      implementsList: implementsResult.error ? [] : mapImplements((implementsResult.data ?? []) as ImplementRow[]),
+      organizations: organizationRecords,
+      taskTemplates: taskTemplatesResult.error ? mockTaskTemplates : mapTaskTemplates((taskTemplatesResult.data ?? []) as TaskTemplateRow[]),
+      jobs: mapJobs((jobsResult.data ?? []) as JobRow[], (jobFieldsResult.data ?? []) as JobFieldRow[], taskRows, organizationRecords),
+      subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], (taskReportsResult.data ?? []) as TaskReportRow[], profileToPersonnelId, profileToPersonnelName, (vehiclesResult.data ?? []) as VehicleRow[]),
+      isDemoMode: false,
     };
+    writeOfflineDataCache(nextState);
+    setState({
+      ...nextState,
+      isLoading: false,
+    });
   }, []);
 
-  return useMemo(() => state, [state]);
+  useEffect(() => {
+    void refreshData();
+  }, [refreshData]);
+
+  return useMemo(() => ({ ...state, refreshData }), [refreshData, state]);
 }

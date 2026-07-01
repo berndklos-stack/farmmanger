@@ -562,6 +562,7 @@
   "driver": {
     "view": "Förarvy",
     "overview": "Min översikt",
+    "refreshing": "Laddar...",
     "visibleJobs": "{{count}} synliga uppdrag",
     "groupedTasks": "Uppgiftsgrupper",
     "groupSummary": "{{jobs}} uppdrag · {{fields}} fält · {{area}} ha",

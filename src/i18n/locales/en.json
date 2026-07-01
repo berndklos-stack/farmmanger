@@ -562,6 +562,7 @@
   "driver": {
     "view": "Driver view",
     "overview": "My overview",
+    "refreshing": "Loading...",
     "visibleJobs": "{{count}} visible jobs",
     "groupedTasks": "Task groups",
     "groupSummary": "{{jobs}} jobs · {{fields}} fields · {{area}} ha",

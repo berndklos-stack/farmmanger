@@ -2843,7 +2843,31 @@ select {
   border: 1px solid #d5dfd1;
   border-radius: 8px;
   background: #fbfdf8;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
   padding: 12px;
+}
+
+.compact-driver-action {
+  border: 1px solid #bdd0b9;
+  background: #fff;
+  color: #24372c;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  font-weight: 900;
+  min-height: 36px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  white-space: nowrap;
+}
+
+.compact-driver-action:disabled {
+  color: #6f7b72;
+  opacity: 0.72;
 }
 
 .driver-overview-head h3 {

@@ -2664,6 +2664,7 @@ export function App() {
         contractorName: organizationRecords.find((organization) => organization.kind === "contractor" && !organization.archivedAt)?.name ?? mockContractor,
         isDemoMode: loadedData.isDemoMode,
         isLoading: loadedData.isLoading,
+        refreshData: loadedData.refreshData,
         sourceLabel: loadedData.isDemoMode ? "Demo-Modus aktiv" : "Supabase aktiv",
       }}
     >

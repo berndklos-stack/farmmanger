@@ -95,7 +95,7 @@ export function DriverView({
   onDeleteSubtaskPhoto: (subtaskId: string, photoId: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const { currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, signOut, vehicles } = useAppData();
+  const { currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, isLoading, refreshData, signOut, vehicles } = useAppData();
   const driver = drivers.find((item) => item.id === currentDriverId) ?? (!isAuthenticated ? drivers[0] : undefined);
   const availableVehicles = vehicles.filter((vehicle) => !vehicle.archivedAt && vehicle.status !== "wartung" && (!driver?.organizationId || vehicle.organizationId === driver.organizationId));
   const availableImplements = implementsList.filter((implement) => !implement.archivedAt && implement.status !== "wartung" && (!driver?.organizationId || implement.organizationId === driver.organizationId));
@@ -552,6 +552,10 @@ export function DriverView({
               <h3>{t("driver.overview")}</h3>
               <span>{t("driver.visibleJobs", { count: accessibleSubtasks.length })}</span>
             </div>
+            <button className="secondary-driver-action compact-driver-action" disabled={isLoading} onClick={() => { void refreshData(); }} type="button">
+              <Repeat size={18} />
+              <span>{isLoading ? t("driver.refreshing") : t("liveLocation.refresh")}</span>
+            </button>
           </div>
           {accessibleSubtasks.length === 0 && <p className="driver-slot-note">{t("driver.noVisibleJobs")}</p>}
           {driverTaskGroups.length > 0 && (

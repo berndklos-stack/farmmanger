@@ -562,6 +562,7 @@
   "driver": {
     "view": "Fahreransicht",
     "overview": "Meine Übersicht",
+    "refreshing": "Lädt...",
     "visibleJobs": "{{count}} sichtbare Aufträge",
     "groupedTasks": "Aufgaben-Gruppen",
     "groupSummary": "{{jobs}} Aufträge · {{fields}} Flächen · {{area}} ha",

@@ -65,6 +65,7 @@ type DataContextValue = {
   contractorName: string;
   isDemoMode: boolean;
   isLoading: boolean;
+  refreshData: () => Promise<void>;
   sourceLabel: string;
 };
 
@@ -128,6 +129,7 @@ const defaultValue: DataContextValue = {
   contractorName: contractor,
   isDemoMode: true,
   isLoading: false,
+  refreshData: async () => undefined,
   sourceLabel: "Demo-Modus aktiv",
 };
 
