@@ -12,7 +12,7 @@ import {
 } from "lucide-react";
 import type { Session } from "@supabase/supabase-js";
 import type { ElementType } from "react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { AuthLogin } from "./components/AuthLogin";
 import { CompletionReport } from "./components/CompletionReport";
@@ -753,6 +753,7 @@ export function App() {
     group: "personnel" | "vehicles" | "implements";
     id: string;
   } | null>(null);
+  const loginLocationSentForDriverRef = useRef<string | null>(null);
 
   async function loadAuthProfile(session: Session | null) {
     if (!session || !supabase) {
@@ -920,6 +921,18 @@ export function App() {
     return matchingDrivers.find((driver) => !driver.archivedAt) ?? matchingDrivers[0] ?? null;
   }, [authProfile, driverRecords]);
   const currentDriverId = currentDriver?.id ?? null;
+
+  useEffect(() => {
+    if (!currentDriver || appMode !== "driver") {
+      loginLocationSentForDriverRef.current = null;
+      return;
+    }
+    const loginLocationKey = `${authProfile?.id ?? currentDriver.id}:${currentDriver.id}`;
+    if (loginLocationSentForDriverRef.current === loginLocationKey) return;
+    loginLocationSentForDriverRef.current = loginLocationKey;
+    void sendDriverLocationOnSignIn(currentDriver);
+  }, [appMode, authProfile?.id, currentDriver?.id, activeSubtasks, fieldRecords]);
+
   const visibleNavItems = useMemo(() => {
     if (appMode === "driver") return navItems.filter((item) => item.key === "driver");
     if (appMode === "admin" && currentRole === "driver") return [];
@@ -1165,17 +1178,6 @@ export function App() {
       });
   }
 
-  function isCurrentDriverAssignedToSubtask(subtask: Subtask) {
-    if (!currentDriver) return;
-    const normalizedDriverName = currentDriver.name.trim().toLowerCase();
-    const currentDriverIdentifiers = new Set([currentDriver.id, currentDriver.profileId].filter(Boolean));
-    return subtask.activeDriverIds.some((driverId) => {
-      if (currentDriverIdentifiers.has(driverId)) return true;
-      const assignedDriver = driverRecords.find((driver) => driver.id === driverId || driver.profileId === driverId);
-      return assignedDriver?.name.trim().toLowerCase() === normalizedDriverName || driverId.trim().toLowerCase() === normalizedDriverName;
-    }) || (subtask.activeDriverNames ?? []).some((name) => name.trim().toLowerCase() === normalizedDriverName);
-  }
-
   function fallbackPointForDriverSignOut(subtask?: Subtask) {
     const field = fieldRecords.find((item) => item.id === subtask?.fieldId);
     const base = field?.accessPoint ?? field?.center ?? { lat: 55.72572, lng: 13.17942 };
@@ -1183,6 +1185,35 @@ export function App() {
       lat: base.lat,
       lng: base.lng,
       accuracy: field ? 25 : 100,
+      speed: 0,
+    };
+  }
+
+  function driverMatchesSubtask(driver: Driver, subtask: Subtask) {
+    const normalizedDriverName = driver.name.trim().toLowerCase();
+    const driverIdentifiers = new Set([driver.id, driver.profileId].filter(Boolean));
+    return subtask.activeDriverIds.some((driverId) => {
+      if (driverIdentifiers.has(driverId)) return true;
+      const assignedDriver = driverRecords.find((item) => item.id === driverId || item.profileId === driverId);
+      return assignedDriver?.name.trim().toLowerCase() === normalizedDriverName || driverId.trim().toLowerCase() === normalizedDriverName;
+    }) || (subtask.activeDriverNames ?? []).some((name) => name.trim().toLowerCase() === normalizedDriverName);
+  }
+
+  function firstRelevantSubtaskForDriver(driver: Driver) {
+    const priority = (status: Subtask["status"]) => status === "in Arbeit" ? 0 : status === "Problem" ? 1 : status === "pausiert" ? 2 : status === "reserviert" ? 3 : 4;
+    return activeSubtasks
+      .filter((subtask) => subtask.status !== "erledigt" && driverMatchesSubtask(driver, subtask))
+      .sort((a, b) => priority(a.status) - priority(b.status))[0];
+  }
+
+  function fallbackPointForDriverSignIn(driver: Driver, subtask?: Subtask) {
+    const assignedField = fieldRecords.find((item) => item.id === subtask?.fieldId);
+    const organizationField = fieldRecords.find((item) => item.organizationId === driver.organizationId);
+    const base = assignedField?.accessPoint ?? assignedField?.center ?? organizationField?.center ?? { lat: 55.72572, lng: 13.17942 };
+    return {
+      lat: base.lat,
+      lng: base.lng,
+      accuracy: assignedField ? 25 : organizationField ? 75 : 100,
       speed: 0,
     };
   }
@@ -1210,15 +1241,44 @@ export function App() {
     });
   }
 
+  async function getCurrentDriverPointForSignIn(driver: Driver, subtask?: Subtask) {
+    if (!window.isSecureContext || !navigator.geolocation) return fallbackPointForDriverSignIn(driver, subtask);
+    return new Promise<{ lat: number; lng: number; accuracy?: number; speed?: number }>((resolve) => {
+      navigator.geolocation.getCurrentPosition(
+        (position) => resolve({
+          lat: position.coords.latitude,
+          lng: position.coords.longitude,
+          accuracy: position.coords.accuracy,
+          speed: position.coords.speed ?? undefined,
+        }),
+        () => resolve(fallbackPointForDriverSignIn(driver, subtask)),
+        { enableHighAccuracy: true, maximumAge: 15000, timeout: 7000 },
+      );
+    });
+  }
+
+  async function sendDriverLocationOnSignIn(driver: Driver) {
+    const subtask = firstRelevantSubtaskForDriver(driver);
+    const point = await getCurrentDriverPointForSignIn(driver, subtask);
+    updateDriverLocation({
+      id: `${driver.id}-signin-${Date.now()}`,
+      driverId: driver.id,
+      driverName: driver.name,
+      vehicleName: driver.vehicle,
+      subtaskId: subtask?.id,
+      fieldId: subtask?.fieldId,
+      lat: point.lat,
+      lng: point.lng,
+      accuracy: point.accuracy,
+      speed: point.speed,
+      status: locationStatusFromSubtask(subtask),
+      recordedAt: new Date().toISOString(),
+    });
+  }
+
   async function sendCurrentDriverLocationBeforeSignOut() {
     if (!currentDriver) return;
-    const assignedSubtasks = subtasks
-      .filter((subtask) => subtask.status !== "erledigt" && isCurrentDriverAssignedToSubtask(subtask))
-      .sort((a, b) => {
-        const priority = (status: Subtask["status"]) => status === "in Arbeit" ? 0 : status === "Problem" ? 1 : status === "pausiert" ? 2 : status === "reserviert" ? 3 : 4;
-        return priority(a.status) - priority(b.status);
-      });
-    const subtask = assignedSubtasks[0];
+    const subtask = firstRelevantSubtaskForDriver(currentDriver);
     const point = await getCurrentDriverPointForSignOut(subtask);
     updateDriverLocation({
       id: `${currentDriver.id}-signout-${Date.now()}`,
