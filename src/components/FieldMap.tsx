@@ -11,7 +11,7 @@ import { MapBaseLayers } from "./MapBaseLayers";
 type Props = {
   field: Field;
   contextFields?: Field[];
-  fieldMapStatuses?: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active"; dueDate?: string; note?: string }) | undefined>;
+  fieldMapStatuses?: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active" | "completed"; dueDate?: string; note?: string }) | undefined>;
   statuses?: Status[];
   compact?: boolean;
   editable?: boolean;
@@ -71,14 +71,16 @@ export function FieldMap({
       weight: mapStatus?.workState === "active" ? 5 : isMainField ? 3 : 2,
     };
   };
-  const getWorkStateSymbol = (state?: "manual" | "planned" | "active") => {
+  const getWorkStateSymbol = (state?: typeof selectedMapStatus extends undefined ? never : NonNullable<typeof selectedMapStatus>["workState"]) => {
     if (state === "active") return "▶";
     if (state === "manual") return "!";
+    if (state === "completed") return "✓";
     return "○";
   };
-  const getWorkStateLabel = (state?: "manual" | "planned" | "active") => {
+  const getWorkStateLabel = (state?: typeof selectedMapStatus extends undefined ? never : NonNullable<typeof selectedMapStatus>["workState"]) => {
     if (state === "active") return t("fields.workStateActive");
     if (state === "manual") return t("fields.workStateManual");
+    if (state === "completed") return t("fields.workStateCompleted");
     return t("fields.workStatePlanned");
   };
   const workStateIcon = (mapStatus?: typeof selectedMapStatus) => divIcon({
@@ -428,7 +430,7 @@ function FieldMapPatternDefs({
   fieldMapStatuses,
   fields,
 }: {
-  fieldMapStatuses: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active"; dueDate?: string; note?: string }) | undefined>;
+  fieldMapStatuses: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active" | "completed"; dueDate?: string; note?: string }) | undefined>;
   fields: Field[];
 }) {
   const map = useMap();

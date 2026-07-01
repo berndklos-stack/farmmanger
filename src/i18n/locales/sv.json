@@ -431,6 +431,7 @@
     "manualWorkPlannedHistory": "{{label}} planerad för {{date}}",
     "workStatePlanned": "Planerad, ej påbörjad",
     "workStateActive": "Pågår",
+    "workStateCompleted": "Utförd",
     "workStateManual": "Manuellt planerad",
     "historyDate": "Datum / period",
     "historyActivityTime": "Aktivitetstid",

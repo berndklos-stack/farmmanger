@@ -11,7 +11,7 @@ import { getTask } from "./shared";
 type FieldWorkMapStatus = FieldMapStyle & {
   taskName: string;
   recordedAt: string;
-  workState?: "manual" | "planned" | "active";
+  workState?: "manual" | "planned" | "active" | "completed";
   dueDate?: string;
   note?: string;
 };
@@ -65,7 +65,7 @@ export function LiveLocationMap({
     };
     fields.forEach((field) => {
       const fieldSubtasks = (subtasks ?? [])
-        .filter((subtask) => subtask.fieldId === field.id && subtask.status !== "erledigt")
+        .filter((subtask) => subtask.fieldId === field.id)
         .map((subtask) => {
           const job = jobs?.find((item) => item.id === subtask.jobId);
           const task = jobs ? getTask(subtask, jobs) : undefined;
@@ -77,7 +77,10 @@ export function LiveLocationMap({
         ?? fieldSubtasks.find(() => liveActiveFieldIds.has(field.id));
       const localActive = liveKnownFieldIds.has(field.id) ? undefined : fieldSubtasks.find((item) => activeWorkStatuses.includes(item.subtask.status));
       const active = liveActive ?? localActive;
-      const planned = active ?? fieldSubtasks[0];
+      const completed = fieldSubtasks
+        .filter((item) => item.subtask.status === "erledigt")
+        .sort((a, b) => Date.parse(b.subtask.completedAt ?? b.subtask.statusChangedAt ?? b.subtask.updatedAt ?? "") - Date.parse(a.subtask.completedAt ?? a.subtask.statusChangedAt ?? a.subtask.updatedAt ?? ""))[0];
+      const planned = active ?? completed ?? fieldSubtasks.find((item) => item.subtask.status !== "erledigt");
       if (planned?.task && planned.mapStyle) {
         const activeColor = mixHexColor(planned.mapStyle.color, "#f4c542", 0.48);
         next[field.id] = {
@@ -85,8 +88,8 @@ export function LiveLocationMap({
           color: active ? activeColor : planned.mapStyle.color,
           label: active ? `${planned.mapStyle.label} · ${t("fields.workStateActive")}` : planned.mapStyle.label,
           taskName: planned.task.name,
-          recordedAt: planned.subtask.statusChangedAt ?? planned.subtask.updatedAt ?? planned.job?.timeWindow ?? "",
-          workState: active ? "active" : "planned",
+          recordedAt: planned.subtask.completedAt ?? planned.subtask.statusChangedAt ?? planned.subtask.updatedAt ?? planned.job?.timeWindow ?? "",
+          workState: active ? "active" : completed ? "completed" : "planned",
         };
         return;
       }
@@ -118,14 +121,16 @@ export function LiveLocationMap({
       weight: mapStatus?.workState === "active" ? 5 : 2,
     };
   };
-  const getWorkStateSymbol = (state?: "manual" | "planned" | "active") => {
+  const getWorkStateSymbol = (state?: FieldWorkMapStatus["workState"]) => {
     if (state === "active") return "▶";
     if (state === "manual") return "!";
+    if (state === "completed") return "✓";
     return "○";
   };
-  const getWorkStateLabel = (state?: "manual" | "planned" | "active") => {
+  const getWorkStateLabel = (state?: FieldWorkMapStatus["workState"]) => {
     if (state === "active") return t("fields.workStateActive");
     if (state === "manual") return t("fields.workStateManual");
+    if (state === "completed") return t("fields.workStateCompleted");
     return t("fields.workStatePlanned");
   };
   const getDisplayStatus = (subtask: Subtask | undefined, locationStatus: DriverLocation["status"]) => {

@@ -431,6 +431,7 @@
     "manualWorkPlannedHistory": "{{label}} geplant für {{date}}",
     "workStatePlanned": "Geplant, noch nicht begonnen",
     "workStateActive": "In Arbeit",
+    "workStateCompleted": "Erledigt",
     "workStateManual": "Manuell geplant",
     "historyDate": "Datum / Zeitraum",
     "historyActivityTime": "Aktivitätszeit",

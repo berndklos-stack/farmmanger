@@ -31,7 +31,7 @@ type FieldHistoryRow = FieldHistoryFilters & {
 type FieldWorkMapStatus = FieldMapStyle & {
   taskName: string;
   recordedAt: string;
-  workState?: "manual" | "planned" | "active";
+  workState?: "manual" | "planned" | "active" | "completed";
   dueDate?: string;
   note?: string;
 };
@@ -120,7 +120,7 @@ export function Fields({
     };
     fields.forEach((field) => {
       const fieldSubtasks = subtasks
-        .filter((subtask) => subtask.fieldId === field.id && subtask.status !== "erledigt")
+        .filter((subtask) => subtask.fieldId === field.id)
         .map((subtask) => {
           const job = jobs.find((item) => item.id === subtask.jobId);
           const task = getTask(subtask, jobs);
@@ -129,7 +129,10 @@ export function Fields({
         })
         .filter((item) => Boolean(item.mapStyle));
       const active = fieldSubtasks.find((item) => activeWorkStatuses.includes(item.subtask.status));
-      const planned = active ?? fieldSubtasks[0];
+      const completed = fieldSubtasks
+        .filter((item) => item.subtask.status === "erledigt")
+        .sort((a, b) => Date.parse(b.subtask.completedAt ?? b.subtask.statusChangedAt ?? b.subtask.updatedAt ?? "") - Date.parse(a.subtask.completedAt ?? a.subtask.statusChangedAt ?? a.subtask.updatedAt ?? ""))[0];
+      const planned = active ?? completed ?? fieldSubtasks.find((item) => item.subtask.status !== "erledigt");
       if (planned?.task && planned.mapStyle) {
         const activeColor = mixHexColor(planned.mapStyle.color, "#f4c542", 0.48);
         next[field.id] = {
@@ -137,8 +140,8 @@ export function Fields({
           color: active ? activeColor : planned.mapStyle.color,
           label: active ? `${planned.mapStyle.label} · ${t("fields.workStateActive")}` : planned.mapStyle.label,
           taskName: planned.task.name,
-          recordedAt: planned.subtask.statusChangedAt ?? planned.subtask.updatedAt ?? planned.job?.timeWindow ?? "",
-          workState: active ? "active" : "planned",
+          recordedAt: planned.subtask.completedAt ?? planned.subtask.statusChangedAt ?? planned.subtask.updatedAt ?? planned.job?.timeWindow ?? "",
+          workState: active ? "active" : completed ? "completed" : "planned",
         };
         return;
       }
