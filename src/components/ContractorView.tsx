@@ -87,6 +87,10 @@ const taskModes: WorkMode[] = ["Einzelmodus", "Teammodus", "Rollenmodus", "Fläc
 const taskMetrics: ProgressMetric[] = ["Fläche", "Menge", "Fuhren", "Zeit"];
 const mapPatterns: FieldMapPattern[] = ["none", "whiteDots"];
 
+function normalizeEmail(value?: string) {
+  return value?.trim().toLowerCase() ?? "";
+}
+
 function distanceKm(a?: { lat: number; lng: number }, b?: { lat: number; lng: number }) {
   if (!a || !b) return Number.POSITIVE_INFINITY;
   const earthRadiusKm = 6371;
@@ -728,11 +732,23 @@ export function ContractorView({
   }
 
   function saveDriver() {
+    const normalizedEmail = normalizeEmail(driverForm.email);
+    if (normalizedEmail) {
+      const duplicateDriver = allDrivers.find((driver) => (
+        driver.id !== selectedDriver?.id
+        && normalizeEmail(driver.email) === normalizedEmail
+      ));
+      if (duplicateDriver) {
+        window.alert(t("masterData.driverEmailDuplicate", { name: duplicateDriver.name }));
+        return;
+      }
+    }
     const lockedOrganizationId = creatingResourceGroup === "personnel"
       ? defaultResourceOrganizationId
       : driverForm.organizationId || selectedDriver?.organizationId || defaultResourceOrganizationId;
     const payload = {
       ...driverForm,
+      email: normalizedEmail,
       organizationId: isResourceOrganizationLocked ? lockedOrganizationId : driverForm.organizationId,
       licenseClasses: driverForm.licenseClasses.split(",").map((item) => item.trim()).filter(Boolean),
     };

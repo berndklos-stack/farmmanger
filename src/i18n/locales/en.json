@@ -212,6 +212,7 @@
     "email": "Email",
     "driverPassword": "Driver password",
     "driverPasswordMinLength": "(min. 6 characters)",
+    "driverEmailDuplicate": "This email address is already used for {{name}}. Please use a unique driver email.",
     "showDriverPassword": "Show password",
     "hideDriverPassword": "Hide password",
     "generateDriverPassword": "Generate password",

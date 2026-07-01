@@ -212,6 +212,7 @@
     "email": "E-post",
     "driverPassword": "Förarlösenord",
     "driverPasswordMinLength": "(min. 6 tecken)",
+    "driverEmailDuplicate": "Den här e-postadressen används redan för {{name}}. Använd en egen föraradress.",
     "showDriverPassword": "Visa lösenord",
     "hideDriverPassword": "Dölj lösenord",
     "generateDriverPassword": "Skapa lösenord",
