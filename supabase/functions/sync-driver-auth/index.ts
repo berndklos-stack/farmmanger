@@ -61,14 +61,29 @@ async function ensureExistingProfileCanBeUsed(admin: ReturnType<typeof createCli
   return "";
 }
 
-async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, email: string, profileId: string) {
+async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, email: string, profileId: string, personnelResourceId: string) {
   const { data, error } = await admin
     .from("profiles")
     .select("id, role, full_name")
     .eq("email", email)
     .limit(10);
   if (error) return `E-Mail-Pruefung fehlgeschlagen: ${formatSupabaseError(error)}`;
-  const conflictingProfile = data?.find((profile) => profile.id !== profileId);
+  const profileIds = (data ?? []).map((profile) => profile.id);
+  const { data: linkedPersonnel, error: personnelError } = profileIds.length > 0
+    ? await admin
+      .from("personnel_resources")
+      .select("id, profile_id, archived_at")
+      .in("profile_id", profileIds)
+      .limit(20)
+    : { data: [], error: null };
+  if (personnelError) return `Personalpruefung fehlgeschlagen: ${formatSupabaseError(personnelError)}`;
+
+  const conflictingProfile = data?.find((profile) => {
+    if (profile.id === profileId) return false;
+    const linkedPerson = linkedPersonnel?.find((person) => person.profile_id === profile.id);
+    if (linkedPerson?.id === personnelResourceId) return false;
+    return true;
+  });
   if (!conflictingProfile) return "";
   const roleLabel = conflictingProfile.role === "driver" ? "einen anderen Fahrer" : "einen Admin- oder Landwirt-Zugang";
   return `Diese E-Mail wird bereits fuer ${roleLabel} verwendet (${conflictingProfile.full_name ?? email}). Bitte eine eigene Fahrer-E-Mail verwenden.`;
@@ -99,8 +114,20 @@ Deno.serve(async (req) => {
   });
 
   let profileId = cleanText(body.profileId);
+  if (!profileId) {
+    const { data: existingPersonnel, error: existingPersonnelError } = await admin
+      .from("personnel_resources")
+      .select("profile_id")
+      .eq("id", personnelResourceId)
+      .maybeSingle();
+    if (existingPersonnelError) {
+      return jsonResponse({ error: `Personalstamm konnte nicht gelesen werden: ${formatSupabaseError(existingPersonnelError)}` }, 400);
+    }
+    profileId = cleanText(existingPersonnel?.profile_id);
+  }
+
   if (email) {
-    const emailError = await ensureEmailCanBeUsed(admin, email, profileId);
+    const emailError = await ensureEmailCanBeUsed(admin, email, profileId, personnelResourceId);
     if (emailError) return jsonResponse({ error: emailError }, 400);
 
     if (profileId) {
