@@ -17,6 +17,7 @@ export type UserRole =
   | "support_admin";
 
 export type OrganizationKind = "farmer" | "contractor";
+export type DriverJobVisibility = "contractor_all" | "organization_internal" | "organization_all" | "assigned_only";
 
 export type AuthProfile = {
   id: string;
@@ -25,6 +26,7 @@ export type AuthProfile = {
   role: UserRole;
   organizationId?: string;
   vehicleName?: string;
+  jobVisibility?: DriverJobVisibility;
 };
 
 export type OrganizationContact = {
@@ -150,7 +152,7 @@ export type Driver = {
   organizationId?: string;
   name: string;
   vehicle: string;
-  jobVisibility?: "contractor_all" | "organization_internal" | "organization_all" | "assigned_only";
+  jobVisibility?: DriverJobVisibility;
   email?: string;
   accessPassword?: string;
   mobile?: string;

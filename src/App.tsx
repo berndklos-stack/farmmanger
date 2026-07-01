@@ -115,6 +115,7 @@ type ProfileRow = {
   role: UserRole | null;
   organization_id: string | null;
   vehicle_name?: string | null;
+  job_visibility?: Driver["jobVisibility"] | null;
 };
 
 function profileFromRow(row: ProfileRow): AuthProfile {
@@ -126,6 +127,7 @@ function profileFromRow(row: ProfileRow): AuthProfile {
     role: row.role ?? "driver",
     organizationId: email.toLowerCase() === "bernd@kolaretorp.se" ? klosContractorOrganizationId : row.organization_id ?? undefined,
     vehicleName: row.vehicle_name ?? undefined,
+    jobVisibility: row.job_visibility ?? undefined,
   };
 }
 
@@ -936,9 +938,34 @@ export function App() {
       || driver.id === authProfile.id
       || driver.name === authProfile.fullName,
     );
-    return matchingDrivers.find((driver) => !driver.archivedAt) ?? matchingDrivers[0] ?? null;
+    const matchedDriver = matchingDrivers.find((driver) => !driver.archivedAt) ?? matchingDrivers[0];
+    return {
+      id: matchedDriver?.id ?? authProfile.id,
+      profileId: matchedDriver?.profileId ?? authProfile.id,
+      organizationId: authProfile.organizationId ?? matchedDriver?.organizationId,
+      name: authProfile.fullName,
+      email: authProfile.email,
+      vehicle: authProfile.vehicleName ?? matchedDriver?.vehicle ?? "",
+      jobVisibility: authProfile.jobVisibility ?? matchedDriver?.jobVisibility ?? "assigned_only",
+      mobile: matchedDriver?.mobile,
+      licenseClasses: matchedDriver?.licenseClasses,
+      maxDailyHours: matchedDriver?.maxDailyHours,
+      resourceType: matchedDriver?.resourceType,
+      operationType: matchedDriver?.operationType,
+      archivedAt: matchedDriver?.archivedAt,
+    } satisfies Driver;
   }, [authProfile, driverRecords]);
   const currentDriverId = currentDriver?.id ?? null;
+  const contextDriverRecords = useMemo(() => {
+    if (!currentDriver) return driverRecords;
+    const replaced = driverRecords.map((driver) => (
+      driver.id === currentDriver.id || driver.profileId === currentDriver.profileId || driver.name === currentDriver.name
+        ? { ...driver, ...currentDriver }
+        : driver
+    ));
+    if (replaced.some((driver) => driver.id === currentDriver.id)) return replaced;
+    return [currentDriver, ...replaced];
+  }, [currentDriver, driverRecords]);
 
   useEffect(() => {
     if (!currentDriver || appMode !== "driver") {
@@ -2508,6 +2535,7 @@ export function App() {
         role: "driver",
         organizationId: driver.organizationId,
         vehicleName: driver.vehicle,
+        jobVisibility: driver.jobVisibility,
       });
       setCurrentRoleState("driver");
       window.localStorage.setItem("schlaglink.role", "driver");
@@ -2652,7 +2680,7 @@ export function App() {
     <DataProvider
       value={{
         fields: visibleFieldRecords,
-        drivers: driverRecords,
+        drivers: contextDriverRecords,
         vehicles: vehicleRecords,
         implementsList: implementRecords,
         organizations: organizationRecords,
