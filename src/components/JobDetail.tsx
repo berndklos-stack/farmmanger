@@ -1,6 +1,7 @@
 import { Archive, CopyPlus, Plus, RefreshCw, RotateCcw, Save, Trash2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { useAppData } from "../data/DataContext";
 import type { Job, Status, Subtask } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 
@@ -79,6 +80,7 @@ export function JobDetail({
   archivedCount: number;
 }) {
   const { t } = useTranslation();
+  const { drivers, vehicles } = useAppData();
   const [editingJobId, setEditingJobId] = useState<string | null>(null);
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [confirmBulkDeleteOpen, setConfirmBulkDeleteOpen] = useState(false);
@@ -189,6 +191,34 @@ export function JobDetail({
     onDuplicateJob(id);
     setEditingJobId(null);
     setSelectedJobIds([]);
+  }
+
+  function assignDriverToSubtask(subtask: Subtask, driverId: string) {
+    if (!driverId) {
+      onUpdateSubtask(subtask.id, {
+        activeDriverIds: [],
+        activeDriverNames: [],
+        activeVehicleIds: [],
+        status: subtask.status === "reserviert" ? "offen" : subtask.status,
+      });
+      return;
+    }
+    const driver = drivers.find((item) => item.id === driverId || item.profileId === driverId);
+    const vehicle = driver?.vehicle ? vehicles.find((item) => item.name === driver.vehicle && !item.archivedAt) : undefined;
+    onUpdateSubtask(subtask.id, {
+      activeDriverIds: [driverId],
+      activeDriverNames: driver ? [driver.name] : [],
+      activeVehicleIds: vehicle ? [vehicle.id] : [],
+      status: subtask.status === "offen" ? "reserviert" : subtask.status,
+    });
+  }
+
+  function assignedDriverSelectValue(subtask: Subtask) {
+    const assignedDriver = drivers.find((driver) => (
+      subtask.activeDriverIds.includes(driver.id)
+      || Boolean(driver.profileId && subtask.activeDriverIds.includes(driver.profileId))
+    ));
+    return assignedDriver?.id ?? "";
   }
 
   return (
@@ -366,7 +396,20 @@ export function JobDetail({
                     <span>
                       <input disabled={showArchived} min={1} max={8} value={subtask.plannedCrews ?? editingJob.plannedCrews ?? 1} onChange={(event) => onUpdateSubtask(subtask.id, { plannedCrews: Number(event.target.value) })} type="number" />
                     </span>
-                    <span><DriverChips subtask={subtask} /></span>
+                    <span>
+                      <select
+                        aria-label={t("actions.assignDriver")}
+                        disabled={showArchived}
+                        value={assignedDriverSelectValue(subtask)}
+                        onChange={(event) => assignDriverToSubtask(subtask, event.target.value)}
+                      >
+                        <option value="">{t("driver.noDriverAssigned")}</option>
+                        {drivers.filter((driver) => !driver.archivedAt).map((driver) => (
+                          <option key={driver.id} value={driver.id}>{driver.name}</option>
+                        ))}
+                      </select>
+                      <DriverChips subtask={subtask} />
+                    </span>
                     <span>
                       <select
                         aria-label={t("jobs.changeStatus")}

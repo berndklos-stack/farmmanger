@@ -597,6 +597,7 @@
     "machineYardSelection": "{{vehicles}} fordon · {{implements}} redskap valda",
     "resourceAvailable": "Ledig",
     "resourceAssignedTo": "Tilldelad: {{assignee}} · {{job}}",
+    "noDriverAssigned": "Ingen förare tilldelad",
     "noYardVehicles": "Inga fordon finns tillgängliga i maskingården.",
     "noYardImplements": "Inga redskap finns tillgängliga i maskingården.",
     "noEquipmentSelected": "Ingen utrustning vald",

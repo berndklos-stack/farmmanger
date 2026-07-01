@@ -178,54 +178,6 @@ const demoAuthProfiles: Record<string, AuthProfile> = {
     role: "contractor_admin",
     organizationId: "44444444-4444-4444-8444-444444444444",
   },
-  "max@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000001",
-    fullName: "Max",
-    email: "max@schlaglink.app",
-    role: "driver",
-    organizationId: contractorOrganizationId,
-    vehicleName: "Fendt 724",
-  },
-  "jens@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000002",
-    fullName: "Jens",
-    email: "jens@schlaglink.app",
-    role: "driver",
-    organizationId: contractorOrganizationId,
-    vehicleName: "John Deere 6250R",
-  },
-  "lisa@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000003",
-    fullName: "Lisa",
-    email: "lisa@schlaglink.app",
-    role: "driver",
-    organizationId: contractorOrganizationId,
-    vehicleName: "Claas Jaguar 950",
-  },
-  "tom@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000004",
-    fullName: "Tom",
-    email: "tom@schlaglink.app",
-    role: "driver",
-    organizationId: contractorOrganizationId,
-    vehicleName: "John Deere 6250R",
-  },
-  "olof@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000005",
-    fullName: "Olof",
-    email: "olof@schlaglink.app",
-    role: "driver",
-    organizationId: contractorOrganizationId,
-    vehicleName: "MAN Agrar-LKW",
-  },
-  "tobias@schlaglink.app": {
-    id: "dddddddd-dddd-4ddd-8ddd-000000000006",
-    fullName: "Tobias",
-    email: "tobias@schlaglink.app",
-    role: "driver",
-    organizationId: farmerOrganizationId,
-    vehicleName: "Hofschlepper Müller",
-  },
 };
 
 const demoAuthPasswords: Record<string, string> = {
@@ -2025,15 +1977,6 @@ export function App() {
     d6: "50000000-0000-4000-8000-000000000006",
   };
 
-  const legacyDriverProfileIds: Record<string, string> = {
-    d1: "dddddddd-dddd-4ddd-8ddd-000000000001",
-    d2: "dddddddd-dddd-4ddd-8ddd-000000000002",
-    d3: "dddddddd-dddd-4ddd-8ddd-000000000003",
-    d4: "dddddddd-dddd-4ddd-8ddd-000000000004",
-    d5: "dddddddd-dddd-4ddd-8ddd-000000000005",
-    d6: "dddddddd-dddd-4ddd-8ddd-000000000006",
-  };
-
   const legacyVehicleSupabaseIds: Record<string, string> = {
     v0: "60000000-0000-4000-8000-000000000000",
     v1: "60000000-0000-4000-8000-000000000001",
@@ -2072,13 +2015,12 @@ export function App() {
 
   function supabaseDriverProfileIdFromLegacyId(id: string) {
     if (isUuid(id)) return id;
-    return legacyDriverProfileIds[id];
+    return undefined;
   }
 
   function supabaseDriverProfileId(driver: Driver) {
     if (isUuid(driver.profileId)) return driver.profileId;
-    if (isUuid(driver.id) && driver.id.startsWith("dddddddd-")) return driver.id;
-    return legacyDriverProfileIds[driver.id];
+    return undefined;
   }
 
   function supabaseVehicleId(vehicle: Vehicle) {

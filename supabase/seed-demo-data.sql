@@ -89,12 +89,7 @@ values
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'einsatzleiter@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Agrarservice Schneider Admin"}', now(), now()),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bernd@kolaretorp.se', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Bernd Kolaretorp"}', now(), now()),
   ('a3333333-3333-4333-8333-333333333333', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'andersson@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Hof Andersson Admin"}', now(), now()),
-  ('b4444444-4444-4444-8444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nord@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Lohnbetrieb Nord Admin"}', now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000001', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'max@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Max"}', now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000002', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'jens@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Jens"}', now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000003', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'lisa@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Lisa"}', now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000004', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'tom@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Tom"}', now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000005', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'olof@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Olof"}', now(), now())
+  ('b4444444-4444-4444-8444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nord@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Lohnbetrieb Nord Admin"}', now(), now())
 on conflict (id) do update set
   email = excluded.email,
   encrypted_password = excluded.encrypted_password,
@@ -108,12 +103,7 @@ where user_id in (
   'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb',
   'cccccccc-cccc-4ccc-8ccc-cccccccccccc',
   'a3333333-3333-4333-8333-333333333333',
-  'b4444444-4444-4444-8444-444444444444',
-  'dddddddd-dddd-4ddd-8ddd-000000000001',
-  'dddddddd-dddd-4ddd-8ddd-000000000002',
-  'dddddddd-dddd-4ddd-8ddd-000000000003',
-  'dddddddd-dddd-4ddd-8ddd-000000000004',
-  'dddddddd-dddd-4ddd-8ddd-000000000005'
+  'b4444444-4444-4444-8444-444444444444'
 );
 
 insert into auth.identities (
@@ -132,12 +122,7 @@ values
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'einsatzleiter@schlaglink.app', '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","email":"einsatzleiter@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bernd@kolaretorp.se', '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","email":"bernd@kolaretorp.se","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
   ('a3333333-3333-4333-8333-333333333333', 'a3333333-3333-4333-8333-333333333333', 'andersson@schlaglink.app', '{"sub":"a3333333-3333-4333-8333-333333333333","email":"andersson@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('b4444444-4444-4444-8444-444444444444', 'b4444444-4444-4444-8444-444444444444', 'nord@schlaglink.app', '{"sub":"b4444444-4444-4444-8444-444444444444","email":"nord@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000001', 'dddddddd-dddd-4ddd-8ddd-000000000001', 'max@schlaglink.app', '{"sub":"dddddddd-dddd-4ddd-8ddd-000000000001","email":"max@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000002', 'dddddddd-dddd-4ddd-8ddd-000000000002', 'jens@schlaglink.app', '{"sub":"dddddddd-dddd-4ddd-8ddd-000000000002","email":"jens@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000003', 'dddddddd-dddd-4ddd-8ddd-000000000003', 'lisa@schlaglink.app', '{"sub":"dddddddd-dddd-4ddd-8ddd-000000000003","email":"lisa@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000004', 'dddddddd-dddd-4ddd-8ddd-000000000004', 'tom@schlaglink.app', '{"sub":"dddddddd-dddd-4ddd-8ddd-000000000004","email":"tom@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('dddddddd-dddd-4ddd-8ddd-000000000005', 'dddddddd-dddd-4ddd-8ddd-000000000005', 'olof@schlaglink.app', '{"sub":"dddddddd-dddd-4ddd-8ddd-000000000005","email":"olof@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now());
+  ('b4444444-4444-4444-8444-444444444444', 'b4444444-4444-4444-8444-444444444444', 'nord@schlaglink.app', '{"sub":"b4444444-4444-4444-8444-444444444444","email":"nord@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now());
 
 insert into profiles (id, full_name, email, role, organization_id, vehicle_name, job_visibility)
 values
@@ -146,12 +131,7 @@ values
   ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Agrarservice Schneider Admin', 'einsatzleiter@schlaglink.app', 'contractor_admin', '22222222-2222-4222-8222-222222222222', null, 'assigned_only'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Bernd Kolaretorp', 'bernd@kolaretorp.se', 'contractor_admin', '55555555-5555-4555-8555-555555555555', null, 'assigned_only'),
   ('a3333333-3333-4333-8333-333333333333', 'Hof Andersson Admin', 'andersson@schlaglink.app', 'farmer_admin', '33333333-3333-4333-8333-333333333333', null, 'assigned_only'),
-  ('b4444444-4444-4444-8444-444444444444', 'Lohnbetrieb Nord Admin', 'nord@schlaglink.app', 'contractor_admin', '44444444-4444-4444-8444-444444444444', null, 'assigned_only'),
-  ('dddddddd-dddd-4ddd-8ddd-000000000001', 'Max', 'max@schlaglink.app', 'driver', '22222222-2222-4222-8222-222222222222', 'Fendt 724', 'contractor_all'),
-  ('dddddddd-dddd-4ddd-8ddd-000000000002', 'Jens', 'jens@schlaglink.app', 'driver', '22222222-2222-4222-8222-222222222222', 'John Deere 6250R', 'assigned_only'),
-  ('dddddddd-dddd-4ddd-8ddd-000000000003', 'Lisa', 'lisa@schlaglink.app', 'driver', '22222222-2222-4222-8222-222222222222', 'Claas Jaguar 950', 'assigned_only'),
-  ('dddddddd-dddd-4ddd-8ddd-000000000004', 'Tom', 'tom@schlaglink.app', 'driver', '22222222-2222-4222-8222-222222222222', 'John Deere 6250R', 'assigned_only'),
-  ('dddddddd-dddd-4ddd-8ddd-000000000005', 'Olof', 'olof@schlaglink.app', 'driver', '22222222-2222-4222-8222-222222222222', 'MAN Agrar-LKW', 'contractor_all')
+  ('b4444444-4444-4444-8444-444444444444', 'Lohnbetrieb Nord Admin', 'nord@schlaglink.app', 'contractor_admin', '44444444-4444-4444-8444-444444444444', null, 'assigned_only')
 on conflict (id) do update set
   full_name = excluded.full_name,
   email = excluded.email,
@@ -302,36 +282,6 @@ on conflict (id) do update set
   target_trips = excluded.target_trips,
   max_active_workers = excluded.max_active_workers,
   status = excluded.status,
-  updated_at = now();
-
-insert into task_assignments (
-  id,
-  job_task_id,
-  driver_profile_id,
-  vehicle_name,
-  status,
-  started_at,
-  completed_at,
-  completed_area_ha,
-  completed_quantity,
-  completed_trips,
-  notes
-)
-values
-  ('40000000-0000-4000-8000-000000000001', '30000000-0000-4000-8000-000000000001', 'dddddddd-dddd-4ddd-8ddd-000000000001', 'Güllefass 1', 'active', '2026-06-18 08:10:00+02', null, null, 44.00, 4, null),
-  ('40000000-0000-4000-8000-000000000002', '30000000-0000-4000-8000-000000000001', 'dddddddd-dddd-4ddd-8ddd-000000000002', 'Güllefass 2', 'active', '2026-06-18 08:25:00+02', null, null, 44.00, 3, null),
-  ('40000000-0000-4000-8000-000000000003', '30000000-0000-4000-8000-000000000002', 'dddddddd-dddd-4ddd-8ddd-000000000002', 'Güllefass 2', 'reserved', null, null, null, 16.00, 1, 'Enge Zufahrt vorsichtig anfahren.'),
-  ('40000000-0000-4000-8000-000000000004', '30000000-0000-4000-8000-000000000006', 'dddddddd-dddd-4ddd-8ddd-000000000003', 'Schlepper', 'completed', '2026-06-24 09:20:00+02', '2026-06-24 11:10:00+02', 3.10, null, null, 'Anfahrt über Brücke problemlos.'),
-  ('40000000-0000-4000-8000-000000000005', '30000000-0000-4000-8000-000000000007', 'dddddddd-dddd-4ddd-8ddd-000000000003', 'Schlepper', 'active', '2026-06-24 13:15:00+02', null, 1.70, null, null, 'Neue feuchte Stelle am Bachrand markiert.')
-on conflict (job_task_id, driver_profile_id) do update set
-  vehicle_name = excluded.vehicle_name,
-  status = excluded.status,
-  started_at = excluded.started_at,
-  completed_at = excluded.completed_at,
-  completed_area_ha = excluded.completed_area_ha,
-  completed_quantity = excluded.completed_quantity,
-  completed_trips = excluded.completed_trips,
-  notes = excluded.notes,
   updated_at = now();
 
 insert into documents (id, organization_id, field_id, file_name, file_path, file_type, uploaded_by)

@@ -11,12 +11,6 @@ const demoAccounts = [
   { labelKey: "auth.demoDispatcher", email: "einsatzleiter@schlaglink.app", app: "admin" },
   { labelKey: "auth.demoBerndDispatcher", email: "bernd@kolaretorp.se", password: "1234", app: "admin" },
   { labelKey: "auth.demoNordDispatcher", email: "nord@schlaglink.app", password: "1234", app: "admin" },
-  { labelKey: "auth.demoDriverMax", email: "max@schlaglink.app", app: "driver" },
-  { labelKey: "auth.demoDriverJens", email: "jens@schlaglink.app", app: "driver" },
-  { labelKey: "auth.demoDriverLisa", email: "lisa@schlaglink.app", app: "driver" },
-  { labelKey: "auth.demoDriverTom", email: "tom@schlaglink.app", app: "driver" },
-  { labelKey: "auth.demoDriverOlof", email: "olof@schlaglink.app", app: "driver" },
-  { labelKey: "auth.demoDriverTobias", email: "tobias@schlaglink.app", app: "driver" },
 ];
 
 export function AuthLogin({

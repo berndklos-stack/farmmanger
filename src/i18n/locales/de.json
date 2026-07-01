@@ -597,6 +597,7 @@
     "machineYardSelection": "{{vehicles}} Fahrzeuge · {{implements}} Geräte gewählt",
     "resourceAvailable": "Verfügbar",
     "resourceAssignedTo": "Zugeordnet: {{assignee}} · {{job}}",
+    "noDriverAssigned": "Kein Fahrer zugewiesen",
     "noYardVehicles": "Keine Fahrzeuge im Maschinenhof verfügbar.",
     "noYardImplements": "Keine Anbaugeräte im Maschinenhof verfügbar.",
     "noEquipmentSelected": "Kein Equipment ausgewählt",
