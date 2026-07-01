@@ -99,8 +99,12 @@ export function DriverView({
   const driver = drivers.find((item) => item.id === currentDriverId) ?? (!isAuthenticated ? drivers[0] : undefined);
   const availableVehicles = vehicles.filter((vehicle) => !vehicle.archivedAt && vehicle.status !== "wartung" && (!driver?.organizationId || vehicle.organizationId === driver.organizationId));
   const availableImplements = implementsList.filter((implement) => !implement.archivedAt && implement.status !== "wartung" && (!driver?.organizationId || implement.organizationId === driver.organizationId));
-  const contractorJobIds = new Set(jobs
-    .filter((job) => !driver?.organizationId || job.contractorOrganizationId === driver.organizationId)
+  const organizationJobIds = new Set(jobs
+    .filter((job) => {
+      if (!driver?.organizationId) return true;
+      if (job.contractorOrganizationId === driver.organizationId || job.farmerOrganizationId === driver.organizationId) return true;
+      return job.fieldIds.some((fieldId) => fields.find((field) => field.id === fieldId)?.organizationId === driver.organizationId);
+    })
     .map((job) => job.id));
   const isAssignedToDriver = (subtask: Subtask) => Boolean(driver && (
     subtask.activeDriverIds.includes(driver.id)
@@ -112,7 +116,7 @@ export function DriverView({
     .filter((subtask) => {
       if (!driver) return true;
       if (isAssignedToDriver(subtask)) return true;
-      if ((driver.jobVisibility ?? "assigned_only") === "contractor_all") return contractorJobIds.has(subtask.jobId);
+      if ((driver.jobVisibility ?? "assigned_only") === "contractor_all") return organizationJobIds.has(subtask.jobId);
       return isAssignedToDriver(subtask);
     });
   function orderSubtasksByRoute(groupSubtasks: Subtask[]) {
