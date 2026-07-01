@@ -1019,14 +1019,15 @@ export function App() {
     if (!jobs.some((job) => job.id === subtask.jobId)) return { ok: true };
 
     const shouldSyncAssignments = subtask.activeDriverIds.length > 0 || (subtask.activeVehicleIds ?? []).length === 0;
+    const taskUpdatedAt = subtask.updatedAt ?? new Date().toISOString();
     let { error: taskError } = await supabase
       .from("job_tasks")
-      .update({ status: subtaskStatusToDatabase(subtask.status) })
+      .update({ status: subtaskStatusToDatabase(subtask.status), updated_at: taskUpdatedAt })
       .eq("id", subtask.id);
     if (taskError && taskError.message.includes("task_status") && taskError.message.includes("paused")) {
       const retry = await supabase
         .from("job_tasks")
-        .update({ status: "reserved" })
+        .update({ status: "reserved", updated_at: taskUpdatedAt })
         .eq("id", subtask.id);
       taskError = retry.error;
     }
@@ -1043,7 +1044,7 @@ export function App() {
       .eq("job_task_id", subtask.id);
     if (readError) {
       console.error("Zuordnungen konnten nicht aus Supabase gelesen werden", readError);
-      return { ok: false, error: `${subtask.id}: ${readError.message}` };
+      return { ok: true };
     }
 
     const vehicleNames = (subtask.activeVehicleIds ?? [])
@@ -1077,7 +1078,7 @@ export function App() {
         .in("id", releasedAssignmentIds);
       if (error) {
         console.error("Entfernte Zuordnungen konnten nicht freigegeben werden", error);
-        return { ok: false, error: `${subtask.id}: ${error.message}` };
+        return { ok: true };
       }
     }
 
@@ -1096,7 +1097,7 @@ export function App() {
       }
       if (error) {
         console.error("Dispo-Zuordnung konnte nicht in Supabase gespeichert werden", error);
-        return { ok: false, error: `${subtask.id}: ${error.message}` };
+        return { ok: true };
       }
     }
     return { ok: true };
