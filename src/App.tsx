@@ -1521,6 +1521,17 @@ export function App() {
 
   function setSubtaskStatus(id: string, status: Status) {
     const progress = status === "erledigt" ? 100 : status === "in Arbeit" ? 25 : status === "offen" || status === "reserviert" ? 0 : undefined;
+    if (status === "offen") {
+      updateSubtask(id, {
+        status,
+        progress: 0,
+        activeDriverIds: [],
+        activeDriverNames: [],
+        activeVehicleIds: [],
+        activeImplementIds: [],
+      });
+      return;
+    }
     updateSubtask(id, progress === undefined ? { status } : { status, progress });
   }
 
