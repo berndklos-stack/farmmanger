@@ -1833,9 +1833,66 @@ export function App() {
     }
   }
 
+  const uuidPattern = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+  const legacyDriverSupabaseIds: Record<string, string> = {
+    d1: "50000000-0000-4000-8000-000000000001",
+    d2: "50000000-0000-4000-8000-000000000002",
+    d3: "50000000-0000-4000-8000-000000000003",
+    d4: "50000000-0000-4000-8000-000000000004",
+    d5: "50000000-0000-4000-8000-000000000005",
+    d6: "50000000-0000-4000-8000-000000000006",
+  };
+
+  const legacyVehicleSupabaseIds: Record<string, string> = {
+    v0: "60000000-0000-4000-8000-000000000000",
+    v1: "60000000-0000-4000-8000-000000000001",
+    v2: "60000000-0000-4000-8000-000000000002",
+    v3: "60000000-0000-4000-8000-000000000003",
+    v4: "60000000-0000-4000-8000-000000000004",
+    v5: "60000000-0000-4000-8000-000000000005",
+  };
+
+  const legacyImplementSupabaseIds: Record<string, string> = {
+    i1: "70000000-0000-4000-8000-000000000001",
+    i2: "70000000-0000-4000-8000-000000000002",
+    i3: "70000000-0000-4000-8000-000000000003",
+    i4: "70000000-0000-4000-8000-000000000004",
+    i5: "70000000-0000-4000-8000-000000000005",
+  };
+
+  function isUuid(value: string | undefined) {
+    return Boolean(value && uuidPattern.test(value));
+  }
+
+  function deterministicUuid(seed: string, prefix: string) {
+    let hash = 0x811c9dc5;
+    for (let index = 0; index < seed.length; index += 1) {
+      hash ^= seed.charCodeAt(index);
+      hash = Math.imul(hash, 0x01000193);
+    }
+    const suffix = Math.abs(hash >>> 0).toString(16).padStart(12, "0").slice(-12);
+    return `${prefix}-0000-4000-8000-${suffix}`;
+  }
+
+  function supabaseDriverId(driver: Driver) {
+    if (isUuid(driver.id)) return driver.id;
+    return legacyDriverSupabaseIds[driver.id] ?? deterministicUuid(`driver:${driver.id}:${driver.email ?? driver.name}`, "50000000");
+  }
+
+  function supabaseVehicleId(vehicle: Vehicle) {
+    if (isUuid(vehicle.id)) return vehicle.id;
+    return legacyVehicleSupabaseIds[vehicle.id] ?? deterministicUuid(`vehicle:${vehicle.id}:${vehicle.name}`, "60000000");
+  }
+
+  function supabaseImplementId(implement: Implement) {
+    if (isUuid(implement.id)) return implement.id;
+    return legacyImplementSupabaseIds[implement.id] ?? deterministicUuid(`implement:${implement.id}:${implement.name}`, "70000000");
+  }
+
   function driverPayload(driver: Driver) {
     return {
-      id: driver.id,
+      id: supabaseDriverId(driver),
       organization_id: driver.organizationId ?? contractorOrganizationId,
       full_name: driver.name,
       email: driver.email ?? "",
@@ -1853,7 +1910,7 @@ export function App() {
 
   function vehiclePayload(vehicle: Vehicle) {
     return {
-      id: vehicle.id,
+      id: supabaseVehicleId(vehicle),
       organization_id: vehicle.organizationId ?? contractorOrganizationId,
       name: vehicle.name,
       vehicle_type: vehicle.type,
@@ -1867,7 +1924,7 @@ export function App() {
 
   function implementPayload(implement: Implement) {
     return {
-      id: implement.id,
+      id: supabaseImplementId(implement),
       organization_id: implement.organizationId ?? contractorOrganizationId,
       name: implement.name,
       implement_type: implement.type,
@@ -1903,7 +1960,7 @@ export function App() {
       });
     }
     if (nextDriver && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").update(driverPayload(nextDriver)).eq("id", id);
+      const { error } = await supabase.from("personnel_resources").update(driverPayload(nextDriver)).eq("id", supabaseDriverId(nextDriver));
       if (error) console.error("Personal konnte nicht in Supabase aktualisiert werden", error);
     }
   }
@@ -1921,7 +1978,7 @@ export function App() {
       });
     }
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").update({ archived_at: archivedAt }).eq("id", id);
+      const { error } = await supabase.from("personnel_resources").update({ archived_at: archivedAt }).eq("id", currentDriver ? supabaseDriverId(currentDriver) : id);
       if (error) console.error("Personal konnte nicht archiviert werden", error);
     }
   }
@@ -1938,7 +1995,7 @@ export function App() {
       });
     }
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").update({ archived_at: null }).eq("id", id);
+      const { error } = await supabase.from("personnel_resources").update({ archived_at: null }).eq("id", currentDriver ? supabaseDriverId(currentDriver) : id);
       if (error) console.error("Personal konnte nicht reaktiviert werden", error);
     }
   }
@@ -1953,7 +2010,8 @@ export function App() {
     });
     setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeDriverIds: subtask.activeDriverIds.filter((driverId) => driverId !== id) })));
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").delete().eq("id", id);
+      const deletedDriver = driverRecords.find((driver) => driver.id === id);
+      const { error } = await supabase.from("personnel_resources").delete().eq("id", deletedDriver ? supabaseDriverId(deletedDriver) : id);
       if (error) console.error("Personal konnte nicht endgültig gelöscht werden", error);
     }
   }
@@ -1983,7 +2041,7 @@ export function App() {
       });
     }
     if (nextVehicle && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").update(vehiclePayload(nextVehicle)).eq("id", id);
+      const { error } = await supabase.from("vehicles").update(vehiclePayload(nextVehicle)).eq("id", supabaseVehicleId(nextVehicle));
       if (error) console.error("Fahrzeug konnte nicht in Supabase aktualisiert werden", error);
     }
   }
@@ -1999,7 +2057,8 @@ export function App() {
       return next;
     });
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").update({ archived_at: archivedAt }).eq("id", id);
+      const archivedVehicle = vehicleRecords.find((vehicle) => vehicle.id === id);
+      const { error } = await supabase.from("vehicles").update({ archived_at: archivedAt }).eq("id", archivedVehicle ? supabaseVehicleId(archivedVehicle) : id);
       if (error) console.error("Fahrzeug konnte nicht archiviert werden", error);
     }
   }
@@ -2014,7 +2073,8 @@ export function App() {
       return next;
     });
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").update({ archived_at: null }).eq("id", id);
+      const restoredVehicle = vehicleRecords.find((vehicle) => vehicle.id === id);
+      const { error } = await supabase.from("vehicles").update({ archived_at: null }).eq("id", restoredVehicle ? supabaseVehicleId(restoredVehicle) : id);
       if (error) console.error("Fahrzeug konnte nicht reaktiviert werden", error);
     }
   }
@@ -2029,7 +2089,8 @@ export function App() {
     });
     setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeVehicleIds: (subtask.activeVehicleIds ?? []).filter((vehicleId) => vehicleId !== id) })));
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").delete().eq("id", id);
+      const deletedVehicle = vehicleRecords.find((vehicle) => vehicle.id === id);
+      const { error } = await supabase.from("vehicles").delete().eq("id", deletedVehicle ? supabaseVehicleId(deletedVehicle) : id);
       if (error) console.error("Fahrzeug konnte nicht endgültig gelöscht werden", error);
     }
   }
@@ -2047,7 +2108,7 @@ export function App() {
     const nextImplement = currentImplement ? { ...currentImplement, ...patch } : undefined;
     setImplementRecords((current) => current.map((implement) => (implement.id === id ? { ...implement, ...patch } : implement)));
     if (nextImplement && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").update(implementPayload(nextImplement)).eq("id", id);
+      const { error } = await supabase.from("implements").update(implementPayload(nextImplement)).eq("id", supabaseImplementId(nextImplement));
       if (error) console.error("Anbaugerät konnte nicht in Supabase aktualisiert werden", error);
     }
   }
@@ -2056,7 +2117,8 @@ export function App() {
     const archivedAt = new Date().toISOString();
     setImplementRecords((current) => current.map((implement) => implement.id === id ? { ...implement, archivedAt } : implement));
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").update({ archived_at: archivedAt }).eq("id", id);
+      const archivedImplement = implementRecords.find((implement) => implement.id === id);
+      const { error } = await supabase.from("implements").update({ archived_at: archivedAt }).eq("id", archivedImplement ? supabaseImplementId(archivedImplement) : id);
       if (error) console.error("Anbaugerät konnte nicht archiviert werden", error);
     }
   }
@@ -2064,7 +2126,8 @@ export function App() {
   async function restoreImplement(id: string) {
     setImplementRecords((current) => current.map((implement) => implement.id === id ? { ...implement, archivedAt: undefined } : implement));
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").update({ archived_at: null }).eq("id", id);
+      const restoredImplement = implementRecords.find((implement) => implement.id === id);
+      const { error } = await supabase.from("implements").update({ archived_at: null }).eq("id", restoredImplement ? supabaseImplementId(restoredImplement) : id);
       if (error) console.error("Anbaugerät konnte nicht reaktiviert werden", error);
     }
   }
@@ -2073,7 +2136,8 @@ export function App() {
     setImplementRecords((current) => current.filter((implement) => implement.id !== id));
     setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeImplementIds: (subtask.activeImplementIds ?? []).filter((implementId) => implementId !== id) })));
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").delete().eq("id", id);
+      const deletedImplement = implementRecords.find((implement) => implement.id === id);
+      const { error } = await supabase.from("implements").delete().eq("id", deletedImplement ? supabaseImplementId(deletedImplement) : id);
       if (error) console.error("Anbaugerät konnte nicht endgültig gelöscht werden", error);
     }
   }
