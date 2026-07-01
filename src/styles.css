@@ -1497,6 +1497,46 @@ textarea:focus-visible {
   width: min(1180px, 100%);
 }
 
+.job-edit-modal {
+  width: min(1480px, calc(100vw - 24px));
+  max-height: calc(100vh - 24px);
+  padding: 14px;
+  gap: 10px;
+}
+
+.job-edit-modal .section-heading {
+  margin-bottom: 0;
+}
+
+.job-edit-modal .section-heading h2 {
+  font-size: 1.45rem;
+}
+
+.job-edit-modal .section-heading p {
+  margin-top: 2px;
+}
+
+.job-edit-modal .master-data-form {
+  padding: 0;
+}
+
+.job-edit-modal .modal-form-row {
+  grid-template-columns: minmax(220px, 1.4fr) minmax(220px, 1.4fr) minmax(130px, 0.75fr) minmax(120px, 0.65fr) minmax(120px, 0.65fr) minmax(220px, 1.4fr);
+  gap: 8px;
+  margin-top: 4px;
+}
+
+.job-edit-modal .modal-form-row label {
+  gap: 4px;
+  font-size: 0.78rem;
+}
+
+.job-edit-modal .modal-form-row input,
+.job-edit-modal .modal-form-row select {
+  min-height: 32px;
+  padding: 0 8px;
+}
+
 .modal-actions {
   display: flex;
   justify-content: flex-end;
@@ -2469,9 +2509,25 @@ select {
   padding: 8px 10px;
 }
 
+.job-edit-modal .job-meta {
+  gap: 6px;
+  margin-bottom: 4px;
+}
+
+.job-edit-modal .job-meta span {
+  border-radius: 6px;
+  font-size: 0.85rem;
+  padding: 5px 8px;
+}
+
 .table-card {
   display: grid;
   overflow-x: auto;
+}
+
+.job-edit-modal .table-card {
+  border: 1px solid #dde7d7;
+  border-radius: 8px;
 }
 
 .job-activity-panel {
@@ -2482,6 +2538,20 @@ select {
   margin-top: 16px;
   display: grid;
   gap: 12px;
+}
+
+.job-edit-modal .job-activity-panel {
+  gap: 8px;
+  margin-top: 6px;
+  padding: 10px;
+}
+
+.job-edit-modal .job-activity-panel .section-heading h3 {
+  font-size: 1rem;
+}
+
+.job-edit-modal .job-activity-panel .section-heading p {
+  font-size: 0.82rem;
 }
 
 .job-activity-panel .section-heading {
@@ -2500,6 +2570,15 @@ select {
   padding: 12px;
   display: grid;
   gap: 10px;
+}
+
+.job-edit-modal .job-activity-card {
+  gap: 6px;
+  padding: 8px;
+}
+
+.job-edit-modal .job-activity-meta {
+  gap: 4px;
 }
 
 .job-activity-head {
@@ -2575,6 +2654,40 @@ select {
   min-width: 1220px;
   border-bottom: 1px solid #e6ece2;
   padding: 12px 0;
+}
+
+.job-edit-modal .table-row {
+  grid-template-columns: minmax(105px, 0.85fr) minmax(130px, 1fr) minmax(125px, 1fr) minmax(96px, 0.72fr) minmax(120px, 0.85fr) minmax(76px, 0.52fr) minmax(74px, 0.5fr) minmax(170px, 1.28fr) minmax(136px, 0.92fr);
+  gap: 8px;
+  min-width: 1120px;
+  padding: 7px 10px;
+}
+
+.job-edit-modal .table-row > span {
+  min-width: 0;
+}
+
+.job-edit-modal .table-row input,
+.job-edit-modal .table-row select {
+  min-height: 30px;
+  padding: 0 7px;
+  font-size: 0.86rem;
+}
+
+.job-edit-modal .table-row .progress-track {
+  height: 8px;
+  margin-bottom: 2px;
+}
+
+.job-edit-modal .chip-row {
+  gap: 4px;
+  margin-top: 4px;
+}
+
+.job-edit-modal .chip,
+.job-edit-modal .status-badge {
+  font-size: 0.74rem;
+  padding: 4px 7px;
 }
 
 .table-subline,
