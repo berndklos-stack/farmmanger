@@ -15,7 +15,11 @@ type DataState = {
   isDemoMode: boolean;
   isLoading: boolean;
   error?: string;
-  refreshData: () => Promise<void>;
+  refreshData: (options?: RefreshDataOptions) => Promise<void>;
+};
+
+type RefreshDataOptions = {
+  silent?: boolean;
 };
 
 const offlineDataCacheKey = "schlaglink.offlineDataCache";
@@ -589,12 +593,13 @@ export function useSchlagLinkData(): DataState {
     error: cachedData && isSupabaseConfigured ? "Offline-Daten geladen" : undefined,
   });
 
-  const refreshData = useCallback(async () => {
+  const refreshData = useCallback(async (options: RefreshDataOptions = {}) => {
+    const silent = options.silent ?? false;
     if (!isSupabaseConfigured || !supabase) {
-      setState((current) => ({ ...current, isDemoMode: true, isLoading: false, error: undefined }));
+      if (!silent) setState((current) => ({ ...current, isDemoMode: true, isLoading: false, error: undefined }));
       return;
     }
-    setState((current) => ({ ...current, isLoading: true, isDemoMode: false, error: undefined }));
+    if (!silent) setState((current) => ({ ...current, isLoading: true, isDemoMode: false, error: undefined }));
 
     const [
       fieldsResult,
@@ -645,6 +650,10 @@ export function useSchlagLinkData(): DataState {
     ].find(Boolean);
 
     if (firstError) {
+      if (silent) {
+        setState((current) => ({ ...current, isLoading: false }));
+        return;
+      }
       const fallbackCache = readOfflineDataCache();
       if (fallbackCache) {
         setState({
@@ -701,6 +710,23 @@ export function useSchlagLinkData(): DataState {
 
   useEffect(() => {
     void refreshData();
+  }, [refreshData]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return undefined;
+    function refreshWhenVisible() {
+      if (document.visibilityState === "visible") void refreshData({ silent: true });
+    }
+    const interval = window.setInterval(() => {
+      void refreshData({ silent: true });
+    }, 15000);
+    window.addEventListener("focus", refreshWhenVisible);
+    document.addEventListener("visibilitychange", refreshWhenVisible);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshWhenVisible);
+      document.removeEventListener("visibilitychange", refreshWhenVisible);
+    };
   }, [refreshData]);
 
   return useMemo(() => ({ ...state, refreshData }), [refreshData, state]);
