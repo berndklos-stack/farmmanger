@@ -34,6 +34,46 @@ function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
 }
 
+function formatSupabaseError(error: unknown) {
+  if (!error) return "Unbekannter Supabase-Fehler.";
+  if (typeof error === "string") return error;
+  if (typeof error === "object") {
+    const values = error as { message?: unknown; details?: unknown; hint?: unknown; code?: unknown };
+    const parts = [values.message, values.details, values.hint, values.code]
+      .filter((value) => typeof value === "string" && value && value !== "{}");
+    if (parts.length > 0) return parts.join(" · ");
+    return JSON.stringify(error);
+  }
+  return String(error);
+}
+
+async function ensureExistingProfileCanBeUsed(admin: ReturnType<typeof createClient>, profileId: string) {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("role, email")
+    .eq("id", profileId)
+    .limit(1);
+  if (error) return `Profilpruefung fehlgeschlagen: ${formatSupabaseError(error)}`;
+  const profile = data?.[0];
+  if (profile && profile.role !== "driver") {
+    return "Diese E-Mail wird bereits fuer einen Admin- oder Landwirt-Zugang verwendet. Bitte fuer den Fahrer eine eigene E-Mail-Adresse verwenden.";
+  }
+  return "";
+}
+
+async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, email: string, profileId: string) {
+  const { data, error } = await admin
+    .from("profiles")
+    .select("id, role, full_name")
+    .eq("email", email)
+    .limit(10);
+  if (error) return `E-Mail-Pruefung fehlgeschlagen: ${formatSupabaseError(error)}`;
+  const conflictingProfile = data?.find((profile) => profile.id !== profileId);
+  if (!conflictingProfile) return "";
+  const roleLabel = conflictingProfile.role === "driver" ? "einen anderen Fahrer" : "einen Admin- oder Landwirt-Zugang";
+  return `Diese E-Mail wird bereits fuer ${roleLabel} verwendet (${conflictingProfile.full_name ?? email}). Bitte eine eigene Fahrer-E-Mail verwenden.`;
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -60,21 +100,20 @@ Deno.serve(async (req) => {
 
   let profileId = cleanText(body.profileId);
   if (email) {
+    const emailError = await ensureEmailCanBeUsed(admin, email, profileId);
+    if (emailError) return jsonResponse({ error: emailError }, 400);
+
     if (profileId) {
+      const existingProfileError = await ensureExistingProfileCanBeUsed(admin, profileId);
+      if (existingProfileError) return jsonResponse({ error: existingProfileError }, 400);
       const updatePayload: Record<string, unknown> = {
         email,
         user_metadata: { full_name: fullName },
       };
       if (password) updatePayload.password = password;
       const { error } = await admin.auth.admin.updateUserById(profileId, updatePayload);
-      if (error && error.status !== 404) return jsonResponse({ error: error.message }, 400);
+      if (error && error.status !== 404) return jsonResponse({ error: `Auth-User konnte nicht aktualisiert werden: ${formatSupabaseError(error)}` }, 400);
       if (error?.status === 404) profileId = "";
-    }
-
-    if (!profileId) {
-      const { data: listedUsers, error: listError } = await admin.auth.admin.listUsers({ page: 1, perPage: 1000 });
-      if (listError) return jsonResponse({ error: listError.message }, 400);
-      profileId = listedUsers.users.find((user) => user.email?.toLowerCase() === email)?.id ?? "";
     }
 
     if (!profileId) {
@@ -85,7 +124,7 @@ Deno.serve(async (req) => {
         email_confirm: true,
         user_metadata: { full_name: fullName },
       });
-      if (createError) return jsonResponse({ error: createError.message }, 400);
+      if (createError) return jsonResponse({ error: `Auth-User konnte nicht erstellt werden: ${formatSupabaseError(createError)}` }, 400);
       profileId = createdUser.user.id;
     }
 
@@ -98,7 +137,7 @@ Deno.serve(async (req) => {
       vehicle_name: body.vehicleName ?? "",
       job_visibility: body.jobVisibility ?? "assigned_only",
     });
-    if (profileError) return jsonResponse({ error: profileError.message }, 400);
+    if (profileError) return jsonResponse({ error: `Profil konnte nicht gespeichert werden: ${formatSupabaseError(profileError)}` }, 400);
   }
 
   const { error: personnelError } = await admin.from("personnel_resources").upsert({
@@ -117,7 +156,7 @@ Deno.serve(async (req) => {
     operation_type: body.operationType ?? "",
     archived_at: body.archivedAt ?? null,
   }, { onConflict: "id" });
-  if (personnelError) return jsonResponse({ error: personnelError.message }, 400);
+  if (personnelError) return jsonResponse({ error: `Personalstamm konnte nicht gespeichert werden: ${formatSupabaseError(personnelError)}` }, 400);
 
   return jsonResponse({ personnelResourceId, profileId: profileId || null });
 });

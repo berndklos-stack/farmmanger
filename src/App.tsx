@@ -2132,7 +2132,18 @@ export function App() {
       },
     });
     if (error) {
-      console.error("Fahrer-Auth-Profil konnte nicht synchronisiert werden", error);
+      let errorMessage = error.message;
+      const context = typeof error === "object" && error && "context" in error ? (error as { context?: unknown }).context : null;
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json() as { error?: string };
+          if (payload.error) errorMessage = payload.error;
+        } catch {
+          // Ignore parsing errors and keep the Supabase client message.
+        }
+      }
+      console.error("Fahrer-Auth-Profil konnte nicht synchronisiert werden", errorMessage, error);
+      window.alert(`Fahrer-Login konnte nicht erstellt werden: ${errorMessage}`);
       return null;
     }
     return data ?? null;
