@@ -479,6 +479,22 @@ export function DriverView({
     setTrackingNotice(fallbackNotice ?? (automatic ? t("liveLocation.autoSent") : t("liveLocation.sent")));
   }
 
+  function publishTravelLocation(point: { lat: number; lng: number; accuracy?: number; speed?: number }, automatic = false, fallbackNotice?: string) {
+    onLocationUpdate({
+      id: `${activeDriver.id}-${Date.now()}`,
+      driverId: activeDriver.id,
+      driverName: activeDriver.name,
+      vehicleName: activeDriver.vehicle,
+      lat: point.lat,
+      lng: point.lng,
+      accuracy: point.accuracy,
+      speed: point.speed,
+      status: "unterwegs",
+      recordedAt: new Date().toISOString(),
+    });
+    setTrackingNotice(fallbackNotice ?? (automatic ? t("liveLocation.autoSent") : t("liveLocation.sent")));
+  }
+
   function setUseTestLocation(next: boolean) {
     setUseTestLocationState(next);
     try {
@@ -524,9 +540,44 @@ export function DriverView({
     );
   }
 
+  function sendTravelLocationFromSubtask(subtask: Subtask, automatic = false) {
+    if (useTestLocation) {
+      publishTravelLocation(fallbackPoint(subtask), automatic, t("liveLocation.testLocationSent"));
+      return;
+    }
+    if (!window.isSecureContext) {
+      publishTravelLocation(fallbackPoint(subtask), automatic, t("liveLocation.insecureContext"));
+      return;
+    }
+    if (!navigator.geolocation) {
+      publishTravelLocation(fallbackPoint(subtask), automatic, t("liveLocation.notSupported"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => publishTravelLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        speed: position.coords.speed ?? undefined,
+      }, automatic),
+      (error) => {
+        const fallbackMessage = error.code === error.PERMISSION_DENIED
+          ? t("liveLocation.permissionDenied")
+          : error.code === error.TIMEOUT
+            ? t("liveLocation.timeout")
+            : t("liveLocation.positionUnavailable");
+        publishTravelLocation(fallbackPoint(subtask), automatic, fallbackMessage);
+      },
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 5000 },
+    );
+  }
+
   function completeSubtask(subtask: Subtask) {
-    onUpdateSubtask(subtask.id, feedbackPatch(subtask, "erledigt", 100));
-    sendLocation({ ...subtask, ...feedbackPatch(subtask, "erledigt", 100) }, true);
+    const patch = feedbackPatch(subtask, "erledigt", 100);
+    onUpdateSubtask(subtask.id, patch);
+    if (trackingSubtaskId === subtask.id) setTrackingSubtaskId("");
+    setNoticeSubtaskId("");
+    sendTravelLocationFromSubtask({ ...subtask, ...patch }, true);
     setOpenSubtaskId("");
   }
 
