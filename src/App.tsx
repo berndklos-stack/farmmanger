@@ -118,6 +118,11 @@ type ProfileRow = {
   job_visibility?: Driver["jobVisibility"] | null;
 };
 
+type DriverAuthSyncResult = {
+  personnelResourceId?: string | null;
+  profileId?: string | null;
+};
+
 function profileFromRow(row: ProfileRow): AuthProfile {
   const email = row.email ?? "";
   return {
@@ -1645,7 +1650,12 @@ export function App() {
       }
       for (const driver of driverRecords) {
         const { error } = await supabase.from("personnel_resources").upsert(driverPayload(driver));
-        if (error) syncErrors.push(`${driver.name}: ${error.message}`);
+        if (error) {
+          syncErrors.push(`${driver.name}: ${error.message}`);
+        } else {
+          const authSyncResult = await syncDriverAuthProfile(driver);
+          if (authSyncResult?.profileId) applyDriverProfileId(driver.id, authSyncResult.profileId);
+        }
       }
       for (const vehicle of vehicleRecords) {
         const { error } = await supabase.from("vehicles").upsert(vehiclePayload(vehicle));
@@ -2089,6 +2099,56 @@ export function App() {
     };
   }
 
+  function applyDriverProfileId(driverId: string, profileId: string) {
+    setDriverRecords((current) => current.map((driver) => (driver.id === driverId ? { ...driver, profileId } : driver)));
+    setLocalDrivers((current) => {
+      const existingDriver = current[driverId] ?? driverRecords.find((driver) => driver.id === driverId);
+      if (!existingDriver) return current;
+      const next = { ...current, [driverId]: { ...existingDriver, profileId } };
+      saveLocalDrivers(next);
+      return next;
+    });
+  }
+
+  async function syncDriverAuthProfile(driver: Driver) {
+    if (!isSupabaseConfigured || !supabase) return null;
+    if (!driver.email?.trim()) return null;
+    const { data, error } = await supabase.functions.invoke<DriverAuthSyncResult>("sync-driver-auth", {
+      body: {
+        personnelResourceId: supabaseDriverId(driver),
+        profileId: supabaseDriverProfileId(driver),
+        organizationId: driver.organizationId ?? contractorOrganizationId,
+        fullName: driver.name,
+        email: driver.email ?? "",
+        password: driver.accessPassword ?? "",
+        vehicleName: driver.vehicle,
+        jobVisibility: driver.jobVisibility ?? "assigned_only",
+        mobile: driver.mobile ?? "",
+        licenseClasses: driver.licenseClasses ?? [],
+        maxDailyHours: driver.maxDailyHours ?? 8,
+        resourceType: driver.resourceType ?? "Personal",
+        operationType: driver.operationType ?? "",
+        archivedAt: driver.archivedAt ?? null,
+      },
+    });
+    if (error) {
+      console.error("Fahrer-Auth-Profil konnte nicht synchronisiert werden", error);
+      return null;
+    }
+    return data ?? null;
+  }
+
+  async function saveDriverToSupabase(driver: Driver, errorLabel: string) {
+    if (!isSupabaseConfigured || !supabase) return;
+    const { error } = await supabase.from("personnel_resources").upsert(driverPayload(driver), { onConflict: "id" });
+    if (error) {
+      console.error(errorLabel, error);
+      return;
+    }
+    const authSyncResult = await syncDriverAuthProfile(driver);
+    if (authSyncResult?.profileId) applyDriverProfileId(driver.id, authSyncResult.profileId);
+  }
+
   function vehiclePayload(vehicle: Vehicle) {
     return {
       id: supabaseVehicleId(vehicle),
@@ -2123,10 +2183,7 @@ export function App() {
       saveLocalDrivers(next);
       return next;
     });
-    if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").upsert(driverPayload(driver));
-      if (error) console.error("Personal konnte nicht in Supabase gespeichert werden", error);
-    }
+    await saveDriverToSupabase(driver, "Personal konnte nicht in Supabase gespeichert werden");
   }
 
   async function updateDriver(id: string, patch: Partial<Driver>) {
@@ -2140,10 +2197,7 @@ export function App() {
         return next;
       });
     }
-    if (nextDriver && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("personnel_resources").update(driverPayload(nextDriver)).eq("id", supabaseDriverId(nextDriver));
-      if (error) console.error("Personal konnte nicht in Supabase aktualisiert werden", error);
-    }
+    if (nextDriver) await saveDriverToSupabase(nextDriver, "Personal konnte nicht in Supabase aktualisiert werden");
   }
 
   async function archiveDriver(id: string) {

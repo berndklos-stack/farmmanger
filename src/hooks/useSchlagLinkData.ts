@@ -175,6 +175,7 @@ type DriverRow = {
 
 type PersonnelResourceRow = {
   id: string;
+  profile_id?: string | null;
   organization_id?: string | null;
   full_name: string;
   email?: string | null;
@@ -490,11 +491,12 @@ function mapDrivers(driverRows: DriverRow[]): Driver[] {
 
 function mapPersonnelResources(personnelRows: PersonnelResourceRow[], profileRows: DriverRow[] = []): Driver[] {
   const profilesByName = new Map(profileRows.filter((profile) => profile.role === "driver").map((profile) => [normalizeName(profile.full_name), profile]));
+  const profilesById = new Map(profileRows.filter((profile) => profile.role === "driver").map((profile) => [profile.id, profile]));
   const personnelDrivers = personnelRows.map((person) => {
-    const profile = profilesByName.get(normalizeName(person.full_name));
+    const profile = (person.profile_id ? profilesById.get(person.profile_id) : undefined) ?? profilesByName.get(normalizeName(person.full_name));
     return {
     id: person.id,
-    profileId: profile?.id,
+    profileId: person.profile_id ?? profile?.id,
     organizationId: person.organization_id ?? profile?.organization_id ?? undefined,
     name: person.full_name,
     email: person.email ?? profile?.email ?? "",
