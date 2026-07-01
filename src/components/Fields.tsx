@@ -33,6 +33,8 @@ type FieldWorkMapStatus = FieldMapStyle & {
   recordedAt: string;
   workState?: "manual" | "planned" | "active" | "completed";
   dueDate?: string;
+  lastAction?: { date?: string; label: string };
+  nextAction?: { date?: string; label: string };
   note?: string;
 };
 
@@ -56,6 +58,12 @@ function mixHexColor(baseColor: string, overlayColor: string, overlayWeight = 0.
   if (!base || !overlay) return baseColor;
   const mixed = base.map((channel, index) => Math.round(channel * (1 - overlayWeight) + overlay[index] * overlayWeight));
   return `#${mixed.map((channel) => channel.toString(16).padStart(2, "0")).join("")}`;
+}
+
+function dateValue(value?: string) {
+  if (!value) return undefined;
+  const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+  return isoMatch ?? value;
 }
 
 type ExportColumn = {
@@ -138,6 +146,7 @@ export function Fields({
       const completed = fieldSubtasks
         .filter((item) => item.subtask.status === "erledigt")
         .sort((a, b) => Date.parse(b.subtask.completedAt ?? b.subtask.statusChangedAt ?? b.subtask.updatedAt ?? "") - Date.parse(a.subtask.completedAt ?? a.subtask.statusChangedAt ?? a.subtask.updatedAt ?? ""))[0];
+      const nextOpen = fieldSubtasks.find((item) => item.subtask.status !== "erledigt");
       const planned = active ?? completed ?? fieldSubtasks.find((item) => item.subtask.status !== "erledigt");
       if (planned?.task && planned.mapStyle) {
         const activeColor = mixHexColor(planned.mapStyle.color, "#f4c542", 0.48);
@@ -148,6 +157,14 @@ export function Fields({
           taskName: planned.task.name,
           recordedAt: planned.subtask.completedAt ?? planned.subtask.statusChangedAt ?? planned.subtask.updatedAt ?? planned.job?.timeWindow ?? "",
           workState: active ? "active" : completed ? "completed" : "planned",
+          lastAction: completed?.task ? {
+            date: dateValue(completed.subtask.completedAt ?? completed.subtask.statusChangedAt ?? completed.subtask.updatedAt),
+            label: completed.task.name,
+          } : undefined,
+          nextAction: nextOpen?.task ? {
+            date: dateValue(nextOpen.job?.timeWindow ?? nextOpen.subtask.statusChangedAt ?? nextOpen.subtask.updatedAt),
+            label: nextOpen.task.name,
+          } : undefined,
         };
         return;
       }
@@ -159,6 +176,10 @@ export function Fields({
           recordedAt: field.manualWorkPlan.dueDate ?? field.manualWorkPlan.createdAt,
           workState: "manual",
           dueDate: field.manualWorkPlan.dueDate,
+          nextAction: {
+            date: field.manualWorkPlan.dueDate,
+            label: field.manualWorkPlan.label,
+          },
           note: field.manualWorkPlan.note,
         };
       }

@@ -433,6 +433,8 @@
     "workStateActive": "Pågår",
     "workStateCompleted": "Utförd",
     "workStateManual": "Manuellt planerad",
+    "lastAction": "Senaste åtgärd",
+    "nextAction": "Nästa åtgärd",
     "historyDate": "Datum / period",
     "historyActivityTime": "Aktivitetstid",
     "historyContractor": "Utförande företag",

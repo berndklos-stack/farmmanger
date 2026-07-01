@@ -433,6 +433,8 @@
     "workStateActive": "In Arbeit",
     "workStateCompleted": "Erledigt",
     "workStateManual": "Manuell geplant",
+    "lastAction": "Letzte Aktion",
+    "nextAction": "Nächste Aktion",
     "historyDate": "Datum / Zeitraum",
     "historyActivityTime": "Aktivitätszeit",
     "historyContractor": "Ausführender Betrieb",

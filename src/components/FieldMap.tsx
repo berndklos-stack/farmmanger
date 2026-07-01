@@ -8,10 +8,19 @@ import type { Field, FieldAccessPoint, FieldHazard, FieldHazardType, FieldMapSty
 import { appleMapsUrl, formatCoordinates, googleMapsUrl, hittaMapsUrl, lantmaterietMapsUrl, openStreetMapUrl } from "../utils/geo";
 import { MapBaseLayers } from "./MapBaseLayers";
 
+type FieldWorkMapStatus = FieldMapStyle & {
+  taskName?: string;
+  workState?: "manual" | "planned" | "active" | "completed";
+  dueDate?: string;
+  lastAction?: { date?: string; label: string };
+  nextAction?: { date?: string; label: string };
+  note?: string;
+};
+
 type Props = {
   field: Field;
   contextFields?: Field[];
-  fieldMapStatuses?: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active" | "completed"; dueDate?: string; note?: string }) | undefined>;
+  fieldMapStatuses?: Record<string, FieldWorkMapStatus | undefined>;
   statuses?: Status[];
   compact?: boolean;
   editable?: boolean;
@@ -37,7 +46,7 @@ export function FieldMap({
   onAccessPointChange,
   onHazardAdd,
 }: Props) {
-  const { t } = useTranslation();
+  const { t, i18n } = useTranslation();
   const access = field.accessPoint;
   const [editMode, setEditMode] = useState<MapEditMode>("none");
   const [draftBoundary, setDraftBoundary] = useState<GeoPoint[]>([]);
@@ -71,13 +80,13 @@ export function FieldMap({
       weight: mapStatus?.workState === "active" ? 5 : isMainField ? 3 : 2,
     };
   };
-  const getWorkStateSymbol = (state?: typeof selectedMapStatus extends undefined ? never : NonNullable<typeof selectedMapStatus>["workState"]) => {
+  const getWorkStateSymbol = (state?: FieldWorkMapStatus["workState"]) => {
     if (state === "active") return "▶";
     if (state === "manual") return "!";
     if (state === "completed") return "✓";
     return "○";
   };
-  const getWorkStateLabel = (state?: typeof selectedMapStatus extends undefined ? never : NonNullable<typeof selectedMapStatus>["workState"]) => {
+  const getWorkStateLabel = (state?: FieldWorkMapStatus["workState"]) => {
     if (state === "active") return t("fields.workStateActive");
     if (state === "manual") return t("fields.workStateManual");
     if (state === "completed") return t("fields.workStateCompleted");
@@ -89,6 +98,43 @@ export function FieldMap({
     iconAnchor: [12, 12],
     iconSize: [24, 24],
   });
+  const formatTooltipDate = (value?: string) => {
+    if (!value) return "";
+    const isoMatch = value.match(/\d{4}-\d{2}-\d{2}/)?.[0];
+    const parsed = new Date(isoMatch ?? value);
+    if (Number.isNaN(parsed.getTime())) return value;
+    return new Intl.DateTimeFormat(i18n.language, { dateStyle: "short" }).format(parsed);
+  };
+  const actionLine = (action?: FieldWorkMapStatus["lastAction"]) => {
+    if (!action) return "";
+    const date = formatTooltipDate(action.date);
+    return date ? `${action.label} · ${date}` : action.label;
+  };
+  const FieldTooltipContent = ({ mapStatus, targetField }: { mapStatus?: FieldWorkMapStatus; targetField: Field }) => (
+    <>
+      <strong>{targetField.name}</strong>
+      <br />
+      {targetField.areaHa} ha
+      {mapStatus && (
+        <>
+          <br />
+          {mapStatus.label}
+          {mapStatus.lastAction && (
+            <>
+              <br />
+              {t("fields.lastAction")}: {actionLine(mapStatus.lastAction)}
+            </>
+          )}
+          {mapStatus.nextAction && (
+            <>
+              <br />
+              {t("fields.nextAction")}: {actionLine(mapStatus.nextAction)}
+            </>
+          )}
+        </>
+      )}
+    </>
+  );
 
   useEffect(() => {
     setDraftBoundary([]);
@@ -194,15 +240,7 @@ export function FieldMap({
             positions={contextField.boundary.map((point) => [point.lat, point.lng] as [number, number])}
           >
             <Tooltip sticky>
-              <strong>{contextField.name}</strong>
-              <br />
-              {contextField.areaHa} ha
-              {fieldMapStatuses[contextField.id] && (
-                <>
-                  <br />
-                  {fieldMapStatuses[contextField.id]?.label}
-                </>
-              )}
+              <FieldTooltipContent mapStatus={fieldMapStatuses[contextField.id]} targetField={contextField} />
             </Tooltip>
             {editMode === "none" && (
               <Popup>
@@ -233,15 +271,7 @@ export function FieldMap({
           positions={boundaryPositions}
         >
           <Tooltip sticky>
-            <strong>{field.name}</strong>
-            <br />
-            {field.areaHa} ha
-            {selectedMapStatus && (
-              <>
-                <br />
-                {selectedMapStatus.label}
-              </>
-            )}
+            <FieldTooltipContent mapStatus={selectedMapStatus} targetField={field} />
           </Tooltip>
           {editMode === "none" && (
             <Popup>
@@ -430,7 +460,7 @@ function FieldMapPatternDefs({
   fieldMapStatuses,
   fields,
 }: {
-  fieldMapStatuses: Record<string, (FieldMapStyle & { taskName?: string; workState?: "manual" | "planned" | "active" | "completed"; dueDate?: string; note?: string }) | undefined>;
+  fieldMapStatuses: Record<string, FieldWorkMapStatus | undefined>;
   fields: Field[];
 }) {
   const map = useMap();
