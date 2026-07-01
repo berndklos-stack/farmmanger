@@ -113,6 +113,18 @@ async function releaseArchivedPersonnelProfileLinks(admin: ReturnType<typeof cre
   return "";
 }
 
+async function findAuthUserIdByEmail(admin: ReturnType<typeof createClient>, email: string) {
+  const normalizedEmail = email.toLowerCase();
+  for (let page = 1; page <= 10; page += 1) {
+    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
+    if (error) return { error: `Auth-User konnte nicht gesucht werden: ${formatSupabaseError(error)}` };
+    const user = data.users.find((item) => item.email?.toLowerCase() === normalizedEmail);
+    if (user) return { userId: user.id };
+    if (data.users.length < 1000) break;
+  }
+  return {};
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: corsHeaders });
   if (req.method !== "POST") return jsonResponse({ error: "Method not allowed" }, 405);
@@ -162,6 +174,12 @@ Deno.serve(async (req) => {
       }
       const samePersonnelProfile = existingProfiles?.find((profile) => profile.id === personnelResourceId && profile.role === "driver");
       if (samePersonnelProfile) profileId = samePersonnelProfile.id;
+    }
+
+    if (!profileId) {
+      const existingAuthUser = await findAuthUserIdByEmail(admin, email);
+      if (existingAuthUser.error) return jsonResponse({ error: existingAuthUser.error }, 400);
+      if (existingAuthUser.userId) profileId = existingAuthUser.userId;
     }
 
     const emailError = await ensureEmailCanBeUsed(admin, email, profileId, personnelResourceId);
