@@ -28,6 +28,10 @@ type DriverTaskGroup = {
 };
 
 type EquipmentPlacement = "attached" | "yard" | "field" | "defect";
+type CompletionDialogState = {
+  subtaskId: string;
+  status: "teilweise erledigt" | "erledigt";
+} | null;
 
 const equipmentLogStorageKey = "schlaglink.driverEquipmentLog";
 const driverTestLocationStorageKey = "schlaglink.driverTestLocation";
@@ -224,6 +228,7 @@ export function DriverView({
   const [handoverNote, setHandoverNote] = useState("");
   const [equipmentNotice, setEquipmentNotice] = useState("");
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, DriverFeedbackDraft>>({});
+  const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
       return window.localStorage.getItem(driverTestLocationStorageKey) === "true";
@@ -310,6 +315,9 @@ export function DriverView({
   const selectedTask = selectedSubtask ? jobs.find((job) => job.id === selectedSubtask.jobId)?.tasks.find((item) => item.id === selectedSubtask.taskId) : undefined;
   const selectedField = selectedSubtask ? fields.find((item) => item.id === selectedSubtask.fieldId) : undefined;
   const selectedFeedbackDraft = selectedSubtask ? feedbackDrafts[selectedSubtask.id] ?? draftFromSubtask(selectedSubtask) : draftFromSubtask();
+  const completionSubtask = completionDialog ? subtasks.find((subtask) => subtask.id === completionDialog.subtaskId) : undefined;
+  const completionTask = completionSubtask ? jobs.find((job) => job.id === completionSubtask.jobId)?.tasks.find((item) => item.id === completionSubtask.taskId) : undefined;
+  const completionDraft = completionSubtask ? feedbackDrafts[completionSubtask.id] ?? draftFromSubtask(completionSubtask) : draftFromSubtask();
   const pendingFieldClaim = accessibleSubtasks.find((subtask) => subtask.id === pendingFieldClaimId);
   const pendingFieldClaimField = pendingFieldClaim ? fields.find((field) => field.id === pendingFieldClaim.fieldId) : undefined;
   function resourceAssignmentLabel(resourceId: string, kind: "vehicle" | "implement") {
@@ -340,6 +348,38 @@ export function DriverView({
         ...patch,
       },
     }));
+  }
+
+  function feedbackMetric(task?: Job["tasks"][number]) {
+    return task?.progressMetric[0] ?? "Fläche";
+  }
+
+  function feedbackValueConfig(task?: Job["tasks"][number]) {
+    const metric = feedbackMetric(task);
+    if (metric === "Menge") {
+      const inferredUnit = task?.name.toLowerCase().includes("ballen") ? t("driver.bales") : "";
+      const unit = task?.unit || inferredUnit;
+      return {
+        key: "doneAmount" as const,
+        label: unit ? `${t("driver.quantity")} (${unit})` : t("driver.quantity"),
+        placeholder: "0",
+        inputMode: "decimal" as const,
+      };
+    }
+    if (metric === "Fuhren") {
+      return {
+        key: "trips" as const,
+        label: t("driver.trips"),
+        placeholder: "0",
+        inputMode: "numeric" as const,
+      };
+    }
+    return {
+      key: "doneHa" as const,
+      label: t("driver.areaDone"),
+      placeholder: "0,00",
+      inputMode: "decimal" as const,
+    };
   }
 
   function feedbackPatch(subtask: Subtask, status: Subtask["status"], fallbackProgress: number) {
@@ -665,6 +705,24 @@ export function DriverView({
     sendLocation({ ...subtask, ...patch }, true);
   }
 
+  function openCompletionDialog(subtask: Subtask, status: "teilweise erledigt" | "erledigt") {
+    setFeedbackDrafts((current) => ({
+      ...current,
+      [subtask.id]: current[subtask.id] ?? draftFromSubtask(subtask),
+    }));
+    setCompletionDialog({ subtaskId: subtask.id, status });
+  }
+
+  function confirmCompletionDialog() {
+    if (!completionDialog || !completionSubtask) return;
+    if (completionDialog.status === "erledigt") {
+      completeSubtask(completionSubtask);
+    } else {
+      updateStatusAndSendLocation(completionSubtask, feedbackPatch(completionSubtask, "teilweise erledigt", 60));
+    }
+    setCompletionDialog(null);
+  }
+
   return (
     <section className="driver-shell">
       <div className="mobile-frame">
@@ -878,26 +936,10 @@ export function DriverView({
                 <div className="driver-actions">
                   <button className={subtask.status === "in Arbeit" ? "active-action" : ""} onClick={() => updateStatusAndSendLocation(subtask, { ...feedbackPatch(subtask, "in Arbeit", 25), note: selectedFeedbackDraft.note.trim() || t("driver.workStarted"), accessOk: undefined })} type="button"><Play size={18} /> {t("actions.start")}</button>
                   <button className={subtask.status === "pausiert" ? "active-action" : ""} onClick={() => updateStatusAndSendLocation(subtask, { ...feedbackPatch(subtask, "pausiert", subtask.progress), note: selectedFeedbackDraft.note.trim() || t("createJob.driverPaused"), accessOk: undefined })} type="button"><Pause size={18} /> {t("actions.pause")}</button>
-                  <button className={subtask.status === "teilweise erledigt" ? "active-action" : ""} onClick={() => updateStatusAndSendLocation(subtask, feedbackPatch(subtask, "teilweise erledigt", 60))} type="button"><Flag size={18} /> {t("actions.partial")}</button>
-	                  <button className={subtask.status === "erledigt" ? "active-action done-action" : ""} onClick={() => completeSubtask(subtask)} type="button"><Check size={18} /> {t("actions.complete")}</button>
+                  <button className={subtask.status === "teilweise erledigt" ? "active-action" : ""} onClick={() => openCompletionDialog(subtask, "teilweise erledigt")} type="button"><Flag size={18} /> {t("actions.partial")}</button>
+	                  <button className={subtask.status === "erledigt" ? "active-action done-action" : ""} onClick={() => openCompletionDialog(subtask, "erledigt")} type="button"><Check size={18} /> {t("actions.complete")}</button>
                 </div>
                 <div className="driver-inputs">
-                  <label>
-                    <span>{t("driver.areaDone")}</span>
-                    <input inputMode="decimal" onChange={(event) => updateFeedbackDraft(subtask.id, { doneHa: event.target.value })} placeholder="0,00" value={selectedFeedbackDraft.doneHa} />
-                  </label>
-                  <label>
-                    <span>{t("driver.quantity")}</span>
-                    <input inputMode="decimal" onChange={(event) => updateFeedbackDraft(subtask.id, { doneAmount: event.target.value })} placeholder="0" value={selectedFeedbackDraft.doneAmount} />
-                  </label>
-                  <label>
-                    <span>{t("driver.trips")}</span>
-                    <input inputMode="numeric" onChange={(event) => updateFeedbackDraft(subtask.id, { trips: event.target.value })} placeholder="0" value={selectedFeedbackDraft.trips} />
-                  </label>
-                  <label>
-                    <span>{t("driver.note")}</span>
-                    <input onChange={(event) => updateFeedbackDraft(subtask.id, { note: event.target.value })} placeholder={t("driver.notePlaceholder")} value={selectedFeedbackDraft.note} />
-                  </label>
                   <input
                     accept="image/*"
                     capture="environment"
@@ -1137,6 +1179,43 @@ export function DriverView({
                 <button className="secondary-action" onClick={() => setPendingFieldClaimId("")} type="button">{t("actions.cancel")}</button>
                 <button className="primary-action" onClick={() => { void confirmFieldClaim(); }} type="button">
                   <Check size={16} /> {t("driver.claimAndSendLocation")}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
+        {completionDialog && completionSubtask && (
+          <div className="modal-backdrop" role="presentation">
+            <div className="resource-modal warning-modal" role="dialog" aria-modal="true">
+              <div className="section-heading">
+                <h2>{t(completionDialog.status === "erledigt" ? "driver.completeDialogTitle" : "driver.partialDialogTitle")}</h2>
+                <button className="secondary-action icon-action" onClick={() => setCompletionDialog(null)} type="button">×</button>
+              </div>
+              <p>{t("driver.completionDialogHint", { task: completionTask?.name ?? "" })}</p>
+              {(() => {
+                const config = feedbackValueConfig(completionTask);
+                return (
+                  <div className="driver-yard-form">
+                    <label>
+                      <span>{config.label}</span>
+                      <input
+                        inputMode={config.inputMode}
+                        onChange={(event) => updateFeedbackDraft(completionSubtask.id, { [config.key]: event.target.value } as Partial<DriverFeedbackDraft>)}
+                        placeholder={config.placeholder}
+                        value={completionDraft[config.key]}
+                      />
+                    </label>
+                    <label>
+                      <span>{t("driver.note")}</span>
+                      <textarea onChange={(event) => updateFeedbackDraft(completionSubtask.id, { note: event.target.value })} placeholder={t("driver.notePlaceholder")} value={completionDraft.note} />
+                    </label>
+                  </div>
+                );
+              })()}
+              <div className="modal-actions">
+                <button className="secondary-action" onClick={() => setCompletionDialog(null)} type="button">{t("actions.cancel")}</button>
+                <button className="primary-action" onClick={confirmCompletionDialog} type="button">
+                  <Check size={16} /> {t(completionDialog.status === "erledigt" ? "actions.complete" : "actions.partial")}
                 </button>
               </div>
             </div>
