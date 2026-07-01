@@ -27,8 +27,8 @@ export function ProgressBar({ value }: { value: number }) {
 
 export function FieldName({ id }: { id: string }) {
   const { t } = useTranslation();
-  const { fields } = useAppData();
-  return <>{fields.find((field) => field.id === id)?.name ?? t("fields.unknownField")}</>;
+  const { allFields, fields } = useAppData();
+  return <>{allFields.find((field) => field.id === id)?.name ?? fields.find((field) => field.id === id)?.name ?? t("fields.unknownField")}</>;
 }
 
 export function DriverChips({ subtask }: { subtask: Subtask }) {

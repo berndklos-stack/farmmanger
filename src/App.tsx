@@ -2726,6 +2726,7 @@ export function App() {
     <DataProvider
       value={{
         fields: visibleFieldRecords,
+        allFields: fieldRecords,
         drivers: contextDriverRecords,
         vehicles: vehicleRecords,
         implementsList: implementRecords,

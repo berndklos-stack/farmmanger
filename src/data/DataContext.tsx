@@ -12,6 +12,7 @@ export type PermissionSet = {
 
 type DataContextValue = {
   fields: Field[];
+  allFields: Field[];
   drivers: Driver[];
   vehicles: Vehicle[];
   implementsList: Implement[];
@@ -71,6 +72,7 @@ type DataContextValue = {
 
 const defaultValue: DataContextValue = {
   fields,
+  allFields: fields,
   drivers,
   vehicles,
   implementsList,
