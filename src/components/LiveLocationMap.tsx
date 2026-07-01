@@ -233,14 +233,7 @@ export function LiveLocationMap({
           const mapStatus = fieldMapStatuses[field.id];
           if (!mapStatus) return null;
           return (
-            <Marker icon={workStateIcon(mapStatus)} key={`${field.id}-work-state`} position={[field.center.lat, field.center.lng]}>
-              <Tooltip sticky>
-                <strong>{mapStatus.label}</strong>
-                <br />
-                {getWorkStateLabel(mapStatus.workState)}
-                {mapStatus.dueDate ? ` · ${mapStatus.dueDate}` : ""}
-              </Tooltip>
-            </Marker>
+            <Marker icon={workStateIcon(mapStatus)} key={`${field.id}-work-state`} position={[field.center.lat, field.center.lng]} />
           );
         })}
         {locations.map((location) => {

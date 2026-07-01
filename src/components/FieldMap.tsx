@@ -255,14 +255,7 @@ export function FieldMap({
           const mapStatus = fieldMapStatuses[contextField.id];
           if (!mapStatus) return null;
           return (
-            <Marker icon={workStateIcon(mapStatus)} key={`${contextField.id}-work-state`} position={[contextField.center.lat, contextField.center.lng]}>
-              <Tooltip sticky>
-                <strong>{mapStatus.label}</strong>
-                <br />
-                {getWorkStateLabel(mapStatus.workState)}
-                {mapStatus.dueDate ? ` · ${mapStatus.dueDate}` : ""}
-              </Tooltip>
-            </Marker>
+            <Marker icon={workStateIcon(mapStatus)} key={`${contextField.id}-work-state`} position={[contextField.center.lat, contextField.center.lng]} />
           );
         })}
         <Polygon
@@ -282,14 +275,7 @@ export function FieldMap({
           )}
         </Polygon>
         {selectedMapStatus && (
-          <Marker icon={workStateIcon(selectedMapStatus)} position={[field.center.lat, field.center.lng]}>
-            <Tooltip sticky>
-              <strong>{selectedMapStatus.label}</strong>
-              <br />
-              {getWorkStateLabel(selectedMapStatus.workState)}
-              {selectedMapStatus.dueDate ? ` · ${selectedMapStatus.dueDate}` : ""}
-            </Tooltip>
-          </Marker>
+          <Marker icon={workStateIcon(selectedMapStatus)} position={[field.center.lat, field.center.lng]} />
         )}
         {draftBoundary.length > 0 && (
           <>
