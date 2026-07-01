@@ -130,6 +130,7 @@ type JobTaskRow = {
   target_trips: number | null;
   max_active_workers: number | null;
   status: string | null;
+  updated_at?: string | null;
 };
 
 type AssignmentRow = {
@@ -447,7 +448,7 @@ function mapSubtasks(
       driverPhotos,
       statusEvents,
       completedAt: completed?.completed_at ?? completed?.updated_at ?? undefined,
-      updatedAt: feedbackAssignment?.updated_at ?? taskReportRows.filter((report) => report.job_task_id === task.id).at(-1)?.created_at ?? undefined,
+      updatedAt: task.updated_at ?? feedbackAssignment?.updated_at ?? taskReportRows.filter((report) => report.job_task_id === task.id).at(-1)?.created_at ?? undefined,
       statusChangedAt: completed?.updated_at ?? activeAssignments.at(-1)?.updated_at ?? undefined,
     };
   });
