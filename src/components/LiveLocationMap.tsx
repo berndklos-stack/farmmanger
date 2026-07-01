@@ -16,7 +16,13 @@ type FieldWorkMapStatus = FieldMapStyle & {
   note?: string;
 };
 
-const activeWorkStatuses: Subtask["status"][] = ["in Arbeit"];
+function hasActiveDriver(subtask: Subtask) {
+  return subtask.activeDriverIds.length > 0 || (subtask.activeDriverNames ?? []).length > 0;
+}
+
+function isActivelyWorked(subtask: Subtask) {
+  return subtask.status === "in Arbeit" && hasActiveDriver(subtask);
+}
 
 function mixHexColor(baseColor: string, overlayColor: string, overlayWeight = 0.45) {
   const parse = (value: string) => {
@@ -75,7 +81,7 @@ export function LiveLocationMap({
         .filter((item) => Boolean(item.mapStyle));
       const liveActive = fieldSubtasks.find((item) => liveActiveSubtaskIds.has(item.subtask.id))
         ?? fieldSubtasks.find(() => liveActiveFieldIds.has(field.id));
-      const localActive = liveKnownFieldIds.has(field.id) ? undefined : fieldSubtasks.find((item) => activeWorkStatuses.includes(item.subtask.status));
+      const localActive = liveKnownFieldIds.has(field.id) ? undefined : fieldSubtasks.find((item) => isActivelyWorked(item.subtask));
       const active = liveActive ?? localActive;
       const completed = fieldSubtasks
         .filter((item) => item.subtask.status === "erledigt")
