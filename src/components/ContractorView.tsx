@@ -470,7 +470,22 @@ export function ContractorView({
   useEffect(() => {
     if (!selectedDriver) return;
     setDriverForm(driverToForm(selectedDriver));
-  }, [selectedDriver?.id, t, vehicles]);
+  }, [
+    selectedDriver?.id,
+    selectedDriver?.name,
+    selectedDriver?.organizationId,
+    selectedDriver?.vehicle,
+    selectedDriver?.jobVisibility,
+    selectedDriver?.email,
+    selectedDriver?.accessPassword,
+    selectedDriver?.mobile,
+    selectedDriver?.licenseClasses,
+    selectedDriver?.maxDailyHours,
+    selectedDriver?.resourceType,
+    selectedDriver?.operationType,
+    t,
+    vehicles,
+  ]);
 
   useEffect(() => {
     if (!selectedVehicle) return;
