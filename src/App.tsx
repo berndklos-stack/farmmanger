@@ -300,10 +300,6 @@ function mergeDispatchAssignmentOverrides(subtasks: Subtask[], overrides: Record
       const overrideTimestamp = Date.parse(override.updatedAt ?? override.statusChangedAt ?? override.completedAt ?? "");
       const overrideIsStale = Number.isFinite(serverTimestamp) && (!Number.isFinite(overrideTimestamp) || overrideTimestamp < serverTimestamp);
       if (overrideIsStale) return subtask;
-      if (override.status && override.status !== subtask.status) {
-        const { status: _status, progress: _progress, completedAt: _completedAt, statusChangedAt: _statusChangedAt, ...assignmentOverride } = override;
-        return { ...subtask, ...assignmentOverride };
-      }
     }
     return { ...subtask, ...override };
   });
