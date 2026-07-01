@@ -622,6 +622,19 @@ function positiveInteger(value: number | undefined, fallback = 1) {
 function jobTaskPayload(job: Job, subtask: Subtask) {
   const task = job.tasks.find((item) => item.id === subtask.taskId) ?? job.tasks[0];
   const metric = task.progressMetric[0] ?? "Fläche";
+  const status = subtask.status === "erledigt"
+    ? "completed"
+    : subtask.status === "in Arbeit"
+      ? "active"
+      : subtask.status === "pausiert"
+        ? "paused"
+        : subtask.status === "reserviert"
+          ? "reserved"
+          : subtask.status === "Problem"
+            ? "problem"
+            : subtask.status === "teilweise erledigt"
+              ? "partial"
+              : "open";
   return {
     id: subtask.id,
     job_id: job.id,
@@ -636,7 +649,7 @@ function jobTaskPayload(job: Job, subtask: Subtask) {
     quantity_unit: task.unit ?? null,
     target_trips: metric === "Fuhren" ? task.targetValue ?? null : null,
     max_active_workers: positiveInteger(task.maxVehicles),
-    status: "open",
+    status,
   };
 }
 

@@ -31,6 +31,7 @@ type EquipmentPlacement = "attached" | "yard" | "field" | "defect";
 
 const equipmentLogStorageKey = "schlaglink.driverEquipmentLog";
 const driverTestLocationStorageKey = "schlaglink.driverTestLocation";
+const automaticDriverLocationIntervalMs = 5 * 60 * 1000;
 
 function appendEquipmentLog(entry: Record<string, unknown>) {
   try {
@@ -256,6 +257,26 @@ export function DriverView({
     return () => window.clearInterval(interval);
   }, [driver, trackingSubtaskId, subtasks, useTestLocation]);
   useEffect(() => {
+    if (!driver) return undefined;
+    const sendAutomaticLocation = () => {
+      const identifiers = new Set([driver.id, driver.profileId].filter(Boolean));
+      const assignedSubtask = subtasks
+        .filter((subtask) => subtask.status !== "erledigt")
+        .filter((subtask) => subtask.activeDriverIds.some((driverId) => identifiers.has(driverId)))
+        .sort((a, b) => {
+          const priority = (status: Subtask["status"]) => status === "in Arbeit" ? 0 : status === "pausiert" ? 1 : status === "reserviert" ? 2 : 3;
+          return priority(a.status) - priority(b.status);
+        })[0];
+      if (assignedSubtask) {
+        sendLocation(assignedSubtask, true);
+        return;
+      }
+      sendDriverHeartbeatLocation(true);
+    };
+    const interval = window.setInterval(sendAutomaticLocation, automaticDriverLocationIntervalMs);
+    return () => window.clearInterval(interval);
+  }, [driver?.id, driver?.profileId, subtasks, useTestLocation]);
+  useEffect(() => {
     if (openTaskGroupId && !driverTaskGroups.some((group) => group.id === openTaskGroupId)) {
       setOpenTaskGroupId("");
       setOpenSubtaskId("");
@@ -359,7 +380,7 @@ export function DriverView({
 	  async function claim(subtask: Subtask) {
     const task = jobs.find((job) => job.id === subtask.jobId)?.tasks.find((item) => item.id === subtask.taskId);
     if (!isDemoMode) {
-      const { error } = await claimJobTask(subtask.taskId, activeDriver.vehicle);
+      const { error } = await claimJobTask(subtask.id, activeDriver.vehicle);
       if (error) {
         console.error("Fahrer-Anmeldung konnte nicht direkt synchronisiert werden", error);
         setEquipmentNotice(t("driver.claimSyncFailed"));
@@ -475,6 +496,17 @@ export function DriverView({
     };
   }
 
+  function fallbackDriverPoint() {
+    const field = fields.find((item) => item.organizationId === activeDriver.organizationId) ?? fields[0];
+    const base = field?.accessPoint ?? field?.center ?? { lat: 55.72572, lng: 13.17942 };
+    return {
+      lat: base.lat + (Math.random() - 0.5) * 0.001,
+      lng: base.lng + (Math.random() - 0.5) * 0.001,
+      accuracy: field ? 75 : 100,
+      speed: 0,
+    };
+  }
+
   function publishLocation(subtask: Subtask, point: { lat: number; lng: number; accuracy?: number; speed?: number }, automatic = false, fallbackNotice?: string) {
     onLocationUpdate({
       id: `${activeDriver.id}-${Date.now()}`,
@@ -582,6 +614,38 @@ export function DriverView({
             ? t("liveLocation.timeout")
             : t("liveLocation.positionUnavailable");
         publishTravelLocation(fallbackPoint(subtask), automatic, fallbackMessage);
+      },
+      { enableHighAccuracy: true, maximumAge: 15000, timeout: 5000 },
+    );
+  }
+
+  function sendDriverHeartbeatLocation(automatic = false) {
+    if (useTestLocation) {
+      publishTravelLocation(fallbackDriverPoint(), automatic, t("liveLocation.testLocationSent"));
+      return;
+    }
+    if (!window.isSecureContext) {
+      publishTravelLocation(fallbackDriverPoint(), automatic, t("liveLocation.insecureContext"));
+      return;
+    }
+    if (!navigator.geolocation) {
+      publishTravelLocation(fallbackDriverPoint(), automatic, t("liveLocation.notSupported"));
+      return;
+    }
+    navigator.geolocation.getCurrentPosition(
+      (position) => publishTravelLocation({
+        lat: position.coords.latitude,
+        lng: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+        speed: position.coords.speed ?? undefined,
+      }, automatic),
+      (error) => {
+        const fallbackMessage = error.code === error.PERMISSION_DENIED
+          ? t("liveLocation.permissionDenied")
+          : error.code === error.TIMEOUT
+            ? t("liveLocation.timeout")
+            : t("liveLocation.positionUnavailable");
+        publishTravelLocation(fallbackDriverPoint(), automatic, fallbackMessage);
       },
       { enableHighAccuracy: true, maximumAge: 15000, timeout: 5000 },
     );
