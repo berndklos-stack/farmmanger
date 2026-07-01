@@ -333,7 +333,18 @@ function savePendingDriverSync(items: Record<string, Subtask>) {
 }
 
 function mergeDispatchAssignmentOverrides(subtasks: Subtask[], overrides: Record<string, Partial<DispatchAssignmentOverride>>) {
-  return subtasks.map((subtask) => ({ ...subtask, ...(overrides[subtask.id] ?? {}) }));
+  return subtasks.map((subtask) => {
+    const override = overrides[subtask.id];
+    if (!override) return subtask;
+    if (isSupabaseConfigured) {
+      const serverTimestamp = Date.parse(subtask.updatedAt ?? subtask.statusChangedAt ?? subtask.completedAt ?? "");
+      const overrideTimestamp = Date.parse(override.updatedAt ?? override.statusChangedAt ?? override.completedAt ?? "");
+      if (Number.isFinite(serverTimestamp) && Number.isFinite(overrideTimestamp) && overrideTimestamp < serverTimestamp) {
+        return subtask;
+      }
+    }
+    return { ...subtask, ...override };
+  });
 }
 
 function loadLocalFields() {
@@ -388,6 +399,7 @@ function mergeLocalDrivers(loadedDrivers: Driver[], localDrivers: Record<string,
   loadedDrivers.forEach((driver) => merged.set(driver.id, driver));
   Object.values(localDrivers).forEach((driver) => {
     const loaded = merged.get(driver.id);
+    if (isSupabaseConfigured && loaded) return;
     merged.set(driver.id, { ...loaded, ...driver, profileId: driver.profileId ?? loaded?.profileId });
   });
   return Array.from(merged.values());
@@ -516,6 +528,7 @@ function saveLocalArchivedJobs(archivedJobs: Record<string, string>) {
 }
 
 function mergeLocalArchivedJobs(loadedJobs: Job[], localArchivedJobs: Record<string, string>) {
+  if (isSupabaseConfigured) return loadedJobs;
   return loadedJobs.map((job) => (
     localArchivedJobs[job.id]
       ? { ...job, archivedAt: localArchivedJobs[job.id] }
@@ -553,6 +566,7 @@ function mergeLocalJobs(loadedJobs: Job[], localJobs: Record<string, Job>, local
   const merged = new globalThis.Map<string, Job>();
   mergeLocalArchivedJobs(loadedJobs, localArchivedJobs).forEach((job) => merged.set(job.id, job));
   Object.values(localJobs).forEach((job) => {
+    if (isSupabaseConfigured && merged.has(job.id)) return;
     merged.set(job.id, localArchivedJobs[job.id] ? { ...job, archivedAt: localArchivedJobs[job.id] } : job);
   });
   return Array.from(merged.values());
@@ -561,7 +575,10 @@ function mergeLocalJobs(loadedJobs: Job[], localJobs: Record<string, Job>, local
 function mergeLocalSubtasks(loadedSubtasks: Subtask[], localSubtasks: Record<string, Subtask[]>) {
   const merged = new globalThis.Map<string, Subtask>();
   loadedSubtasks.forEach((subtask) => merged.set(subtask.id, subtask));
-  Object.values(localSubtasks).flat().forEach((subtask) => merged.set(subtask.id, subtask));
+  Object.values(localSubtasks).flat().forEach((subtask) => {
+    if (isSupabaseConfigured && merged.has(subtask.id)) return;
+    merged.set(subtask.id, subtask);
+  });
   return Array.from(merged.values());
 }
 
