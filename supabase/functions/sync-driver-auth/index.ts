@@ -80,6 +80,7 @@ async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, emai
 
   const conflictingProfile = data?.find((profile) => {
     if (profile.id === profileId) return false;
+    if (profile.id === personnelResourceId) return false;
     const linkedPerson = linkedPersonnel?.find((person) => person.profile_id === profile.id);
     if (linkedPerson?.id === personnelResourceId) return false;
     return true;
@@ -87,6 +88,29 @@ async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, emai
   if (!conflictingProfile) return "";
   const roleLabel = conflictingProfile.role === "driver" ? "einen anderen Fahrer" : "einen Admin- oder Landwirt-Zugang";
   return `Diese E-Mail wird bereits fuer ${roleLabel} verwendet (${conflictingProfile.full_name ?? email}). Bitte eine eigene Fahrer-E-Mail verwenden.`;
+}
+
+async function releaseArchivedPersonnelProfileLinks(admin: ReturnType<typeof createClient>, profileId: string, personnelResourceId: string) {
+  if (!profileId) return "";
+  const { data, error } = await admin
+    .from("personnel_resources")
+    .select("id, full_name, archived_at")
+    .eq("profile_id", profileId)
+    .neq("id", personnelResourceId)
+    .limit(10);
+  if (error) return `Profilverknuepfung konnte nicht geprueft werden: ${formatSupabaseError(error)}`;
+  const conflictingActive = data?.find((person) => !person.archived_at);
+  if (conflictingActive) {
+    return `Diese Fahrer-Anmeldung ist bereits mit ${conflictingActive.full_name ?? "einem anderen aktiven Fahrer"} verbunden.`;
+  }
+  const archivedIds = (data ?? []).filter((person) => person.archived_at).map((person) => person.id);
+  if (archivedIds.length === 0) return "";
+  const { error: updateError } = await admin
+    .from("personnel_resources")
+    .update({ profile_id: null })
+    .in("id", archivedIds);
+  if (updateError) return `Archivierte Profilverknuepfung konnte nicht geloest werden: ${formatSupabaseError(updateError)}`;
+  return "";
 }
 
 Deno.serve(async (req) => {
@@ -127,6 +151,19 @@ Deno.serve(async (req) => {
   }
 
   if (email) {
+    if (!profileId) {
+      const { data: existingProfiles, error: profileLookupError } = await admin
+        .from("profiles")
+        .select("id, role")
+        .eq("email", email)
+        .limit(10);
+      if (profileLookupError) {
+        return jsonResponse({ error: `Profil konnte nicht gelesen werden: ${formatSupabaseError(profileLookupError)}` }, 400);
+      }
+      const samePersonnelProfile = existingProfiles?.find((profile) => profile.id === personnelResourceId && profile.role === "driver");
+      if (samePersonnelProfile) profileId = samePersonnelProfile.id;
+    }
+
     const emailError = await ensureEmailCanBeUsed(admin, email, profileId, personnelResourceId);
     if (emailError) return jsonResponse({ error: emailError }, 400);
 
@@ -166,6 +203,9 @@ Deno.serve(async (req) => {
     });
     if (profileError) return jsonResponse({ error: `Profil konnte nicht gespeichert werden: ${formatSupabaseError(profileError)}` }, 400);
   }
+
+  const profileLinkError = await releaseArchivedPersonnelProfileLinks(admin, profileId, personnelResourceId);
+  if (profileLinkError) return jsonResponse({ error: profileLinkError }, 400);
 
   const { error: personnelError } = await admin.from("personnel_resources").upsert({
     id: personnelResourceId,
