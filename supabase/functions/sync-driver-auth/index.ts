@@ -206,8 +206,22 @@ Deno.serve(async (req) => {
         email_confirm: true,
         user_metadata: { full_name: fullName },
       });
-      if (createError) return jsonResponse({ error: `Auth-User konnte nicht erstellt werden: ${formatSupabaseError(createError)}` }, 400);
-      profileId = createdUser.user.id;
+      if (createError) {
+        const formattedCreateError = formatSupabaseError(createError);
+        if (formattedCreateError.toLowerCase().includes("email_exists") || formattedCreateError.toLowerCase().includes("already been registered")) {
+          const existingAuthUser = await findAuthUserIdByEmail(admin, email);
+          if (existingAuthUser.error) return jsonResponse({ error: existingAuthUser.error }, 400);
+          if (existingAuthUser.userId) {
+            profileId = existingAuthUser.userId;
+          } else {
+            return jsonResponse({ error: `Auth-User existiert bereits, konnte aber nicht geladen werden: ${formattedCreateError}` }, 400);
+          }
+        } else {
+          return jsonResponse({ error: `Auth-User konnte nicht erstellt werden: ${formattedCreateError}` }, 400);
+        }
+      } else {
+        profileId = createdUser.user.id;
+      }
     }
 
     const { error: profileError } = await admin.from("profiles").upsert({
