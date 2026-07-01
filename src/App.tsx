@@ -102,6 +102,7 @@ type DispatchAssignmentOverride = Pick<
   | "driverNote"
   | "driverPhotoName"
   | "driverPhotos"
+  | "statusEvents"
   | "completedAt"
   | "updatedAt"
   | "statusChangedAt"
@@ -1064,12 +1065,22 @@ export function App() {
 
   function updateSubtask(id: string, patch: Partial<Subtask>) {
     const timestamp = new Date().toISOString();
+    const currentSubtask = subtasks.find((subtask) => subtask.id === id);
+    const reopenedFromCompleted = currentSubtask?.status === "erledigt" && patch.status === "offen";
+    const reopenEvent = reopenedFromCompleted
+      ? {
+          id: crypto.randomUUID(),
+          message: "Statuswechsel: Erledigt auf Offen zurückgesetzt.",
+          createdAt: timestamp,
+        }
+      : undefined;
     const timedPatch: Partial<Subtask> = {
       ...patch,
       updatedAt: timestamp,
       ...("status" in patch ? { statusChangedAt: timestamp } : {}),
       ...(patch.status === "erledigt" ? { completedAt: patch.completedAt ?? timestamp } : {}),
       ...("status" in patch && patch.status !== "erledigt" ? { completedAt: undefined } : {}),
+      ...(reopenEvent ? { statusEvents: [...(currentSubtask?.statusEvents ?? []), reopenEvent] } : {}),
     };
     const shouldPersistDispatch = "activeDriverIds" in patch
       || "activeDriverNames" in patch
@@ -1087,6 +1098,7 @@ export function App() {
       || "driverNote" in patch
       || "driverPhotoName" in patch
       || "driverPhotos" in patch
+      || "statusEvents" in timedPatch
       || "completedAt" in patch;
     const shouldSync = "activeDriverIds" in patch || "activeVehicleIds" in patch || "status" in patch;
     const shouldSyncDriverFeedback = "doneHa" in patch
@@ -1094,7 +1106,6 @@ export function App() {
       || "trips" in patch
       || "note" in patch
       || "driverNote" in patch;
-    const currentSubtask = subtasks.find((subtask) => subtask.id === id);
     const nextSubtaskForPersistence = currentSubtask ? { ...currentSubtask, ...timedPatch } : undefined;
     setSubtasks((current) =>
       current.map((subtask) => {
@@ -1123,6 +1134,7 @@ export function App() {
             driverNote: nextSubtaskForPersistence.driverNote,
             driverPhotoName: nextSubtaskForPersistence.driverPhotoName,
             driverPhotos: nextSubtaskForPersistence.driverPhotos,
+            statusEvents: nextSubtaskForPersistence.statusEvents,
             completedAt: nextSubtaskForPersistence.completedAt,
             updatedAt: nextSubtaskForPersistence.updatedAt,
             statusChangedAt: nextSubtaskForPersistence.statusChangedAt,
@@ -1140,6 +1152,17 @@ export function App() {
           if (!result.ok) queueDriverSync(nextSubtaskForPersistence);
         });
       }
+    }
+    if (reopenEvent && isSupabaseConfigured && supabase) {
+      void supabase.from("task_reports").insert({
+        id: reopenEvent.id,
+        job_task_id: id,
+        report_type: "progress",
+        message: reopenEvent.message,
+        created_by: authProfile?.id ?? null,
+      }).then(({ error }) => {
+        if (error) console.error("Status-Protokoll konnte nicht in Supabase gespeichert werden", error);
+      });
     }
   }
 

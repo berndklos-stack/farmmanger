@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { contractor, drivers, farmer, fields as mockFields, implementsList as mockImplements, jobs as mockJobs, organizations as mockOrganizations, subtasks as mockSubtasks, taskTemplates as mockTaskTemplates, vehicles as mockVehicles } from "../data/mockData";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import type { Driver, Field, FieldAttachment, FieldHazard, FieldHazardType, Implement, Job, Organization, ProgressMetric, Status, Subtask, SubtaskPhoto, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
+import type { Driver, Field, FieldAttachment, FieldHazard, FieldHazardType, Implement, Job, Organization, ProgressMetric, Status, Subtask, SubtaskPhoto, SubtaskStatusEvent, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
 
 type DataState = {
   fields: Field[];
@@ -406,6 +406,13 @@ function mapSubtasks(
         uploadedAt: report.created_at ?? new Date().toISOString(),
         uploadedByDriverId: report.created_by ?? undefined,
     }));
+    const statusEvents: SubtaskStatusEvent[] = taskReportRows
+      .filter((report) => report.job_task_id === task.id && !report.photo_url && Boolean(report.message))
+      .map((report) => ({
+        id: report.id,
+        message: report.message ?? "",
+        createdAt: report.created_at ?? new Date().toISOString(),
+      }));
     const activeAssignments = assignments.filter((assignment) => ["reserved", "active", "paused"].includes(assignment.status ?? ""));
     const completed = task.status === "completed" ? assignments.find((assignment) => assignment.status === "completed") : undefined;
     const feedbackAssignment = completed
@@ -438,6 +445,7 @@ function mapSubtasks(
       driverNote: feedbackAssignment?.notes ?? undefined,
       driverPhotoName: driverPhotos.at(-1)?.name,
       driverPhotos,
+      statusEvents,
       completedAt: completed?.completed_at ?? completed?.updated_at ?? undefined,
       updatedAt: feedbackAssignment?.updated_at ?? taskReportRows.filter((report) => report.job_task_id === task.id).at(-1)?.created_at ?? undefined,
       statusChangedAt: completed?.updated_at ?? activeAssignments.at(-1)?.updated_at ?? undefined,

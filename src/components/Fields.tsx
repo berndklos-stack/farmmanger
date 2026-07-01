@@ -258,7 +258,7 @@ export function Fields({
     || driver.name.trim().toLowerCase() === id.trim().toLowerCase()
   ))?.name;
   const fieldHistoryRows: FieldHistoryRow[] = [
-    ...allSelectedFieldSubtasks.map((subtask) => {
+    ...allSelectedFieldSubtasks.flatMap((subtask) => {
       const job = jobs.find((item) => item.id === subtask.jobId);
       const task = getTask(subtask, jobs);
       const driverNames = Array.from(new Set([
@@ -291,7 +291,7 @@ export function Fields({
       ].filter(Boolean).join(" · ");
       const completionTime = subtask.completedAt ?? (subtask.status === "erledigt" ? subtask.statusChangedAt ?? subtask.updatedAt : undefined);
       const activityTime = completionTime ?? subtask.statusChangedAt ?? subtask.updatedAt ?? subtask.driverPhotos?.at(-1)?.uploadedAt;
-      return {
+      const subtaskRow: FieldHistoryRow = {
         id: subtask.id,
         sortValue: activityTime || job?.timeWindow || job?.jobNumber || subtask.id,
         date: subtask.status === "erledigt" ? formatHistoryDate(completionTime ?? activityTime) : job?.timeWindow || t("report.notDocumented"),
@@ -306,6 +306,21 @@ export function Fields({
         work: workValues,
         note: noteValues || t("report.none"),
       };
+      const statusEventRows: FieldHistoryRow[] = (subtask.statusEvents ?? []).map((event) => ({
+        id: event.id,
+        sortValue: event.createdAt,
+        date: formatHistoryDate(event.createdAt),
+        activityTime: formatHistoryDateTime(event.createdAt),
+        job: [job?.jobNumber, job?.title, job?.customer].filter(Boolean).join(" · ") || subtask.jobId,
+        contractor: job?.contractor ?? t("report.notDocumented"),
+        task: task?.name ?? subtask.taskId,
+        status: t("terms.history"),
+        actors: t("contractor.noDriverAssigned"),
+        resources: t("report.none"),
+        work: "",
+        note: event.message,
+      }));
+      return [subtaskRow, ...statusEventRows];
     }),
     ...selectedField.history.map((item, index) => ({
       id: `manual-${selectedField.id}-${index}`,

@@ -189,6 +189,12 @@ export type SubtaskPhoto = {
   uploadedByDriverId?: string;
 };
 
+export type SubtaskStatusEvent = {
+  id: string;
+  message: string;
+  createdAt: string;
+};
+
 export type Vehicle = {
   id: string;
   organizationId?: string;
@@ -280,6 +286,7 @@ export type Subtask = {
   driverNote?: string;
   driverPhotoName?: string;
   driverPhotos?: SubtaskPhoto[];
+  statusEvents?: SubtaskStatusEvent[];
   completedAt?: string;
   updatedAt?: string;
   statusChangedAt?: string;
