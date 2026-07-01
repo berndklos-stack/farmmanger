@@ -1040,7 +1040,7 @@ export function App() {
 
     const { data: existingAssignments, error: readError } = await supabase
       .from("task_assignments")
-      .select("id, driver_profile_id")
+      .select("id, driver_profile_id, personnel_resource_id")
       .eq("job_task_id", subtask.id);
     if (readError) {
       console.error("Zuordnungen konnten nicht aus Supabase gelesen werden", readError);
@@ -1053,10 +1053,12 @@ export function App() {
     const desiredAssignments = subtask.activeDriverIds.flatMap((driverId, index) => {
       const driver = driverRecords.find((item) => item.id === driverId || item.profileId === driverId);
       const profileId = driver ? supabaseDriverProfileId(driver) : supabaseDriverProfileIdFromLegacyId(driverId);
-      if (!profileId) return [];
+      const personnelResourceId = driver ? supabaseDriverId(driver) : isUuid(driverId) ? driverId : undefined;
+      if (!profileId && !personnelResourceId) return [];
       return {
         job_task_id: subtask.id,
-        driver_profile_id: profileId,
+        driver_profile_id: profileId ?? null,
+        personnel_resource_id: personnelResourceId ?? null,
         vehicle_name: vehicleNames[index] ?? vehicleNames[0] ?? driver?.vehicle ?? null,
         status: assignmentStatusFromSubtask(subtask.status),
         completed_area_ha: subtask.doneHa ?? null,
@@ -1066,9 +1068,15 @@ export function App() {
         notes: subtask.driverNote ?? subtask.note ?? null,
       };
     });
-    const desiredProfileIds = new Set(desiredAssignments.map((assignment) => assignment.driver_profile_id));
+    const desiredAssignmentKeys = new Set(desiredAssignments.map((assignment) => (
+      assignment.personnel_resource_id ? `personnel:${assignment.personnel_resource_id}` : `profile:${assignment.driver_profile_id}`
+    )));
     const releasedAssignmentIds = (existingAssignments ?? [])
-      .filter((assignment) => !desiredProfileIds.has(assignment.driver_profile_id))
+      .filter((assignment) => {
+        const personnelResourceId = "personnel_resource_id" in assignment ? assignment.personnel_resource_id : undefined;
+        const key = personnelResourceId ? `personnel:${personnelResourceId}` : `profile:${assignment.driver_profile_id}`;
+        return !desiredAssignmentKeys.has(key);
+      })
       .map((assignment) => assignment.id);
 
     if (releasedAssignmentIds.length > 0) {
@@ -1082,14 +1090,17 @@ export function App() {
       }
     }
 
-    if (desiredAssignments.length > 0) {
+    const profileAssignments = desiredAssignments.filter((assignment) => assignment.driver_profile_id);
+    const personnelAssignments = desiredAssignments.filter((assignment) => assignment.personnel_resource_id && !assignment.driver_profile_id);
+
+    if (profileAssignments.length > 0) {
       let { error } = await supabase
         .from("task_assignments")
-        .upsert(desiredAssignments, { onConflict: "job_task_id,driver_profile_id" });
+        .upsert(profileAssignments, { onConflict: "job_task_id,driver_profile_id" });
       if (error && error.message.includes("assignment_status") && error.message.includes("paused")) {
         const retry = await supabase
           .from("task_assignments")
-          .upsert(desiredAssignments.map((assignment) => ({
+          .upsert(profileAssignments.map((assignment) => ({
             ...assignment,
             status: assignment.status === "paused" ? "reserved" : assignment.status,
           })), { onConflict: "job_task_id,driver_profile_id" });
@@ -1097,6 +1108,24 @@ export function App() {
       }
       if (error) {
         console.error("Dispo-Zuordnung konnte nicht in Supabase gespeichert werden", error);
+        return { ok: true };
+      }
+    }
+    if (personnelAssignments.length > 0) {
+      let { error } = await supabase
+        .from("task_assignments")
+        .upsert(personnelAssignments, { onConflict: "job_task_id,personnel_resource_id" });
+      if (error && error.message.includes("assignment_status") && error.message.includes("paused")) {
+        const retry = await supabase
+          .from("task_assignments")
+          .upsert(personnelAssignments.map((assignment) => ({
+            ...assignment,
+            status: assignment.status === "paused" ? "reserved" : assignment.status,
+          })), { onConflict: "job_task_id,personnel_resource_id" });
+        error = retry.error;
+      }
+      if (error) {
+        console.error("Personal-Zuordnung konnte nicht in Supabase gespeichert werden", error);
         return { ok: true };
       }
     }

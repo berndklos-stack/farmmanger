@@ -137,6 +137,7 @@ type AssignmentRow = {
   id: string;
   job_task_id: string;
   driver_profile_id: string | null;
+  personnel_resource_id?: string | null;
   vehicle_name: string | null;
   status: string | null;
   completed_area_ha: number | null;
@@ -387,12 +388,17 @@ function buildProfileToPersonnelNameMap(profileRows: DriverRow[], personnelRows:
   );
 }
 
+function buildPersonnelIdToNameMap(personnelRows: PersonnelResourceRow[]) {
+  return new Map(personnelRows.filter((person) => !person.archived_at).map((person) => [person.id, person.full_name]));
+}
+
 function mapSubtasks(
   taskRows: JobTaskRow[],
   assignmentRows: AssignmentRow[],
   taskReportRows: TaskReportRow[] = [],
   profileToPersonnelId = new Map<string, string>(),
   profileToPersonnelName = new Map<string, string>(),
+  personnelIdToName = new Map<string, string>(),
   vehicleRows: VehicleRow[] = [],
 ): Subtask[] {
   const vehicleIdByName = new Map(vehicleRows.map((vehicle) => [normalizeName(vehicle.name), vehicle.id]));
@@ -430,11 +436,16 @@ function mapSubtasks(
       status: toStatus(task.status ?? activeAssignments[0]?.status ?? completed?.status ?? null),
       progress: task.status === "completed" ? 100 : task.status === "partial" ? 60 : activeAssignments.length > 0 ? 25 : 0,
       activeDriverIds: activeAssignments.map((assignment) => {
+        if (assignment.personnel_resource_id) return assignment.personnel_resource_id;
         const profileId = assignment.driver_profile_id;
         return profileId ? profileToPersonnelId.get(profileId) ?? profileId : assignment.id;
       }),
       activeDriverNames: Array.from(new Set(activeAssignments
-        .map((assignment) => assignment.driver_profile_id ? profileToPersonnelName.get(assignment.driver_profile_id) : undefined)
+        .map((assignment) => assignment.personnel_resource_id
+          ? personnelIdToName.get(assignment.personnel_resource_id)
+          : assignment.driver_profile_id
+            ? profileToPersonnelName.get(assignment.driver_profile_id)
+            : undefined)
         .filter((name): name is string => Boolean(name)))),
       activeVehicleIds: Array.from(new Set(activeVehicleIds)),
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
@@ -665,6 +676,7 @@ export function useSchlagLinkData(): DataState {
     const personnelRows = (personnelResourcesResult.data ?? []) as PersonnelResourceRow[];
     const profileToPersonnelId = buildProfileToPersonnelIdMap(profileRows, personnelRows);
     const profileToPersonnelName = buildProfileToPersonnelNameMap(profileRows, personnelRows);
+    const personnelIdToName = buildPersonnelIdToNameMap(personnelRows);
     const nextState: CachedDataState = {
       fields: mapFields(fieldRows, (boundariesResult.data ?? []) as BoundaryRow[], (hazardsResult.data ?? []) as HazardRow[], (documentsResult.data ?? []) as DocumentRow[]),
       drivers: personnelResourcesResult.error || personnelRows.length === 0
@@ -675,7 +687,7 @@ export function useSchlagLinkData(): DataState {
       organizations: organizationRecords,
       taskTemplates: taskTemplatesResult.error ? mockTaskTemplates : mapTaskTemplates((taskTemplatesResult.data ?? []) as TaskTemplateRow[]),
       jobs: mapJobs((jobsResult.data ?? []) as JobRow[], (jobFieldsResult.data ?? []) as JobFieldRow[], taskRows, organizationRecords),
-      subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], (taskReportsResult.data ?? []) as TaskReportRow[], profileToPersonnelId, profileToPersonnelName, (vehiclesResult.data ?? []) as VehicleRow[]),
+      subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], (taskReportsResult.data ?? []) as TaskReportRow[], profileToPersonnelId, profileToPersonnelName, personnelIdToName, (vehiclesResult.data ?? []) as VehicleRow[]),
       isDemoMode: false,
     };
     writeOfflineDataCache(nextState);
