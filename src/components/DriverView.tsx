@@ -95,8 +95,23 @@ export function DriverView({
   onDeleteSubtaskPhoto: (subtaskId: string, photoId: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const { currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, isLoading, organizations, refreshData, signOut, vehicles } = useAppData();
-  const driver = drivers.find((item) => item.id === currentDriverId) ?? (!isAuthenticated ? drivers[0] : undefined);
+  const { authProfile, currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, isLoading, organizations, refreshData, signOut, vehicles } = useAppData();
+  const driver = drivers.find((item) => (
+    item.id === currentDriverId
+    || item.profileId === currentDriverId
+    || Boolean(authProfile?.id && item.profileId === authProfile.id)
+    || Boolean(authProfile?.email && item.email?.trim().toLowerCase() === authProfile.email.trim().toLowerCase())
+  )) ?? (authProfile?.role === "driver"
+    ? {
+        id: currentDriverId ?? authProfile.id,
+        profileId: authProfile.id,
+        organizationId: authProfile.organizationId,
+        name: authProfile.fullName,
+        email: authProfile.email,
+        vehicle: authProfile.vehicleName ?? "",
+        jobVisibility: authProfile.jobVisibility ?? "assigned_only",
+      }
+    : !isAuthenticated ? drivers[0] : undefined);
   const availableVehicles = vehicles.filter((vehicle) => !vehicle.archivedAt && vehicle.status !== "wartung" && (!driver?.organizationId || vehicle.organizationId === driver.organizationId));
   const availableImplements = implementsList.filter((implement) => !implement.archivedAt && implement.status !== "wartung" && (!driver?.organizationId || implement.organizationId === driver.organizationId));
   const driverOrganization = driver?.organizationId ? organizations.find((organization) => organization.id === driver.organizationId) : undefined;
