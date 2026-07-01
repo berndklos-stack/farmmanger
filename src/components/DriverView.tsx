@@ -902,15 +902,6 @@ export function DriverView({
                     </button>
                   )}
                 </div>
-                <label className="driver-test-location-toggle">
-                  <input
-                    checked={useTestLocation}
-                    onChange={(event) => setUseTestLocation(event.target.checked)}
-                    type="checkbox"
-                  />
-                  <span>{t("liveLocation.testLocation")}</span>
-                  <small>{t("liveLocation.testLocationHint")}</small>
-                </label>
                 {trackingNotice && noticeSubtaskId === subtask.id && <p className="driver-slot-note">{trackingNotice}</p>}
                 {field && openSubtaskId === subtask.id && (
                   <div className="driver-map-section">
