@@ -187,6 +187,8 @@
     "driverJobVisibility": "Auftragssicht für Fahrer",
     "driverVisibility": {
       "contractor_all": "Alle Aufträge des Lohnunternehmers",
+      "organization_internal": "Betriebsinterne Aufträge",
+      "organization_all": "Alle Betriebsaufträge inkl. vergebene",
       "assigned_only": "Nur über Einsatzplanung zugeordnete Aufträge"
     },
     "vehicleNotAvailable": "nicht verfügbar",

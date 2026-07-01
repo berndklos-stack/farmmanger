@@ -423,13 +423,19 @@ export function ContractorView({
     contacts: [] as NonNullable<Organization["contacts"]>,
   });
 
+  function normalizedDriverJobVisibility(driver: Driver): Driver["jobVisibility"] {
+    const organization = organizations.find((item) => item.id === driver.organizationId);
+    if (organization?.kind === "farmer" && driver.jobVisibility === "contractor_all") return "organization_internal";
+    return driver.jobVisibility ?? "assigned_only";
+  }
+
   function driverToForm(driver: Driver) {
     const standardVehicleExists = vehicles.some((vehicle) => vehicle.name === driver.vehicle && vehicle.status !== "wartung");
     return {
       name: driver.name,
       organizationId: driver.organizationId ?? defaultResourceOrganizationId,
       vehicle: standardVehicleExists ? driver.vehicle : "",
-      jobVisibility: driver.jobVisibility ?? "assigned_only",
+      jobVisibility: normalizedDriverJobVisibility(driver),
       email: driver.email ?? "",
       accessPassword: driver.accessPassword ?? "",
       mobile: driver.mobile ?? "",
@@ -2319,7 +2325,7 @@ export function ContractorView({
                       <strong>{driver.name}</strong>
                       <span>{driver.mobile || t("masterData.mobile")} · {driver.licenseClasses?.join(", ") || t("masterData.licenseClasses")}</span>
                       <span>{t("masterData.defaultVehicle")}: {vehicleLabel}</span>
-                      <span>{activeOrganizations.find((organization) => organization.id === driver.organizationId)?.name ?? t("masterData.noOrganizationAssigned")} · {t(`masterData.driverVisibility.${driver.jobVisibility ?? "assigned_only"}`)}</span>
+                      <span>{activeOrganizations.find((organization) => organization.id === driver.organizationId)?.name ?? t("masterData.noOrganizationAssigned")} · {t(`masterData.driverVisibility.${normalizedDriverJobVisibility(driver)}`)}</span>
                     </button>
                   );
                 })()
@@ -2426,8 +2432,10 @@ export function ContractorView({
                         <label>
                           {t("masterData.driverJobVisibility")}
                           <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.jobVisibility} onChange={(event) => setDriverForm((current) => ({ ...current, jobVisibility: event.target.value as Driver["jobVisibility"] }))}>
-                            <option value="contractor_all">{t("masterData.driverVisibility.contractor_all")}</option>
                             <option value="assigned_only">{t("masterData.driverVisibility.assigned_only")}</option>
+                            <option value="organization_internal">{t("masterData.driverVisibility.organization_internal")}</option>
+                            <option value="organization_all">{t("masterData.driverVisibility.organization_all")}</option>
+                            <option value="contractor_all">{t("masterData.driverVisibility.contractor_all")}</option>
                           </select>
                         </label>
                         <label>

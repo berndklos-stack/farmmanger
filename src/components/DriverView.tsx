@@ -95,17 +95,33 @@ export function DriverView({
   onDeleteSubtaskPhoto: (subtaskId: string, photoId: string) => Promise<void>;
 }) {
   const { t } = useTranslation();
-  const { currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, isLoading, refreshData, signOut, vehicles } = useAppData();
+  const { currentDriverId, drivers, fields, implementsList, isAuthenticated, isDemoMode, isLoading, organizations, refreshData, signOut, vehicles } = useAppData();
   const driver = drivers.find((item) => item.id === currentDriverId) ?? (!isAuthenticated ? drivers[0] : undefined);
   const availableVehicles = vehicles.filter((vehicle) => !vehicle.archivedAt && vehicle.status !== "wartung" && (!driver?.organizationId || vehicle.organizationId === driver.organizationId));
   const availableImplements = implementsList.filter((implement) => !implement.archivedAt && implement.status !== "wartung" && (!driver?.organizationId || implement.organizationId === driver.organizationId));
-  const organizationJobIds = new Set(jobs
-    .filter((job) => {
-      if (!driver?.organizationId) return true;
-      if (job.contractorOrganizationId === driver.organizationId || job.farmerOrganizationId === driver.organizationId) return true;
-      return job.fieldIds.some((fieldId) => fields.find((field) => field.id === fieldId)?.organizationId === driver.organizationId);
-    })
-    .map((job) => job.id));
+  const driverOrganization = driver?.organizationId ? organizations.find((organization) => organization.id === driver.organizationId) : undefined;
+  const isJobOwnedByDriverFarm = (job: Job) => Boolean(driver?.organizationId && (
+    job.farmerOrganizationId === driver.organizationId
+    || job.fieldIds.some((fieldId) => fields.find((field) => field.id === fieldId)?.organizationId === driver.organizationId)
+  ));
+  const isInternalJobForDriverOrganization = (job: Job) => {
+    if (!driver?.organizationId) return true;
+    if (driverOrganization?.kind === "farmer") {
+      return isJobOwnedByDriverFarm(job) && (!job.contractorOrganizationId || job.contractorOrganizationId === driver.organizationId);
+    }
+    return job.contractorOrganizationId === driver.organizationId;
+  };
+  const isVisibleOrganizationJob = (job: Job) => {
+    if (!driver?.organizationId) return true;
+    const visibility = driver.jobVisibility ?? "assigned_only";
+    if (visibility === "organization_all") {
+      return isJobOwnedByDriverFarm(job) || job.contractorOrganizationId === driver.organizationId;
+    }
+    if (visibility === "organization_internal" || visibility === "contractor_all") {
+      return isInternalJobForDriverOrganization(job);
+    }
+    return false;
+  };
   const isAssignedToDriver = (subtask: Subtask) => Boolean(driver && (
     subtask.activeDriverIds.includes(driver.id)
     || Boolean(driver.profileId && subtask.activeDriverIds.includes(driver.profileId))
@@ -116,7 +132,10 @@ export function DriverView({
     .filter((subtask) => {
       if (!driver) return true;
       if (isAssignedToDriver(subtask)) return true;
-      if ((driver.jobVisibility ?? "assigned_only") === "contractor_all") return organizationJobIds.has(subtask.jobId);
+      if ((driver.jobVisibility ?? "assigned_only") !== "assigned_only") {
+        const job = jobs.find((item) => item.id === subtask.jobId);
+        return job ? isVisibleOrganizationJob(job) : false;
+      }
       return isAssignedToDriver(subtask);
     });
   function orderSubtasksByRoute(groupSubtasks: Subtask[]) {

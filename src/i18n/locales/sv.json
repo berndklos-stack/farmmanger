@@ -187,6 +187,8 @@
     "driverJobVisibility": "Uppdragssynlighet för förare",
     "driverVisibility": {
       "contractor_all": "Alla uppdrag för entreprenören",
+      "organization_internal": "Interna företagsuppdrag",
+      "organization_all": "Alla företagsuppdrag inkl. utlagda",
       "assigned_only": "Endast uppdrag tilldelade via planeringen"
     },
     "vehicleNotAvailable": "ej tillgängligt",

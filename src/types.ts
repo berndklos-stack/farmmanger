@@ -150,7 +150,7 @@ export type Driver = {
   organizationId?: string;
   name: string;
   vehicle: string;
-  jobVisibility?: "contractor_all" | "assigned_only";
+  jobVisibility?: "contractor_all" | "organization_internal" | "organization_all" | "assigned_only";
   email?: string;
   accessPassword?: string;
   mobile?: string;

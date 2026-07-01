@@ -187,6 +187,8 @@
     "driverJobVisibility": "Job visibility for driver",
     "driverVisibility": {
       "contractor_all": "All jobs for the contractor",
+      "organization_internal": "Internal business jobs",
+      "organization_all": "All business jobs incl. outsourced",
       "assigned_only": "Only jobs assigned through dispatch planning"
     },
     "vehicleNotAvailable": "not available",
