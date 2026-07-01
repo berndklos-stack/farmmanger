@@ -647,6 +647,7 @@ export function ContractorView({
           ? (subtask.activeVehicleIds ?? []).includes(resourceId)
           : (subtask.activeImplementIds ?? []).includes(resourceId);
       if (!matches) return [];
+      const activityName = task?.name ?? job?.title ?? t("terms.subtask");
       return [{
         id: `${subtask.id}-${resourceId}`,
         resourceGroup: activeMasterGroup,
@@ -654,8 +655,8 @@ export function ContractorView({
         event: "assigned",
         recordedAt: subtask.completedAt ?? subtask.statusChangedAt ?? subtask.updatedAt ?? new Date().toISOString(),
         actor: (subtask.activeDriverNames ?? []).join(", "),
-        title: task?.name ?? t("terms.subtask"),
-        details: [field?.name, job?.customer, subtask.driverNote ?? subtask.note].filter(Boolean).join(" · "),
+        title: activityName,
+        details: [activityName, field?.name, job?.customer, subtask.driverNote ?? subtask.note].filter(Boolean).join(" · "),
         jobNumber: job?.jobNumber ?? subtask.jobId,
         status: subtask.status,
       }];
