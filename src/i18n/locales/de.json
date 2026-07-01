@@ -211,6 +211,7 @@
     "phone": "Telefon",
     "email": "E-Mail",
     "driverPassword": "Fahrer-Passwort",
+    "driverPasswordMinLength": "(min. 6 Zeichen)",
     "showDriverPassword": "Passwort anzeigen",
     "hideDriverPassword": "Passwort ausblenden",
     "generateDriverPassword": "Passwort erzeugen",

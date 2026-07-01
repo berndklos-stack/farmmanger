@@ -4440,6 +4440,20 @@ select {
   min-width: 0;
 }
 
+.driver-password-heading {
+  display: inline-flex;
+  align-items: baseline;
+  gap: 5px;
+  min-width: 0;
+}
+
+.driver-password-heading small {
+  color: var(--color-muted);
+  font-size: 0.76em;
+  font-weight: 800;
+  white-space: nowrap;
+}
+
 .driver-resource-form .resource-form-row label {
   gap: 5px;
   font-size: 0.9rem;

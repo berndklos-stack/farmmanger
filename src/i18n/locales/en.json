@@ -211,6 +211,7 @@
     "phone": "Phone",
     "email": "Email",
     "driverPassword": "Driver password",
+    "driverPasswordMinLength": "(min. 6 characters)",
     "showDriverPassword": "Show password",
     "hideDriverPassword": "Hide password",
     "generateDriverPassword": "Generate password",

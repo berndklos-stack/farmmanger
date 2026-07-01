@@ -211,6 +211,7 @@
     "phone": "Telefon",
     "email": "E-post",
     "driverPassword": "Förarlösenord",
+    "driverPasswordMinLength": "(min. 6 tecken)",
     "showDriverPassword": "Visa lösenord",
     "hideDriverPassword": "Dölj lösenord",
     "generateDriverPassword": "Skapa lösenord",

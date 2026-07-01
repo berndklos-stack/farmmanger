@@ -2408,7 +2408,9 @@ export function ContractorView({
                         <label>{t("masterData.email")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.email} onChange={(event) => setDriverForm((current) => ({ ...current, email: event.target.value }))} type="email" /></label>
                         <label>{t("masterData.mobile")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.mobile} onChange={(event) => setDriverForm((current) => ({ ...current, mobile: event.target.value }))} /></label>
                         <label className="driver-password-label">
-                          {t("masterData.driverPassword")}
+                          <span className="driver-password-heading">
+                            {t("masterData.driverPassword")} <small>{t("masterData.driverPasswordMinLength")}</small>
+                          </span>
                           <span className="password-field">
                             <input
                               disabled={!permissions.canEditDrivers || showArchivedMasterData}
