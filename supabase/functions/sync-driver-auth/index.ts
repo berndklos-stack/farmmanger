@@ -115,12 +115,16 @@ async function releaseArchivedPersonnelProfileLinks(admin: ReturnType<typeof cre
 
 async function findAuthUserIdByEmail(admin: ReturnType<typeof createClient>, email: string) {
   const normalizedEmail = email.toLowerCase();
-  for (let page = 1; page <= 10; page += 1) {
-    const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 1000 });
-    if (error) return { error: `Auth-User konnte nicht gesucht werden: ${formatSupabaseError(error)}` };
-    const user = data.users.find((item) => item.email?.toLowerCase() === normalizedEmail);
-    if (user) return { userId: user.id };
-    if (data.users.length < 1000) break;
+  try {
+    for (let page = 1; page <= 50; page += 1) {
+      const { data, error } = await admin.auth.admin.listUsers({ page, perPage: 200 });
+      if (error) return { error: `Auth-User konnte nicht gesucht werden: ${formatSupabaseError(error)}` };
+      const user = data.users.find((item) => item.email?.toLowerCase() === normalizedEmail);
+      if (user) return { userId: user.id };
+      if (data.users.length < 200) break;
+    }
+  } catch (error) {
+    return { error: `Auth-User konnte nicht gesucht werden: ${formatSupabaseError(error)}` };
   }
   return {};
 }
@@ -174,12 +178,8 @@ Deno.serve(async (req) => {
       }
       const samePersonnelProfile = existingProfiles?.find((profile) => profile.id === personnelResourceId && profile.role === "driver");
       if (samePersonnelProfile) profileId = samePersonnelProfile.id;
-    }
-
-    if (!profileId) {
-      const existingAuthUser = await findAuthUserIdByEmail(admin, email);
-      if (existingAuthUser.error) return jsonResponse({ error: existingAuthUser.error }, 400);
-      if (existingAuthUser.userId) profileId = existingAuthUser.userId;
+      const reusableDriverProfile = existingProfiles?.find((profile) => profile.role === "driver");
+      if (!profileId && reusableDriverProfile) profileId = reusableDriverProfile.id;
     }
 
     const emailError = await ensureEmailCanBeUsed(admin, email, profileId, personnelResourceId);
@@ -210,7 +210,11 @@ Deno.serve(async (req) => {
         const formattedCreateError = formatSupabaseError(createError);
         if (formattedCreateError.toLowerCase().includes("email_exists") || formattedCreateError.toLowerCase().includes("already been registered")) {
           const existingAuthUser = await findAuthUserIdByEmail(admin, email);
-          if (existingAuthUser.error) return jsonResponse({ error: existingAuthUser.error }, 400);
+          if (existingAuthUser.error) {
+            return jsonResponse({
+              error: `Diese E-Mail existiert bereits in Supabase Auth, konnte aber nicht automatisch zugeordnet werden. Bitte eine andere Fahrer-E-Mail verwenden oder den bestehenden Auth-User in Supabase pruefen. Details: ${existingAuthUser.error}`,
+            }, 400);
+          }
           if (existingAuthUser.userId) {
             profileId = existingAuthUser.userId;
           } else {
