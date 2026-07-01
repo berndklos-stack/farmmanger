@@ -409,7 +409,6 @@ function mergeLocalDrivers(loadedDrivers: Driver[], localDrivers: Record<string,
   loadedDrivers.forEach((driver) => merged.set(driver.id, driver));
   Object.values(localDrivers).forEach((driver) => {
     const loaded = merged.get(driver.id);
-    if (isSupabaseConfigured && loaded) return;
     merged.set(driver.id, { ...loaded, ...driver, profileId: driver.profileId ?? loaded?.profileId });
   });
   return Array.from(merged.values());
