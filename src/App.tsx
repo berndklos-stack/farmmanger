@@ -1003,7 +1003,7 @@ export function App() {
       .filter((name): name is string => Boolean(name));
     const desiredAssignments = subtask.activeDriverIds.flatMap((driverId, index) => {
       const driver = driverRecords.find((item) => item.id === driverId || item.profileId === driverId);
-      const profileId = driver?.profileId ?? (driver?.id.startsWith("dddddddd-") ? driver.id : undefined);
+      const profileId = driver ? supabaseDriverProfileId(driver) : supabaseDriverProfileIdFromLegacyId(driverId);
       if (!profileId) return [];
       return {
         job_task_id: subtask.id,
@@ -1904,6 +1904,15 @@ export function App() {
     d6: "50000000-0000-4000-8000-000000000006",
   };
 
+  const legacyDriverProfileIds: Record<string, string> = {
+    d1: "dddddddd-dddd-4ddd-8ddd-000000000001",
+    d2: "dddddddd-dddd-4ddd-8ddd-000000000002",
+    d3: "dddddddd-dddd-4ddd-8ddd-000000000003",
+    d4: "dddddddd-dddd-4ddd-8ddd-000000000004",
+    d5: "dddddddd-dddd-4ddd-8ddd-000000000005",
+    d6: "dddddddd-dddd-4ddd-8ddd-000000000006",
+  };
+
   const legacyVehicleSupabaseIds: Record<string, string> = {
     v0: "60000000-0000-4000-8000-000000000000",
     v1: "60000000-0000-4000-8000-000000000001",
@@ -1938,6 +1947,17 @@ export function App() {
   function supabaseDriverId(driver: Driver) {
     if (isUuid(driver.id)) return driver.id;
     return legacyDriverSupabaseIds[driver.id] ?? deterministicUuid(`driver:${driver.id}:${driver.email ?? driver.name}`, "50000000");
+  }
+
+  function supabaseDriverProfileIdFromLegacyId(id: string) {
+    if (isUuid(id)) return id;
+    return legacyDriverProfileIds[id];
+  }
+
+  function supabaseDriverProfileId(driver: Driver) {
+    if (isUuid(driver.profileId)) return driver.profileId;
+    if (isUuid(driver.id) && driver.id.startsWith("dddddddd-")) return driver.id;
+    return legacyDriverProfileIds[driver.id];
   }
 
   function supabaseVehicleId(vehicle: Vehicle) {
