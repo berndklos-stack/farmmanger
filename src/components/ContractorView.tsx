@@ -262,6 +262,7 @@ export function ContractorView({
   const [dispatchCalendarMode, setDispatchCalendarMode] = useState<DispatchCalendarMode>("single");
   const [selectedDispatchCustomerIds, setSelectedDispatchCustomerIds] = useState<string[]>([]);
   const [standardVehicleChoice, setStandardVehicleChoice] = useState<{ driverId: string; subtaskId: string } | null>(null);
+  const [moveResourceConfirm, setMoveResourceConfirm] = useState<{ jobId: string; targetOffsetDays: number } | null>(null);
   const [resourceHistoryVersion, setResourceHistoryVersion] = useState(0);
   const [workTimeOverride, setWorkTimeOverride] = useState<{
     driverId: string;
@@ -1308,13 +1309,12 @@ export function ContractorView({
     ));
   }
 
-  function moveJobToDay(job: Job, targetOffsetDays: number) {
+  function applyMoveJobToDay(job: Job, targetOffsetDays: number, keepResources: boolean) {
     if (!onUpdateJob) return;
     const targetDate = formatIsoDateForOffset(targetOffsetDays);
     const targetTimeWindow = timeWindowWithDate(job.timeWindow, targetDate);
     if (targetTimeWindow === job.timeWindow) return;
     const jobSubtasks = subtasks.filter((subtask) => subtask.jobId === job.id);
-    const keepResources = !hasAssignedResources(jobSubtasks) || window.confirm(t("contractor.keepResourcesOnMove"));
 
     onUpdateJob(job.id, {
       timeWindow: targetTimeWindow,
@@ -1334,6 +1334,22 @@ export function ContractorView({
         });
       });
     }
+  }
+
+  function moveJobToDay(job: Job, targetOffsetDays: number) {
+    const jobSubtasks = subtasks.filter((subtask) => subtask.jobId === job.id);
+    if (hasAssignedResources(jobSubtasks)) {
+      setMoveResourceConfirm({ jobId: job.id, targetOffsetDays });
+      return;
+    }
+    applyMoveJobToDay(job, targetOffsetDays, true);
+  }
+
+  function confirmMoveJobWithResources(keepResources: boolean) {
+    if (!moveResourceConfirm) return;
+    const job = jobs.find((item) => item.id === moveResourceConfirm.jobId);
+    if (job) applyMoveJobToDay(job, moveResourceConfirm.targetOffsetDays, keepResources);
+    setMoveResourceConfirm(null);
   }
 
   function handleDropJobOnDay(event: DragEvent, targetOffsetDays: number) {
@@ -3216,6 +3232,30 @@ export function ContractorView({
               </button>
               <button className="primary-action" onClick={confirmWorkTimeOverride} type="button">
                 {t("contractor.overrideWorkTime")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {moveResourceConfirm && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal warning-modal" role="dialog" aria-modal="true" aria-labelledby="move-resource-confirm-title">
+            <div className="section-heading">
+              <h2 id="move-resource-confirm-title">{t("contractor.moveJobWithResourcesTitle")}</h2>
+              <button className="secondary-action icon-action" onClick={() => setMoveResourceConfirm(null)} type="button">
+                <X size={18} />
+              </button>
+            </div>
+            <p>{t("contractor.keepResourcesOnMove")}</p>
+            <div className="modal-actions">
+              <button className="secondary-action" onClick={() => setMoveResourceConfirm(null)} type="button">
+                {t("actions.cancel")}
+              </button>
+              <button className="secondary-action" onClick={() => confirmMoveJobWithResources(false)} type="button">
+                {t("contractor.moveWithoutResources")}
+              </button>
+              <button className="primary-action" onClick={() => confirmMoveJobWithResources(true)} type="button">
+                {t("contractor.keepResourcesAndMove")}
               </button>
             </div>
           </div>
