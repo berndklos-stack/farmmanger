@@ -34,21 +34,41 @@ export function FieldName({ id }: { id: string }) {
 export function DriverChips({ subtask }: { subtask: Subtask }) {
   const { t } = useTranslation();
   const { drivers } = useAppData();
-  if (subtask.activeDriverIds.length === 0) {
+  const activeDriverLabels = subtask.activeDriverIds.map((id, index) => {
+    const driver = drivers.find((item) => item.id === id || item.profileId === id);
+    const fallbackName = subtask.activeDriverNames?.[index];
+    return {
+      key: `active-${id}`,
+      label: driver ? `${driver.name} · ${driver.vehicle}` : fallbackName ?? t("driver.unknownDriver"),
+    };
+  });
+  const activeDriverNames = new Set([
+    ...activeDriverLabels.map((item) => item.label.split(" · ")[0].trim().toLowerCase()),
+    ...(subtask.activeDriverNames ?? []).map((name) => name.trim().toLowerCase()),
+  ]);
+  const performedDriverLabels = [
+    ...(subtask.performedDriverIds ?? []).map((id, index) => {
+      const driver = drivers.find((item) => item.id === id || item.profileId === id);
+      return driver?.name ?? subtask.performedDriverNames?.[index] ?? "";
+    }),
+    ...(subtask.performedDriverNames ?? []),
+  ]
+    .map((name) => name.trim())
+    .filter((name, index, names) => name && names.findIndex((item) => item.toLowerCase() === name.toLowerCase()) === index)
+    .filter((name) => !activeDriverNames.has(name.toLowerCase()))
+    .map((name) => ({ key: `performed-${name}`, label: name }));
+
+  if (activeDriverLabels.length === 0 && performedDriverLabels.length === 0) {
     return <span className="muted">{t("report.open")}</span>;
   }
 
   return (
     <div className="chip-row">
-      {subtask.activeDriverIds.map((id, index) => {
-        const driver = drivers.find((item) => item.id === id || item.profileId === id);
-        const fallbackName = subtask.activeDriverNames?.[index];
-        return (
-          <span className="chip" key={id}>
-            {driver ? `${driver.name} · ${driver.vehicle}` : fallbackName ?? t("driver.unknownDriver")}
-          </span>
-        );
-      })}
+      {[...activeDriverLabels, ...performedDriverLabels].map((item) => (
+        <span className="chip" key={item.key}>
+          {item.label}
+        </span>
+      ))}
     </div>
   );
 }

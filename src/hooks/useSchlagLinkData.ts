@@ -408,6 +408,15 @@ function mapSubtasks(
   vehicleRows: VehicleRow[] = [],
 ): Subtask[] {
   const vehicleIdByName = new Map(vehicleRows.map((vehicle) => [normalizeName(vehicle.name), vehicle.id]));
+  const assignmentDriverId = (assignment: AssignmentRow) => {
+    if (assignment.personnel_resource_id) return assignment.personnel_resource_id;
+    const profileId = assignment.driver_profile_id;
+    return profileId ? profileToPersonnelId.get(profileId) ?? profileId : assignment.id;
+  };
+  const assignmentDriverName = (assignment: AssignmentRow) => {
+    if (assignment.personnel_resource_id) return personnelIdToName.get(assignment.personnel_resource_id);
+    return assignment.driver_profile_id ? profileToPersonnelName.get(assignment.driver_profile_id) : undefined;
+  };
   return taskRows.map((task) => {
     const assignments = assignmentRows.filter((assignment) => assignment.job_task_id === task.id);
     const driverPhotos: SubtaskPhoto[] = taskReportRows
@@ -428,6 +437,17 @@ function mapSubtasks(
       }));
     const activeAssignments = assignments.filter((assignment) => ["reserved", "active", "paused"].includes(assignment.status ?? ""));
     const completed = task.status === "completed" ? assignments.find((assignment) => assignment.status === "completed") : undefined;
+    const performedAssignments = assignments.filter((assignment) => (
+      assignment.status === "completed"
+      || Boolean(assignment.completed_at)
+      || Boolean(assignment.completed_area_ha)
+      || Boolean(assignment.completed_quantity)
+      || Boolean(assignment.completed_trips)
+    ));
+    const reportDriverNames = taskReportRows
+      .filter((report) => report.job_task_id === task.id && report.created_by)
+      .map((report) => profileToPersonnelName.get(report.created_by ?? "") ?? personnelIdToName.get(report.created_by ?? ""))
+      .filter((name): name is string => Boolean(name));
     const feedbackAssignment = completed
       ?? activeAssignments.find((assignment) => assignment.completed_area_ha || assignment.completed_quantity || assignment.completed_trips || assignment.notes)
       ?? assignments.find((assignment) => assignment.notes);
@@ -441,18 +461,15 @@ function mapSubtasks(
       taskId: task.id,
       status: toStatus(task.status ?? activeAssignments[0]?.status ?? completed?.status ?? null),
       progress: task.status === "completed" ? 100 : task.status === "partial" ? 60 : activeAssignments.length > 0 ? 25 : 0,
-      activeDriverIds: activeAssignments.map((assignment) => {
-        if (assignment.personnel_resource_id) return assignment.personnel_resource_id;
-        const profileId = assignment.driver_profile_id;
-        return profileId ? profileToPersonnelId.get(profileId) ?? profileId : assignment.id;
-      }),
+      activeDriverIds: activeAssignments.map(assignmentDriverId),
       activeDriverNames: Array.from(new Set(activeAssignments
-        .map((assignment) => assignment.personnel_resource_id
-          ? personnelIdToName.get(assignment.personnel_resource_id)
-          : assignment.driver_profile_id
-            ? profileToPersonnelName.get(assignment.driver_profile_id)
-            : undefined)
+        .map(assignmentDriverName)
         .filter((name): name is string => Boolean(name)))),
+      performedDriverIds: Array.from(new Set(performedAssignments.map(assignmentDriverId).filter(Boolean))),
+      performedDriverNames: Array.from(new Set([
+        ...performedAssignments.map(assignmentDriverName).filter((name): name is string => Boolean(name)),
+        ...reportDriverNames,
+      ])),
       activeVehicleIds: Array.from(new Set(activeVehicleIds)),
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
       targetUnit: task.quantity_unit ?? (task.progress_type === "area" ? "ha" : task.progress_type === "trips" ? "Fuhren" : undefined),

@@ -271,6 +271,8 @@ export type Subtask = {
   progress: number;
   activeDriverIds: string[];
   activeDriverNames?: string[];
+  performedDriverIds?: string[];
+  performedDriverNames?: string[];
   activeVehicleIds?: string[];
   activeImplementIds?: string[];
   plannedCrews?: number;

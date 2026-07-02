@@ -88,6 +88,8 @@ type DispatchAssignmentOverride = Pick<
   Subtask,
   | "activeDriverIds"
   | "activeDriverNames"
+  | "performedDriverIds"
+  | "performedDriverNames"
   | "activeVehicleIds"
   | "activeImplementIds"
   | "plannedCrews"
@@ -1126,6 +1128,8 @@ export function App() {
     };
     const shouldPersistDispatch = "activeDriverIds" in patch
       || "activeDriverNames" in patch
+      || "performedDriverIds" in patch
+      || "performedDriverNames" in patch
       || "activeVehicleIds" in patch
       || "activeImplementIds" in patch
       || "plannedCrews" in patch
@@ -1162,6 +1166,8 @@ export function App() {
           [id]: {
             activeDriverIds: nextSubtaskForPersistence.activeDriverIds,
             activeDriverNames: nextSubtaskForPersistence.activeDriverNames ?? [],
+            performedDriverIds: nextSubtaskForPersistence.performedDriverIds ?? [],
+            performedDriverNames: nextSubtaskForPersistence.performedDriverNames ?? [],
             activeVehicleIds: nextSubtaskForPersistence.activeVehicleIds ?? [],
             activeImplementIds: nextSubtaskForPersistence.activeImplementIds ?? [],
             plannedCrews: nextSubtaskForPersistence.plannedCrews,

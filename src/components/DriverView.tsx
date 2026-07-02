@@ -402,6 +402,8 @@ export function DriverView({
     const note = draft.note.trim();
     const activeDriverIds = Array.from(new Set([...subtask.activeDriverIds, activeDriver.id]));
     const activeDriverNames = Array.from(new Set([...(subtask.activeDriverNames ?? []), activeDriver.name]));
+    const performedDriverIds = Array.from(new Set([...(subtask.performedDriverIds ?? []), activeDriver.id]));
+    const performedDriverNames = Array.from(new Set([...(subtask.performedDriverNames ?? []), activeDriver.name]));
     const activeVehicleIds = Array.from(new Set([...(subtask.activeVehicleIds ?? []), ...selectedYardVehicleIds]));
     const activeImplementIds = Array.from(new Set([...(subtask.activeImplementIds ?? []), ...selectedImplementIds]));
     return {
@@ -409,6 +411,8 @@ export function DriverView({
       progress: status === "erledigt" ? 100 : Math.max(fallbackProgress, subtask.progress),
       activeDriverIds,
       activeDriverNames,
+      performedDriverIds,
+      performedDriverNames,
       activeVehicleIds,
       activeImplementIds,
       doneHa,
