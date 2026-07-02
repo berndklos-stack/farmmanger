@@ -3423,6 +3423,77 @@ select {
   width: min(860px, 100%);
 }
 
+.driver-dialog-modal {
+  border-radius: 8px;
+  border-color: #b9cbb5;
+  background: #fcfef9;
+  box-shadow: 0 24px 70px rgba(19, 38, 25, 0.28);
+  gap: 12px;
+  padding: 14px;
+}
+
+.driver-dialog-modal .section-heading {
+  align-items: flex-start;
+  border-bottom: 1px solid #dce8d7;
+  margin: -2px -2px 2px;
+  padding: 0 0 10px;
+}
+
+.driver-dialog-modal .section-heading h2 {
+  font-size: 1.25rem;
+  line-height: 1.15;
+}
+
+.driver-dialog-modal .section-heading p {
+  color: #617268;
+  font-size: 0.86rem;
+  margin-top: 3px;
+}
+
+.driver-dialog-modal .icon-action {
+  min-height: 34px;
+  min-width: 34px;
+}
+
+.driver-dialog-modal .driver-yard-form {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driver-dialog-modal .driver-yard-form label:has(textarea),
+.driver-dialog-modal .driver-yard-form .driver-problem-check {
+  grid-column: 1 / -1;
+}
+
+.driver-dialog-modal .driver-yard-form select,
+.driver-dialog-modal .driver-yard-form input,
+.driver-dialog-modal .driver-yard-form textarea {
+  min-height: 38px;
+  padding: 8px 10px;
+}
+
+.driver-dialog-modal .driver-yard-form textarea {
+  min-height: 70px;
+}
+
+.driver-dialog-modal .modal-actions {
+  border-top: 1px solid #dce8d7;
+  padding-top: 10px;
+}
+
+.compact-driver-dialog {
+  width: min(620px, 100%);
+}
+
+.compact-driver-dialog > p {
+  border: 1px solid #dce8d7;
+  border-radius: 8px;
+  background: #f5faef;
+  color: #334b38;
+  font-weight: 800;
+  margin: 0;
+  padding: 10px 12px;
+}
+
 .driver-inputs {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));

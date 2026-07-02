@@ -994,7 +994,7 @@ export function DriverView({
         </div>
         {isMachineYardOpen && (
           <div className="modal-backdrop" role="presentation">
-            <div className="resource-modal driver-yard-modal" role="dialog" aria-modal="true">
+            <div className="resource-modal driver-yard-modal driver-dialog-modal" role="dialog" aria-modal="true">
               <div className="section-heading">
                 <div>
                   <h2>{t("driver.machineYard")}</h2>
@@ -1080,7 +1080,7 @@ export function DriverView({
         )}
         {isEndShiftOpen && (
           <div className="modal-backdrop" role="presentation">
-            <div className="resource-modal driver-yard-modal" role="dialog" aria-modal="true">
+            <div className="resource-modal driver-yard-modal driver-dialog-modal" role="dialog" aria-modal="true">
               <div className="section-heading">
                 <div>
                   <h2>{t("driver.endShiftTitle")}</h2>
@@ -1128,7 +1128,7 @@ export function DriverView({
         )}
         {isHandoverOpen && (
           <div className="modal-backdrop" role="presentation">
-            <div className="resource-modal driver-yard-modal" role="dialog" aria-modal="true">
+            <div className="resource-modal driver-yard-modal driver-dialog-modal" role="dialog" aria-modal="true">
               <div className="section-heading">
                 <div>
                   <h2>{t("driver.driverHandoverTitle")}</h2>
@@ -1185,7 +1185,7 @@ export function DriverView({
         )}
         {pendingFieldClaim && (
           <div className="modal-backdrop" role="presentation">
-            <div className="resource-modal warning-modal" role="dialog" aria-modal="true">
+            <div className="resource-modal driver-dialog-modal compact-driver-dialog" role="dialog" aria-modal="true">
               <div className="section-heading">
                 <h2>{t("driver.confirmFieldClaimTitle")}</h2>
                 <button className="secondary-action icon-action" onClick={() => setPendingFieldClaimId("")} type="button">×</button>
@@ -1202,7 +1202,7 @@ export function DriverView({
         )}
         {completionDialog && completionSubtask && (
           <div className="modal-backdrop" role="presentation">
-            <div className="resource-modal warning-modal" role="dialog" aria-modal="true">
+            <div className="resource-modal driver-dialog-modal compact-driver-dialog" role="dialog" aria-modal="true">
               <div className="section-heading">
                 <h2>{t(completionDialog.status === "erledigt" ? "driver.completeDialogTitle" : "driver.partialDialogTitle")}</h2>
                 <button className="secondary-action icon-action" onClick={() => setCompletionDialog(null)} type="button">×</button>
