@@ -2978,7 +2978,7 @@ export function App() {
             onSelectField={setSelectedFieldId}
             onOpenJob={(jobId) => {
               setSelectedJobId(jobId);
-              setActiveView("jobs");
+              setDispatchEditJobId(jobId);
             }}
           />
         )}
