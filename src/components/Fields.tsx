@@ -77,11 +77,13 @@ export function Fields({
   selectedFieldId,
   subtasks,
   onSelectField,
+  onOpenJob,
 }: {
   jobs: Job[];
   selectedFieldId: string;
   subtasks: Subtask[];
   onSelectField: (id: string) => void;
+  onOpenJob?: (jobId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
   const { addField, archiveField, archiveFieldAttachment, deleteField, drivers, fields, implementsList, jobTypes, organizations, permissions, taskTemplates, updateField, uploadFieldAttachments, vehicles } = useAppData();
@@ -1030,11 +1032,23 @@ export function Fields({
             {selectedSubtasks.length === 0 ? (
               <span className="muted">{t("fields.noOpenSubtasks")}</span>
             ) : (
-              selectedSubtasks.map((subtask) => (
-                <span key={subtask.id}>
-                  {getTask(subtask, jobs)?.name} <StatusBadge status={subtask.status} />
-                </span>
-              ))
+              selectedSubtasks.map((subtask) => {
+                const job = jobs.find((item) => item.id === subtask.jobId);
+                const task = getTask(subtask, jobs);
+                return (
+                  <span key={subtask.id}>
+                    {job ? (
+                      <button className="open-job-link" onClick={() => onOpenJob?.(job.id)} type="button">
+                        {job.jobNumber ?? job.title}
+                      </button>
+                    ) : (
+                      subtask.jobId
+                    )}
+                    {" · "}
+                    {task?.name} <StatusBadge status={subtask.status} />
+                  </span>
+                );
+              })
             )}
           </div>
           <div className="field-geo-detail-grid">

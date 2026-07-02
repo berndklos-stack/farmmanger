@@ -3157,7 +3157,16 @@ select {
 }
 
 .open-job-link {
+  appearance: none;
+  background: transparent;
+  border: 0;
   color: #2f6d42;
+  cursor: pointer;
+  font: inherit;
+  padding: 0;
+  text-align: left;
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .driver-customer-line {

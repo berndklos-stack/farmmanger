@@ -2924,6 +2924,10 @@ export function App() {
             selectedFieldId={selectedFieldId}
             subtasks={activeSubtasks}
             onSelectField={setSelectedFieldId}
+            onOpenJob={(jobId) => {
+              setSelectedJobId(jobId);
+              setActiveView("jobs");
+            }}
           />
         )}
         {activeView === "create" && <CreateJob onSave={addJob} />}
