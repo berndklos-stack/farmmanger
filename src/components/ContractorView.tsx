@@ -1268,7 +1268,7 @@ export function ContractorView({
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData("application/x-schlaglink-job", JSON.stringify({ jobId: job.id, sourceOffsetDays }));
+    event.dataTransfer.setData("application/x-schlaglink-job", JSON.stringify({ jobId: job.id, sourceOffsetDays: parseJobDateOffset(job) ?? sourceOffsetDays }));
     event.dataTransfer.effectAllowed = "move";
   }
 
@@ -1329,7 +1329,13 @@ export function ContractorView({
     const raw = event.dataTransfer.getData("application/x-schlaglink-job");
     if (!raw) return false;
     event.preventDefault();
-    const payload = JSON.parse(raw) as DragJobPayload;
+    event.stopPropagation();
+    let payload: DragJobPayload;
+    try {
+      payload = JSON.parse(raw) as DragJobPayload;
+    } catch {
+      return true;
+    }
     if (payload.sourceOffsetDays === targetOffsetDays) return true;
     const job = jobs.find((item) => item.id === payload.jobId);
     if (job) moveJobToDay(job, targetOffsetDays);
@@ -2063,7 +2069,10 @@ export function ContractorView({
                               if (job) handleJobDragStart(event, job, getSubtaskCalendarOffset(subtask, sortedIndex));
                             }}
                             onDragOver={(event) => event.preventDefault()}
-                            onDrop={(event) => handleDropResource(event, subtask)}
+                            onDrop={(event) => {
+                              if (handleDropJobOnDay(event, day.offsetDays)) return;
+                              handleDropResource(event, subtask);
+                            }}
                           >
                             <div className="dispatch-task-title">
                               <button className="dispatch-task-open" disabled={!job} onClick={() => job && onOpenJob?.(job.id)} type="button">
@@ -2156,7 +2165,10 @@ export function ContractorView({
                             className="dispatch-group-card"
                             key={group.id}
                             onDragOver={(event) => event.preventDefault()}
-                            onDrop={(event) => handleDropResourceOnGroup(event, group)}
+                            onDrop={(event) => {
+                              if (handleDropJobOnDay(event, day.offsetDays)) return;
+                              handleDropResourceOnGroup(event, group);
+                            }}
 	                          >
 	                            <div className="dispatch-group-title">
 	                              <strong>{group.taskName}</strong>
