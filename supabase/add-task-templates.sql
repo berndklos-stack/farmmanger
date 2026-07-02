@@ -18,6 +18,7 @@ create table if not exists task_templates (
   required_vehicles integer default 1,
   required_implements integer default 0,
   resource_hint text,
+  quantity_unit text,
   archived_at timestamptz,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
@@ -28,6 +29,7 @@ alter table task_templates add column if not exists is_system_template boolean n
 alter table task_templates add column if not exists template_owner_type text not null default 'organization';
 alter table task_templates add column if not exists source_template_id uuid references task_templates(id) on delete set null;
 alter table task_templates add column if not exists created_by_admin boolean not null default false;
+alter table task_templates add column if not exists quantity_unit text;
 
 create index if not exists task_templates_organization_id_idx on task_templates(organization_id);
 create index if not exists task_templates_template_owner_type_idx on task_templates(template_owner_type);
@@ -68,19 +70,20 @@ insert into task_templates (
   required_drivers,
   required_vehicles,
   required_implements,
-  resource_hint
+  resource_hint,
+  quantity_unit
 )
 values
-  ('80000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Gülle ausbringen', array['Anfahrt', 'Ausbringen', 'Fuhren dokumentieren'], 0.38, 'team', 'quantity', 2, 1, 1, 1, 'Schlepper mit Güllefass'),
-  ('80000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Mist ausbringen', array['Laden', 'Ausbringen', 'Randbereiche prüfen'], 0.45, 'team', 'quantity', 2, 1, 1, 1, 'Streuerkolonne'),
-  ('80000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Säen', array['Saatgut prüfen', 'Säen', 'Ablagetiefe kontrollieren'], 0.30, 'single', 'area', 1, 1, 1, 1, 'Schlepper mit Sämaschine'),
-  ('80000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Walzen', array['Walzen', 'Vorgewende prüfen'], 0.18, 'team', 'time', 2, 1, 1, 1, 'Walzschlepper'),
-  ('80000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Grubbern', array['Grubbern', 'Problemstellen melden'], 0.42, 'single', 'area', 1, 1, 1, 1, 'Bodenbearbeitung'),
-  ('80000000-0000-4000-8000-000000000006', '22222222-2222-4222-8222-222222222222', 'Mähen', array['Mähen', 'Vorgewende mähen'], 0.28, 'single', 'area', 1, 1, 1, 1, 'Mähkombination'),
-  ('80000000-0000-4000-8000-000000000007', '22222222-2222-4222-8222-222222222222', 'Schwaden', array['Schwaden', 'Schwadqualität prüfen'], 0.22, 'single', 'area', 1, 1, 1, 1, 'Schwader'),
-  ('80000000-0000-4000-8000-000000000008', '22222222-2222-4222-8222-222222222222', 'Häckseln', array['Häckseln', 'Abfahrer koordinieren'], 0.55, 'role_based', 'time', 2, 1, 1, 0, 'Häcksler'),
-  ('80000000-0000-4000-8000-000000000009', '22222222-2222-4222-8222-222222222222', 'Abfahren', array['Laden', 'Transport', 'Abladen'], 0.70, 'team', 'trips', 4, 1, 1, 1, 'Abfahrgespann'),
-  ('80000000-0000-4000-8000-000000000010', '22222222-2222-4222-8222-222222222222', 'Kalk streuen', array['Streumenge prüfen', 'Streuen'], 0.25, 'team', 'quantity', 2, 1, 1, 1, 'Streuer')
+  ('80000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Gülle ausbringen', array['Anfahrt', 'Ausbringen', 'Fuhren dokumentieren'], 0.38, 'team', 'quantity', 2, 1, 1, 1, 'Schlepper mit Güllefass', 'm³'),
+  ('80000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Mist ausbringen', array['Laden', 'Ausbringen', 'Randbereiche prüfen'], 0.45, 'team', 'quantity', 2, 1, 1, 1, 'Streuerkolonne', 't'),
+  ('80000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Säen', array['Saatgut prüfen', 'Säen', 'Ablagetiefe kontrollieren'], 0.30, 'single', 'area', 1, 1, 1, 1, 'Schlepper mit Sämaschine', 'ha'),
+  ('80000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Walzen', array['Walzen', 'Vorgewende prüfen'], 0.18, 'team', 'time', 2, 1, 1, 1, 'Walzschlepper', 'h'),
+  ('80000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Grubbern', array['Grubbern', 'Problemstellen melden'], 0.42, 'single', 'area', 1, 1, 1, 1, 'Bodenbearbeitung', 'ha'),
+  ('80000000-0000-4000-8000-000000000006', '22222222-2222-4222-8222-222222222222', 'Mähen', array['Mähen', 'Vorgewende mähen'], 0.28, 'single', 'area', 1, 1, 1, 1, 'Mähkombination', 'ha'),
+  ('80000000-0000-4000-8000-000000000007', '22222222-2222-4222-8222-222222222222', 'Schwaden', array['Schwaden', 'Schwadqualität prüfen'], 0.22, 'single', 'area', 1, 1, 1, 1, 'Schwader', 'ha'),
+  ('80000000-0000-4000-8000-000000000008', '22222222-2222-4222-8222-222222222222', 'Häckseln', array['Häckseln', 'Abfahrer koordinieren'], 0.55, 'role_based', 'time', 2, 1, 1, 0, 'Häcksler', 'h'),
+  ('80000000-0000-4000-8000-000000000009', '22222222-2222-4222-8222-222222222222', 'Abfahren', array['Laden', 'Transport', 'Abladen'], 0.70, 'team', 'trips', 4, 1, 1, 1, 'Abfahrgespann', 'Fuhren'),
+  ('80000000-0000-4000-8000-000000000010', '22222222-2222-4222-8222-222222222222', 'Kalk streuen', array['Streumenge prüfen', 'Streuen'], 0.25, 'team', 'quantity', 2, 1, 1, 1, 'Streuer', 't')
 on conflict (id) do update set
   name = excluded.name,
   work_steps = excluded.work_steps,
@@ -92,4 +95,5 @@ on conflict (id) do update set
   required_vehicles = excluded.required_vehicles,
   required_implements = excluded.required_implements,
   resource_hint = excluded.resource_hint,
+  quantity_unit = excluded.quantity_unit,
   updated_at = now();

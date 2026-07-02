@@ -354,11 +354,12 @@ export function DriverView({
     return task?.progressMetric[0] ?? "Fläche";
   }
 
-  function feedbackValueConfig(task?: Job["tasks"][number]) {
+  function feedbackValueConfig(task?: Job["tasks"][number], subtask?: Subtask) {
     const metric = feedbackMetric(task);
+    const unitFromData = subtask?.targetUnit || task?.unit || "";
     if (metric === "Menge") {
       const inferredUnit = task?.name.toLowerCase().includes("ballen") ? t("driver.bales") : "";
-      const unit = task?.unit || inferredUnit;
+      const unit = unitFromData || inferredUnit;
       return {
         key: "doneAmount" as const,
         label: unit ? `${t("driver.quantity")} (${unit})` : t("driver.quantity"),
@@ -367,16 +368,27 @@ export function DriverView({
       };
     }
     if (metric === "Fuhren") {
+      const unit = unitFromData || t("driver.trips");
       return {
         key: "trips" as const,
-        label: t("driver.trips"),
+        label: unit ? `${t("driver.trips")} (${unit})` : t("driver.trips"),
         placeholder: "0",
         inputMode: "numeric" as const,
       };
     }
+    if (metric === "Zeit") {
+      const unit = unitFromData || "h";
+      return {
+        key: "doneAmount" as const,
+        label: unit ? `${t("driver.completedTime")} (${unit})` : t("driver.completedTime"),
+        placeholder: "0,00",
+        inputMode: "decimal" as const,
+      };
+    }
+    const unit = unitFromData || "ha";
     return {
       key: "doneHa" as const,
-      label: t("driver.areaDone"),
+      label: unit ? `${t("driver.areaDone")} (${unit})` : t("driver.areaDone"),
       placeholder: "0,00",
       inputMode: "decimal" as const,
     };
@@ -1184,7 +1196,7 @@ export function DriverView({
               </div>
               <p>{t("driver.completionDialogHint", { task: completionTask?.name ?? "" })}</p>
               {(() => {
-                const config = feedbackValueConfig(completionTask);
+                const config = feedbackValueConfig(completionTask, completionSubtask);
                 return (
                   <div className="driver-yard-form">
                     <label>

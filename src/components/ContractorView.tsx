@@ -399,6 +399,7 @@ export function ContractorView({
     requiredVehicles: 1,
     requiredImplements: 0,
     resourceHint: "",
+    unit: "",
     mapStyleLabel: "",
     mapStyleColor: "#7fcf6b",
     mapStylePattern: "none" as FieldMapPattern,
@@ -542,6 +543,7 @@ export function ContractorView({
       requiredVehicles: selectedTaskTemplate.requiredVehicles ?? 1,
       requiredImplements: selectedTaskTemplate.requiredImplements ?? 0,
       resourceHint: selectedTaskTemplate.resourceHint ?? "",
+      unit: selectedTaskTemplate.unit ?? "",
       mapStyleLabel: selectedTaskTemplate.mapStyle?.label ?? "",
       mapStyleColor: selectedTaskTemplate.mapStyle?.color ?? "#7fcf6b",
       mapStylePattern: selectedTaskTemplate.mapStyle?.pattern ?? "none",
@@ -974,10 +976,10 @@ export function ContractorView({
       requiredVehicles: taskTemplate.requiredVehicles,
       requiredImplements: taskTemplate.requiredImplements,
       resourceHint: taskTemplate.resourceHint,
+      unit: taskTemplate.unit || (taskTemplate.progressMetric === "Fläche" ? "ha" : taskTemplate.progressMetric === "Fuhren" ? t("driver.trips") : taskTemplate.progressMetric === "Zeit" ? "h" : undefined),
       mapStyle: taskTemplate.mapStyle,
       timePerHa: taskTemplate.timePerHa,
       estimatedHours: selectedJobType?.defaultEstimatedHours,
-      unit: taskTemplate.progressMetric === "Fläche" ? "ha" : undefined,
     };
   }
 
@@ -1015,6 +1017,7 @@ export function ContractorView({
       mode: "Einzelmodus",
       maxVehicles: 1,
       progressMetric: "Fläche",
+      unit: "ha",
       requiredDrivers: 1,
       requiredVehicles: 1,
       requiredImplements: 0,
@@ -1037,6 +1040,7 @@ export function ContractorView({
       requiredVehicles: taskTemplateForm.requiredVehicles,
       requiredImplements: taskTemplateForm.requiredImplements,
       resourceHint: taskTemplateForm.resourceHint,
+      unit: taskTemplateForm.unit.trim() || undefined,
       mapStyle: taskTemplateForm.mapStyleLabel.trim()
         ? {
             label: taskTemplateForm.mapStyleLabel.trim(),
@@ -2800,6 +2804,7 @@ export function ContractorView({
                   <label>{t("createJob.workMode")} *<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.mode} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mode: event.target.value as WorkMode }))}>{taskModes.map((item) => <option key={item} value={item}>{t(`mode.${item}`)}</option>)}</select></label>
                   <label>{t("createJob.maxVehicles")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={1} max={12} value={taskTemplateForm.maxVehicles} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, maxVehicles: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("createJob.progressBy")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.progressMetric} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, progressMetric: event.target.value as ProgressMetric }))}>{taskMetrics.map((item) => <option key={item} value={item}>{t(`metrics.${item}`)}</option>)}</select></label>
+                  <label>{t("masterData.taskUnit")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} placeholder={t("masterData.taskUnitPlaceholder")} value={taskTemplateForm.unit} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, unit: event.target.value }))} /></label>
                   <label>{t("terms.driver")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredDrivers} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredDrivers: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("terms.vehicle")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredVehicles} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredVehicles: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("terms.implement")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredImplements} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredImplements: Number(event.target.value) }))} type="number" /></label>

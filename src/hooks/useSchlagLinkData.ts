@@ -234,6 +234,7 @@ type TaskTemplateRow = {
   required_vehicles: number | null;
   required_implements: number | null;
   resource_hint: string | null;
+  quantity_unit?: string | null;
   archived_at?: string | null;
 };
 
@@ -573,6 +574,7 @@ function mapTaskTemplates(taskTemplateRows: TaskTemplateRow[]): TaskTemplate[] {
     requiredVehicles: taskTemplate.required_vehicles ?? undefined,
     requiredImplements: taskTemplate.required_implements ?? undefined,
     resourceHint: taskTemplate.resource_hint ?? "",
+    unit: taskTemplate.quantity_unit ?? undefined,
     archivedAt: taskTemplate.archived_at ?? undefined,
   }));
 }

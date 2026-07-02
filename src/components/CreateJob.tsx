@@ -184,7 +184,7 @@ export function CreateJob({
           timePerHa: taskOption.timePerHa,
           targetValue: taskOption.progressMetric === "Menge" ? 25 : undefined,
           plannedAmount: taskOption.progressMetric === "Menge" ? 25 : undefined,
-          unit: taskOption.progressMetric === "Menge" ? "m³/ha" : undefined,
+          unit: taskOption.unit || (taskOption.progressMetric === "Fläche" ? "ha" : taskOption.progressMetric === "Fuhren" ? t("driver.trips") : taskOption.progressMetric === "Zeit" ? "h" : undefined),
           mapStyle: taskOption.mapStyle,
         }));
     const sourceTemplateTasks: Task[] = initialTemplate && taskCount === 0

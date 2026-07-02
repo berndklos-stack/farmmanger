@@ -257,6 +257,7 @@ export type TaskTemplate = {
   requiredVehicles?: number;
   requiredImplements?: number;
   resourceHint?: string;
+  unit?: string;
   mapStyle?: FieldMapStyle;
   archivedAt?: string;
 };

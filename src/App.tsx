@@ -2510,6 +2510,7 @@ export function App() {
       required_vehicles: Math.max(taskTemplate.requiredVehicles ?? 0, 0),
       required_implements: Math.max(taskTemplate.requiredImplements ?? 0, 0),
       resource_hint: taskTemplate.resourceHint ?? "",
+      quantity_unit: taskTemplate.unit ?? null,
       archived_at: taskTemplate.archivedAt ?? null,
     };
   }
