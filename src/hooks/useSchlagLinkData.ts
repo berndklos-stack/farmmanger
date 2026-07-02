@@ -144,6 +144,7 @@ type AssignmentRow = {
   personnel_resource_id?: string | null;
   vehicle_name: string | null;
   status: string | null;
+  started_at?: string | null;
   completed_area_ha: number | null;
   completed_quantity: number | null;
   completed_trips: number | null;
@@ -449,7 +450,8 @@ function mapSubtasks(
       .map((report) => profileToPersonnelName.get(report.created_by ?? "") ?? personnelIdToName.get(report.created_by ?? ""))
       .filter((name): name is string => Boolean(name));
     const feedbackAssignment = completed
-      ?? activeAssignments.find((assignment) => assignment.completed_area_ha || assignment.completed_quantity || assignment.completed_trips || assignment.notes)
+      ?? activeAssignments.find((assignment) => assignment.completed_at || assignment.completed_area_ha || assignment.completed_quantity || assignment.completed_trips || assignment.notes)
+      ?? assignments.find((assignment) => assignment.started_at && assignment.completed_at)
       ?? assignments.find((assignment) => assignment.notes);
     const activeVehicleIds = activeAssignments
       .map((assignment) => vehicleIdByName.get(normalizeName(assignment.vehicle_name)))
@@ -472,6 +474,11 @@ function mapSubtasks(
       ])),
       activeVehicleIds: Array.from(new Set(activeVehicleIds)),
       performedVehicleNames: Array.from(new Set(performedAssignments.map((assignment) => assignment.vehicle_name).filter((name): name is string => Boolean(name)))),
+      workedMinutes: feedbackAssignment?.started_at && feedbackAssignment.completed_at
+        ? Math.max(1, Math.round((new Date(feedbackAssignment.completed_at).getTime() - new Date(feedbackAssignment.started_at).getTime()) / 60000))
+        : undefined,
+      workStartedAt: (activeAssignments[0] ?? feedbackAssignment)?.started_at ?? undefined,
+      workEndedAt: feedbackAssignment?.completed_at ?? undefined,
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
       targetUnit: task.quantity_unit ?? (task.progress_type === "area" ? "ha" : task.progress_type === "trips" ? "Fuhren" : undefined),
       doneHa: feedbackAssignment?.completed_area_ha ?? undefined,

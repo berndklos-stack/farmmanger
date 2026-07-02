@@ -48,6 +48,15 @@ function isActivelyWorked(subtask: Subtask) {
   return subtask.status === "in Arbeit" && hasActiveDriver(subtask);
 }
 
+function formatWorkedMinutes(minutes?: number) {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours > 0 && remainingMinutes > 0) return `${hours} h ${remainingMinutes} min`;
+  if (hours > 0) return `${hours} h`;
+  return `${remainingMinutes} min`;
+}
+
 function mixHexColor(baseColor: string, overlayColor: string, overlayWeight = 0.45) {
   const parse = (value: string) => {
     const match = value.match(/^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i);
@@ -307,6 +316,7 @@ export function Fields({
           .filter(Boolean),
       ])).join(", ");
       const workValues = [
+        subtask.workedMinutes ? `Arbeitszeit: ${formatWorkedMinutes(subtask.workedMinutes)}` : "",
         subtask.doneHa !== undefined ? `${subtask.doneHa} ha` : "",
         subtask.doneAmount !== undefined ? `${subtask.doneAmount} ${subtask.targetUnit ?? t("driver.quantity")}` : "",
         subtask.trips !== undefined ? `${subtask.trips} ${t("metrics.Fuhren")}` : "",

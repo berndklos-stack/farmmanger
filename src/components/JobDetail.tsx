@@ -6,6 +6,15 @@ import type { Job, Status, Subtask } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 
 const nextStatuses: Status[] = ["offen", "reserviert", "in Arbeit", "pausiert", "teilweise erledigt", "erledigt", "Problem"];
+
+function formatWorkedMinutes(minutes?: number) {
+  if (!minutes) return "";
+  const hours = Math.floor(minutes / 60);
+  const remainingMinutes = minutes % 60;
+  if (hours > 0 && remainingMinutes > 0) return `${hours} h ${remainingMinutes} min`;
+  if (hours > 0) return `${hours} h`;
+  return `${remainingMinutes} min`;
+}
 const statusSortOrder: Record<Status, number> = {
   Problem: 0,
   offen: 1,
@@ -440,6 +449,7 @@ export function JobDetail({
                 {related.filter(hasDriverActivity).map((subtask) => {
                   const task = getTask(subtask, jobs);
                   const values = [
+                    subtask.workedMinutes ? `Arbeitszeit ${formatWorkedMinutes(subtask.workedMinutes)}` : "",
                     subtask.doneHa !== undefined ? t("jobs.activityArea", { value: subtask.doneHa }) : "",
                     subtask.doneAmount !== undefined ? t("jobs.activityQuantity", { value: subtask.doneAmount }) : "",
                     subtask.trips !== undefined ? t("jobs.activityTrips", { value: subtask.trips }) : "",

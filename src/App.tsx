@@ -94,6 +94,9 @@ type DispatchAssignmentOverride = Pick<
   | "performedVehicleNames"
   | "activeImplementIds"
   | "performedImplementIds"
+  | "workedMinutes"
+  | "workStartedAt"
+  | "workEndedAt"
   | "plannedCrews"
   | "progress"
   | "status"
@@ -1030,10 +1033,11 @@ export function App() {
         personnel_resource_id: personnelResourceId ?? null,
         vehicle_name: vehicleNames[index] ?? vehicleNames[0] ?? driver?.vehicle ?? null,
         status: assignmentStatusFromSubtask(subtask.status),
+        started_at: subtask.workStartedAt ?? null,
+        completed_at: subtask.workEndedAt ?? (subtask.status === "erledigt" ? subtask.completedAt ?? new Date().toISOString() : null),
         completed_area_ha: subtask.doneHa ?? null,
         completed_quantity: subtask.doneAmount ?? null,
         completed_trips: subtask.trips ?? null,
-        completed_at: subtask.status === "erledigt" ? subtask.completedAt ?? new Date().toISOString() : null,
         notes: subtask.driverNote ?? subtask.note ?? null,
       };
     });
@@ -1109,6 +1113,37 @@ export function App() {
     });
   }
 
+  function formatWorkMinutes(minutes: number) {
+    const hours = Math.floor(minutes / 60);
+    const remainingMinutes = minutes % 60;
+    if (hours > 0 && remainingMinutes > 0) return `${hours} h ${remainingMinutes} min`;
+    if (hours > 0) return `${hours} h`;
+    return `${remainingMinutes} min`;
+  }
+
+  function driverNamesForSubtask(subtask: Subtask) {
+    return Array.from(new Set([
+      ...subtask.activeDriverIds
+        .map((driverId) => driverRecords.find((driver) => driver.id === driverId || driver.profileId === driverId)?.name)
+        .filter((name): name is string => Boolean(name)),
+      ...(subtask.activeDriverNames ?? []),
+      ...(subtask.performedDriverNames ?? []),
+    ])).join(", ");
+  }
+
+  function resourceNamesForSubtask(subtask: Subtask) {
+    const vehicleNames = [
+      ...(subtask.activeVehicleIds ?? [])
+        .map((vehicleId) => vehicleRecords.find((vehicle) => vehicle.id === vehicleId)?.name)
+        .filter((name): name is string => Boolean(name)),
+      ...(subtask.performedVehicleNames ?? []),
+    ];
+    const implementNames = (subtask.activeImplementIds ?? [])
+      .map((implementId) => implementRecords.find((implement) => implement.id === implementId)?.name)
+      .filter((name): name is string => Boolean(name));
+    return Array.from(new Set([...vehicleNames, ...implementNames])).join(", ");
+  }
+
   function updateSubtask(id: string, patch: Partial<Subtask>) {
     const timestamp = new Date().toISOString();
     const currentSubtask = subtasks.find((subtask) => subtask.id === id);
@@ -1120,13 +1155,45 @@ export function App() {
           createdAt: timestamp,
         }
       : undefined;
+    const nextStatus = patch.status;
+    const closesWorkSession = Boolean(nextStatus && ["pausiert", "teilweise erledigt", "erledigt", "Problem", "offen", "reserviert"].includes(nextStatus));
+    const currentWorkStart = currentSubtask?.workStartedAt;
+    const shouldStartWork = nextStatus === "in Arbeit";
+    const shouldCloseWork = Boolean(currentSubtask && currentWorkStart && closesWorkSession && currentSubtask.status === "in Arbeit");
+    const sessionMinutes = shouldCloseWork
+      ? Math.max(1, Math.round((new Date(timestamp).getTime() - new Date(currentWorkStart ?? timestamp).getTime()) / 60000))
+      : undefined;
+    const workPatch: Partial<Subtask> = shouldStartWork
+      ? {
+          workStartedAt: currentSubtask?.status === "in Arbeit" && currentSubtask.workStartedAt ? currentSubtask.workStartedAt : timestamp,
+          workEndedAt: undefined,
+        }
+      : shouldCloseWork
+        ? {
+            workedMinutes: (currentSubtask?.workedMinutes ?? 0) + (sessionMinutes ?? 0),
+            workEndedAt: timestamp,
+          }
+        : {};
+    const workEvent = shouldCloseWork && sessionMinutes && currentSubtask
+      ? {
+          id: crypto.randomUUID(),
+          message: [
+            `Arbeitszeit erfasst: ${formatWorkMinutes(sessionMinutes)}`,
+            `${new Date(currentWorkStart ?? timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}-${new Date(timestamp).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}`,
+            driverNamesForSubtask({ ...currentSubtask, ...patch }),
+            resourceNamesForSubtask({ ...currentSubtask, ...patch }),
+          ].filter(Boolean).join(" · "),
+          createdAt: timestamp,
+        }
+      : undefined;
     const timedPatch: Partial<Subtask> = {
       ...patch,
+      ...workPatch,
       updatedAt: timestamp,
       ...("status" in patch ? { statusChangedAt: timestamp } : {}),
       ...(patch.status === "erledigt" ? { completedAt: patch.completedAt ?? timestamp } : {}),
       ...("status" in patch && patch.status !== "erledigt" ? { completedAt: undefined } : {}),
-      ...(reopenEvent ? { statusEvents: [...(currentSubtask?.statusEvents ?? []), reopenEvent] } : {}),
+      ...(reopenEvent || workEvent ? { statusEvents: [...(currentSubtask?.statusEvents ?? []), ...[reopenEvent, workEvent].filter((event): event is NonNullable<typeof event> => Boolean(event))] } : {}),
     };
     const shouldPersistDispatch = "activeDriverIds" in patch
       || "activeDriverNames" in patch
@@ -1136,6 +1203,9 @@ export function App() {
       || "performedVehicleNames" in patch
       || "activeImplementIds" in patch
       || "performedImplementIds" in patch
+      || "workedMinutes" in timedPatch
+      || "workStartedAt" in timedPatch
+      || "workEndedAt" in timedPatch
       || "plannedCrews" in patch
       || "progress" in patch
       || "status" in patch
@@ -1150,7 +1220,7 @@ export function App() {
       || "driverPhotos" in patch
       || "statusEvents" in timedPatch
       || "completedAt" in patch;
-    const shouldSync = "activeDriverIds" in patch || "activeVehicleIds" in patch || "status" in patch;
+    const shouldSync = "activeDriverIds" in patch || "activeVehicleIds" in patch || "status" in patch || "workStartedAt" in timedPatch || "workEndedAt" in timedPatch;
     const shouldSyncDriverFeedback = "doneHa" in patch
       || "doneAmount" in patch
       || "trips" in patch
@@ -1176,6 +1246,9 @@ export function App() {
             performedVehicleNames: nextSubtaskForPersistence.performedVehicleNames ?? [],
             activeImplementIds: nextSubtaskForPersistence.activeImplementIds ?? [],
             performedImplementIds: nextSubtaskForPersistence.performedImplementIds ?? [],
+            workedMinutes: nextSubtaskForPersistence.workedMinutes,
+            workStartedAt: nextSubtaskForPersistence.workStartedAt,
+            workEndedAt: nextSubtaskForPersistence.workEndedAt,
             plannedCrews: nextSubtaskForPersistence.plannedCrews,
             progress: nextSubtaskForPersistence.progress,
             status: nextSubtaskForPersistence.status,
@@ -1207,14 +1280,15 @@ export function App() {
         });
       }
     }
-    if (reopenEvent && isSupabaseConfigured && supabase) {
-      void supabase.from("task_reports").insert({
-        id: reopenEvent.id,
+    const reportEvents = [reopenEvent, workEvent].filter((event): event is NonNullable<typeof event> => Boolean(event));
+    if (reportEvents.length > 0 && isSupabaseConfigured && supabase) {
+      void supabase.from("task_reports").insert(reportEvents.map((event) => ({
+        id: event.id,
         job_task_id: id,
         report_type: "progress",
-        message: reopenEvent.message,
+        message: event.message,
         created_by: authProfile?.id ?? null,
-      }).then(({ error }) => {
+      }))).then(({ error }) => {
         if (error) console.error("Status-Protokoll konnte nicht in Supabase gespeichert werden", error);
       });
     }
