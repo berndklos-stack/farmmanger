@@ -471,6 +471,7 @@ function mapSubtasks(
         ...reportDriverNames,
       ])),
       activeVehicleIds: Array.from(new Set(activeVehicleIds)),
+      performedVehicleNames: Array.from(new Set(performedAssignments.map((assignment) => assignment.vehicle_name).filter((name): name is string => Boolean(name)))),
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
       targetUnit: task.quantity_unit ?? (task.progress_type === "area" ? "ha" : task.progress_type === "trips" ? "Fuhren" : undefined),
       doneHa: feedbackAssignment?.completed_area_ha ?? undefined,

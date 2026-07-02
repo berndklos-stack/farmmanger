@@ -274,7 +274,9 @@ export type Subtask = {
   performedDriverIds?: string[];
   performedDriverNames?: string[];
   activeVehicleIds?: string[];
+  performedVehicleNames?: string[];
   activeImplementIds?: string[];
+  performedImplementIds?: string[];
   plannedCrews?: number;
   estimatedHours?: number;
   targetValue?: number;

@@ -60,7 +60,7 @@ type DataContextValue = {
   authProfile: AuthProfile | null;
   currentDriverId: string | null;
   isAuthenticated: boolean;
-  signOut: () => Promise<void>;
+  signOut: (options?: { releaseAssignments?: boolean }) => Promise<void>;
   permissions: PermissionSet;
   farmerName: string;
   contractorName: string;

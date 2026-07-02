@@ -89,6 +89,7 @@ export function DriverView({
   jobs,
   onLocationUpdate,
   onUpdateSubtask,
+  onHandoverDriverAssignments,
   onUploadSubtaskPhotos,
   onDeleteSubtaskPhoto,
 }: {
@@ -96,6 +97,7 @@ export function DriverView({
   jobs: Job[];
   onLocationUpdate: (location: DriverLocation) => void;
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void;
+  onHandoverDriverAssignments: (nextDriverId: string) => Promise<void>;
   onUploadSubtaskPhotos: (id: string, files: File[]) => Promise<void>;
   onDeleteSubtaskPhoto: (subtaskId: string, photoId: string) => Promise<void>;
 }) {
@@ -405,7 +407,12 @@ export function DriverView({
     const performedDriverIds = Array.from(new Set([...(subtask.performedDriverIds ?? []), activeDriver.id]));
     const performedDriverNames = Array.from(new Set([...(subtask.performedDriverNames ?? []), activeDriver.name]));
     const activeVehicleIds = Array.from(new Set([...(subtask.activeVehicleIds ?? []), ...selectedYardVehicleIds]));
+    const performedVehicleNames = Array.from(new Set([
+      ...(subtask.performedVehicleNames ?? []),
+      ...selectedYardVehicleNames,
+    ]));
     const activeImplementIds = Array.from(new Set([...(subtask.activeImplementIds ?? []), ...selectedImplementIds]));
+    const performedImplementIds = Array.from(new Set([...(subtask.performedImplementIds ?? []), ...selectedImplementIds]));
     return {
       status,
       progress: status === "erledigt" ? 100 : Math.max(fallbackProgress, subtask.progress),
@@ -414,7 +421,9 @@ export function DriverView({
       performedDriverIds,
       performedDriverNames,
       activeVehicleIds,
+      performedVehicleNames,
       activeImplementIds,
+      performedImplementIds,
       doneHa,
       doneAmount,
       trips,
@@ -538,7 +547,7 @@ export function DriverView({
     setHandoverNote("");
     setEquipmentProblem(false);
     setIsHandoverOpen(false);
-    await signOut();
+    await onHandoverDriverAssignments(handoverDriverId);
   }
 
   function fallbackPoint(subtask: Subtask) {

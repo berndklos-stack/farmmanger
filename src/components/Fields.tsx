@@ -288,16 +288,24 @@ export function Fields({
       const driverNames = Array.from(new Set([
         ...subtask.activeDriverIds.map(resolveDriverName).filter((name): name is string => Boolean(name)),
         ...(subtask.activeDriverNames ?? []),
+        ...(subtask.performedDriverIds ?? []).map(resolveDriverName).filter((name): name is string => Boolean(name)),
+        ...(subtask.performedDriverNames ?? []),
       ])).join(", ");
-      const vehicleNames = (subtask.activeVehicleIds ?? [])
-        .map((id) => vehicles.find((vehicle) => vehicle.id === id))
-        .filter(Boolean)
-        .map((vehicle) => [vehicle!.name, vehicle!.licensePlate].filter(Boolean).join(" "))
-        .join(", ");
-      const implementNames = (subtask.activeImplementIds ?? [])
-        .map((id) => implementsList.find((implement) => implement.id === id)?.name)
-        .filter(Boolean)
-        .join(", ");
+      const vehicleNames = Array.from(new Set([
+        ...(subtask.activeVehicleIds ?? [])
+          .map((id) => vehicles.find((vehicle) => vehicle.id === id))
+          .filter(Boolean)
+          .map((vehicle) => [vehicle!.name, vehicle!.licensePlate].filter(Boolean).join(" ")),
+        ...(subtask.performedVehicleNames ?? []),
+      ])).join(", ");
+      const implementNames = Array.from(new Set([
+        ...(subtask.activeImplementIds ?? [])
+          .map((id) => implementsList.find((implement) => implement.id === id)?.name)
+          .filter(Boolean),
+        ...(subtask.performedImplementIds ?? [])
+          .map((id) => implementsList.find((implement) => implement.id === id)?.name)
+          .filter(Boolean),
+      ])).join(", ");
       const workValues = [
         subtask.doneHa !== undefined ? `${subtask.doneHa} ha` : "",
         subtask.doneAmount !== undefined ? `${subtask.doneAmount} ${subtask.targetUnit ?? t("driver.quantity")}` : "",

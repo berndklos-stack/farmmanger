@@ -91,7 +91,9 @@ type DispatchAssignmentOverride = Pick<
   | "performedDriverIds"
   | "performedDriverNames"
   | "activeVehicleIds"
+  | "performedVehicleNames"
   | "activeImplementIds"
+  | "performedImplementIds"
   | "plannedCrews"
   | "progress"
   | "status"
@@ -1131,7 +1133,9 @@ export function App() {
       || "performedDriverIds" in patch
       || "performedDriverNames" in patch
       || "activeVehicleIds" in patch
+      || "performedVehicleNames" in patch
       || "activeImplementIds" in patch
+      || "performedImplementIds" in patch
       || "plannedCrews" in patch
       || "progress" in patch
       || "status" in patch
@@ -1169,7 +1173,9 @@ export function App() {
             performedDriverIds: nextSubtaskForPersistence.performedDriverIds ?? [],
             performedDriverNames: nextSubtaskForPersistence.performedDriverNames ?? [],
             activeVehicleIds: nextSubtaskForPersistence.activeVehicleIds ?? [],
+            performedVehicleNames: nextSubtaskForPersistence.performedVehicleNames ?? [],
             activeImplementIds: nextSubtaskForPersistence.activeImplementIds ?? [],
+            performedImplementIds: nextSubtaskForPersistence.performedImplementIds ?? [],
             plannedCrews: nextSubtaskForPersistence.plannedCrews,
             progress: nextSubtaskForPersistence.progress,
             status: nextSubtaskForPersistence.status,
@@ -2692,15 +2698,55 @@ export function App() {
     }
   }
 
-  async function signOut() {
+  async function signOut(options: { releaseAssignments?: boolean } = {}) {
+    const releaseAssignments = options.releaseAssignments ?? true;
     await sendCurrentDriverLocationBeforeSignOut();
-    releaseCurrentDriverAssignmentsBeforeSignOut();
+    if (releaseAssignments) releaseCurrentDriverAssignmentsBeforeSignOut();
     if (supabase) await supabase.auth.signOut();
     setAuthSession(null);
     setAuthProfile(null);
     setCurrentRoleState("farmer_admin");
     window.localStorage.setItem("schlaglink.role", "farmer_admin");
     setActiveView(initialViewForAppMode(appMode));
+  }
+
+  async function handoverCurrentDriverAssignments(nextDriverId: string) {
+    if (!currentDriver) {
+      await signOut();
+      return;
+    }
+    const nextDriver = driverRecords.find((driver) => driver.id === nextDriverId || driver.profileId === nextDriverId);
+    if (!nextDriver) {
+      await signOut();
+      return;
+    }
+    const normalizedDriverName = currentDriver.name.trim().toLowerCase();
+    const currentDriverIdentifiers = new Set([currentDriver.id, currentDriver.profileId].filter(Boolean));
+    const isCurrentDriverAssignment = (driverId: string) => {
+      if (currentDriverIdentifiers.has(driverId)) return true;
+      const assignedDriver = driverRecords.find((driver) => driver.id === driverId || driver.profileId === driverId);
+      return assignedDriver?.name.trim().toLowerCase() === normalizedDriverName || driverId.trim().toLowerCase() === normalizedDriverName;
+    };
+    const handoverSubtasks = subtasks
+      .filter((subtask) => subtask.status !== "erledigt")
+      .filter((subtask) => (
+        subtask.activeDriverIds.some(isCurrentDriverAssignment)
+        || (subtask.activeDriverNames ?? []).some((name) => name.trim().toLowerCase() === normalizedDriverName)
+      ));
+
+    handoverSubtasks.forEach((subtask) => {
+      const remainingDriverIds = subtask.activeDriverIds.filter((driverId) => !isCurrentDriverAssignment(driverId));
+      const remainingDriverNames = (subtask.activeDriverNames ?? []).filter((name) => name.trim().toLowerCase() !== normalizedDriverName);
+      updateSubtask(subtask.id, {
+        activeDriverIds: Array.from(new Set([...remainingDriverIds, nextDriver.id])),
+        activeDriverNames: Array.from(new Set([...remainingDriverNames, nextDriver.name])),
+        activeVehicleIds: subtask.activeVehicleIds,
+        activeImplementIds: subtask.activeImplementIds,
+        status: subtask.status === "offen" ? "reserviert" : subtask.status,
+      });
+    });
+
+    await signOut({ releaseAssignments: false });
   }
 
   const permissions = {
@@ -2737,7 +2783,7 @@ export function App() {
             <a className="primary-action wide auth-link-button" href={targetHref}>
               {t(authProfile.role === "driver" ? "auth.openDriverApp" : "auth.openAdminApp")}
             </a>
-            <button className="secondary-action wide" onClick={signOut} type="button">
+            <button className="secondary-action wide" onClick={() => { void signOut(); }} type="button">
               {t("auth.signOut")}
             </button>
           </div>
@@ -2824,13 +2870,13 @@ export function App() {
             {authProfile && (
               <div className="user-session-pill">
                 <span>{authProfile.fullName}</span>
-                <button onClick={signOut} type="button">{t("auth.signOut")}</button>
+                <button onClick={() => { void signOut(); }} type="button">{t("auth.signOut")}</button>
               </div>
             )}
             <LanguageSwitcher />
           </div>
         </header>
-        <DriverView subtasks={activeSubtasks} jobs={activeJobs} onLocationUpdate={updateDriverLocation} onUpdateSubtask={updateSubtask} onUploadSubtaskPhotos={uploadSubtaskPhotos} onDeleteSubtaskPhoto={deleteSubtaskPhoto} />
+        <DriverView subtasks={activeSubtasks} jobs={activeJobs} onLocationUpdate={updateDriverLocation} onUpdateSubtask={updateSubtask} onHandoverDriverAssignments={handoverCurrentDriverAssignments} onUploadSubtaskPhotos={uploadSubtaskPhotos} onDeleteSubtaskPhoto={deleteSubtaskPhoto} />
       </main>
     ) : (
     <div className="app-shell">
@@ -2907,7 +2953,7 @@ export function App() {
               <div className="user-session-pill">
                 <span>{authProfile.fullName}</span>
                 <small>{t(`roles.${authProfile.role}`)}</small>
-                <button onClick={signOut} type="button">{t("auth.signOut")}</button>
+                <button onClick={() => { void signOut(); }} type="button">{t("auth.signOut")}</button>
               </div>
             ) : (
               <UserRoleSwitcher />
@@ -2994,7 +3040,7 @@ export function App() {
           </section>
         )}
         {activeView === "driver" && (
-          <DriverView subtasks={activeSubtasks} jobs={activeJobs} onLocationUpdate={updateDriverLocation} onUpdateSubtask={updateSubtask} onUploadSubtaskPhotos={uploadSubtaskPhotos} onDeleteSubtaskPhoto={deleteSubtaskPhoto} />
+          <DriverView subtasks={activeSubtasks} jobs={activeJobs} onLocationUpdate={updateDriverLocation} onUpdateSubtask={updateSubtask} onHandoverDriverAssignments={handoverCurrentDriverAssignments} onUploadSubtaskPhotos={uploadSubtaskPhotos} onDeleteSubtaskPhoto={deleteSubtaskPhoto} />
         )}
         {activeView === "contractor" && (
           <ContractorView
