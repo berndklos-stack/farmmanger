@@ -26,6 +26,7 @@ type FieldHistoryRow = FieldHistoryFilters & {
   id: string;
   sortValue: string;
   statusValue?: Subtask["status"];
+  photos?: Array<{ name: string; url?: string; uploadedAt?: string }>;
 };
 
 type FieldWorkMapStatus = FieldMapStyle & {
@@ -328,6 +329,7 @@ export function Fields({
         resources: [vehicleNames, implementNames].filter(Boolean).join(" · ") || t("contractor.noVehicleAssigned"),
         work: workValues,
         note: noteValues || t("report.none"),
+        photos: subtask.driverPhotos?.map((photo) => ({ name: photo.name, url: photo.url, uploadedAt: photo.uploadedAt })),
       };
       const statusEventRows: FieldHistoryRow[] = (subtask.statusEvents ?? []).map((event) => ({
         id: event.id,
@@ -613,20 +615,38 @@ export function Fields({
           />
         ))}
       </div>
-      {filteredFieldHistoryRows.map((row) => (
-        <div className="field-history-row field-history-data" key={row.id}>
-          <span>{row.date}</span>
-          <span>{row.activityTime}</span>
-          <span>{row.job}</span>
-          <span>{row.contractor}</span>
-          <span>{row.task}</span>
-          <span>{row.statusValue ? <StatusBadge status={row.statusValue} /> : row.status}</span>
-          <span>{row.actors}</span>
-          <span>{row.resources}</span>
-          <span>{row.work || "-"}</span>
-          <span>{row.note}</span>
-        </div>
-      ))}
+      {filteredFieldHistoryRows.map((row) => {
+        const visibleNote = row.photos?.length ? row.note.replace(new RegExp(`\\s*·?\\s*${t("terms.photos")}:.*$`), "").trim() || t("report.none") : row.note;
+        return (
+          <div className="field-history-row field-history-data" key={row.id}>
+            <span>{row.date}</span>
+            <span>{row.activityTime}</span>
+            <span>{row.job}</span>
+            <span>{row.contractor}</span>
+            <span>{row.task}</span>
+            <span>{row.statusValue ? <StatusBadge status={row.statusValue} /> : row.status}</span>
+            <span>{row.actors}</span>
+            <span>{row.resources}</span>
+            <span>{row.work || "-"}</span>
+            <span>
+              {visibleNote}
+              {row.photos && row.photos.length > 0 && (
+                <span className="field-history-photo-links">
+                  {row.photos.map((photo) => (
+                    photo.url ? (
+                      <a href={photo.url} key={`${row.id}-${photo.name}`} rel="noreferrer" target="_blank">
+                        {photo.name} ({formatHistoryDateTime(photo.uploadedAt)})
+                      </a>
+                    ) : (
+                      <span key={`${row.id}-${photo.name}`}>{photo.name} ({formatHistoryDateTime(photo.uploadedAt)})</span>
+                    )
+                  ))}
+                </span>
+              )}
+            </span>
+          </div>
+        );
+      })}
       {filteredFieldHistoryRows.length === 0 && <p className="muted job-table-empty">{t("fields.noHistoryMatches")}</p>}
     </div>
   );

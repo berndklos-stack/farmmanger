@@ -2824,6 +2824,20 @@ select {
   overflow-wrap: anywhere;
 }
 
+.field-history-photo-links {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+}
+
+.field-history-photo-links a {
+  color: #2f6d42;
+  font-weight: 900;
+  text-decoration: underline;
+  text-underline-offset: 2px;
+}
+
 .driver-shell {
   display: grid;
   justify-items: center;
