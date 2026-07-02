@@ -4127,6 +4127,11 @@ select {
   padding: 6px;
   display: grid;
   gap: 4px;
+  cursor: grab;
+}
+
+.dispatch-calendar-card:active {
+  cursor: grabbing;
 }
 
 .dispatch-calendar-card .status-badge {

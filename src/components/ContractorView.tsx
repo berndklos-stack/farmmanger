@@ -16,6 +16,10 @@ type DragResourcePayload = {
   sourceSubtaskId?: string;
   sourceSubtaskIds?: string[];
 };
+type DragJobPayload = {
+  jobId: string;
+  sourceOffsetDays: number;
+};
 type StandardVehiclePlanningMode = "none" | "automatic" | "ask";
 type MapProviderPreference = "osm" | "google" | "hitta_se" | "lantmateriet";
 type DispatchCalendarMode = "single" | "grouped";
@@ -140,6 +144,15 @@ function parseJobDateOffset(job?: Job) {
   return Math.round((target.getTime() - today.getTime()) / 86400000);
 }
 
+function formatIsoDateForOffset(offsetDays: number) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, "0");
+  const day = String(date.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
 function getIsoWeek(offsetDays: number) {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
@@ -156,6 +169,7 @@ export function ContractorView({
   driverLocations,
   onRefreshDriverLocations,
   onUpdateSubtask,
+  onUpdateJob,
   variant = "dispatch",
   masterDataFocus,
   onOpenMasterData,
@@ -166,6 +180,7 @@ export function ContractorView({
   driverLocations: DriverLocation[];
   onRefreshDriverLocations?: () => void;
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void;
+  onUpdateJob?: (id: string, patch: Partial<Job>) => void;
   variant?: "dispatch" | "masterData";
   masterDataFocus?: { group: MasterResourceGroup; id: string } | null;
   onOpenMasterData?: (focus: { group: MasterResourceGroup; id: string }) => void;
@@ -1230,6 +1245,7 @@ export function ContractorView({
   }
 
   function handleDragStart(event: DragEvent, kind: DragResourceKind, id: string, sourceSubtaskId?: string, sourceSubtaskIds?: string[]) {
+    event.stopPropagation();
     const resource = kind === "driver"
       ? allDrivers.find((item) => item.id === id || item.profileId === id)
       : kind === "vehicle"
@@ -1241,6 +1257,79 @@ export function ContractorView({
     }
     event.dataTransfer.setData("application/x-schlaglink-resource", JSON.stringify({ kind, id, sourceSubtaskId, sourceSubtaskIds }));
     event.dataTransfer.effectAllowed = "move";
+  }
+
+  function handleJobDragStart(event: DragEvent, job: Job, sourceOffsetDays: number) {
+    if (!onUpdateJob) {
+      event.preventDefault();
+      return;
+    }
+    event.dataTransfer.setData("application/x-schlaglink-job", JSON.stringify({ jobId: job.id, sourceOffsetDays }));
+    event.dataTransfer.effectAllowed = "move";
+  }
+
+  function timeWindowWithDate(timeWindow: string, isoDate: string) {
+    if (/\d{4}-\d{2}-\d{2}/.test(timeWindow)) return timeWindow.replace(/\d{4}-\d{2}-\d{2}/, isoDate);
+    return isoDate;
+  }
+
+  function originalPlanNotice(job: Job, targetDate: string) {
+    const existingNotes = job.notes?.trim() ?? "";
+    const alreadyHasNotice = existingNotes.includes(t("contractor.originalPlanDateLabel"));
+    if (alreadyHasNotice) return existingNotes;
+    const notice = t("contractor.originalPlanDateNotice", {
+      date: job.timeWindow || "-",
+      movedTo: targetDate,
+    });
+    return [existingNotes, notice].filter(Boolean).join("\n");
+  }
+
+  function hasAssignedResources(jobSubtasks: Subtask[]) {
+    return jobSubtasks.some((subtask) => (
+      subtask.activeDriverIds.length > 0
+      || (subtask.activeDriverNames ?? []).length > 0
+      || (subtask.activeVehicleIds ?? []).length > 0
+      || (subtask.activeImplementIds ?? []).length > 0
+    ));
+  }
+
+  function moveJobToDay(job: Job, targetOffsetDays: number) {
+    if (!onUpdateJob) return;
+    const targetDate = formatIsoDateForOffset(targetOffsetDays);
+    const targetTimeWindow = timeWindowWithDate(job.timeWindow, targetDate);
+    if (targetTimeWindow === job.timeWindow) return;
+    const jobSubtasks = subtasks.filter((subtask) => subtask.jobId === job.id);
+    const keepResources = !hasAssignedResources(jobSubtasks) || window.confirm(t("contractor.keepResourcesOnMove"));
+
+    onUpdateJob(job.id, {
+      timeWindow: targetTimeWindow,
+      notes: originalPlanNotice(job, targetDate),
+    });
+
+    if (!keepResources) {
+      jobSubtasks.forEach((subtask) => {
+        const shouldResetStatus = subtask.status === "reserviert" || subtask.status === "in Arbeit" || subtask.status === "pausiert";
+        onUpdateSubtask(subtask.id, {
+          activeDriverIds: [],
+          activeDriverNames: [],
+          activeVehicleIds: [],
+          activeImplementIds: [],
+          status: shouldResetStatus ? "offen" : subtask.status,
+          progress: shouldResetStatus ? 0 : subtask.progress,
+        });
+      });
+    }
+  }
+
+  function handleDropJobOnDay(event: DragEvent, targetOffsetDays: number) {
+    const raw = event.dataTransfer.getData("application/x-schlaglink-job");
+    if (!raw) return false;
+    event.preventDefault();
+    const payload = JSON.parse(raw) as DragJobPayload;
+    if (payload.sourceOffsetDays === targetOffsetDays) return true;
+    const job = jobs.find((item) => item.id === payload.jobId);
+    if (job) moveJobToDay(job, targetOffsetDays);
+    return true;
   }
 
   function handleGroupResourceDragStart(event: DragEvent, kind: DragResourceKind, id: string, group: DispatchGroup) {
@@ -1938,7 +2027,14 @@ export function ContractorView({
               {dispatchCalendarMode === "single" ? (
               <div className="dispatch-calendar-grid">
                 {visibleCalendarDays.map((day) => (
-                  <div className="dispatch-day-column" key={day.id}>
+                  <div
+                    className="dispatch-day-column"
+                    key={day.id}
+                    onDragOver={(event) => {
+                      if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                    }}
+                    onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
+                  >
                     <div className="dispatch-day-heading">
                       <div className="dispatch-day-title">
                         <strong>{day.label}</strong>
@@ -1957,7 +2053,11 @@ export function ContractorView({
                         return (
                           <article
                             className={`dispatch-calendar-card ${subtask.status === "erledigt" ? "completed-item" : ""} ${startsDoneGroup ? "completed-section-start" : ""}`}
+                            draggable={Boolean(job && onUpdateJob)}
                             key={subtask.id}
+                            onDragStart={(event) => {
+                              if (job) handleJobDragStart(event, job, getSubtaskCalendarOffset(subtask, sortedIndex));
+                            }}
                             onDragOver={(event) => event.preventDefault()}
                             onDrop={(event) => handleDropResource(event, subtask)}
                           >
@@ -2023,7 +2123,14 @@ export function ContractorView({
                 {visibleCalendarDays.map((day) => {
                   const dayGroups = dispatchGroups.filter((group) => group.offsetDays === day.offsetDays);
                   return (
-                    <div className="dispatch-day-column" key={day.id}>
+                    <div
+                      className="dispatch-day-column"
+                      key={day.id}
+                      onDragOver={(event) => {
+                        if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                      }}
+                      onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
+                    >
                       <div className="dispatch-day-heading">
                         <div className="dispatch-day-title">
                           <strong>{day.label}</strong>

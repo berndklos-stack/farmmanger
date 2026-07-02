@@ -1723,6 +1723,10 @@ export function App() {
       const payload: Record<string, unknown> = {};
       if (patch.title !== undefined) payload.title = patch.title;
       if (patch.notes !== undefined) payload.description = patch.notes;
+      if (patch.timeWindow !== undefined) {
+        payload.planned_start = parseTimeWindowDate(patch.timeWindow, 8);
+        payload.planned_end = parseTimeWindowDate(patch.timeWindow, 17);
+      }
       if (patch.priority !== undefined) payload.priority = patch.priority;
       const { error } = await supabase.from("jobs").update(payload).eq("id", id);
       if (error) console.error("Auftrag konnte nicht in Supabase aktualisiert werden", error);
@@ -2988,6 +2992,7 @@ export function App() {
             driverLocations={driverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
+            onUpdateJob={updateJob}
             variant="dispatch"
             onOpenJob={(jobId) => {
               setDispatchEditJobId(jobId);
@@ -3005,6 +3010,7 @@ export function App() {
             driverLocations={driverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
+            onUpdateJob={updateJob}
             variant="masterData"
             masterDataFocus={masterDataFocus}
           />
