@@ -678,21 +678,32 @@ export function ContractorView({
           subtask.activeDriverIds.includes(selectedDriver.id)
           || Boolean(selectedDriver.profileId && subtask.activeDriverIds.includes(selectedDriver.profileId))
           || (subtask.activeDriverNames ?? []).includes(selectedDriver.name)
+          || (subtask.performedDriverIds ?? []).includes(selectedDriver.id)
+          || Boolean(selectedDriver.profileId && (subtask.performedDriverIds ?? []).includes(selectedDriver.profileId))
+          || (subtask.performedDriverNames ?? []).includes(selectedDriver.name)
         ))
         : activeMasterGroup === "vehicles"
           ? (subtask.activeVehicleIds ?? []).includes(resourceId)
           : (subtask.activeImplementIds ?? []).includes(resourceId);
       if (!matches) return [];
       const activityName = task?.name ?? job?.title ?? t("terms.subtask");
+      const assignmentStatus = t(`status.${subtask.status}`);
+      const detailParts = [
+        `${t("resourceHistory.eventType.assigned")}: ${activityName}`,
+        field?.name,
+        job?.jobNumber ? `Auftrag ${job.jobNumber}` : job?.title,
+        `${t("masterData.status")}: ${assignmentStatus}`,
+        subtask.driverNote ?? subtask.note,
+      ];
       return [{
         id: `${subtask.id}-${resourceId}`,
         resourceGroup: activeMasterGroup,
         resourceId,
         event: "assigned",
         recordedAt: subtask.completedAt ?? subtask.statusChangedAt ?? subtask.updatedAt ?? new Date().toISOString(),
-        actor: (subtask.activeDriverNames ?? []).join(", "),
+        actor: Array.from(new Set([...(subtask.activeDriverNames ?? []), ...(subtask.performedDriverNames ?? [])])).join(", "),
         title: activityName,
-        details: [activityName, field?.name, job?.customer, subtask.driverNote ?? subtask.note].filter(Boolean).join(" · "),
+        details: detailParts.filter(Boolean).join(" · "),
         jobNumber: job?.jobNumber ?? subtask.jobId,
         status: subtask.status,
       }];
@@ -2664,7 +2675,7 @@ export function ContractorView({
                               {(row.jobNumber || row.status) && <small>{[row.jobNumber, row.status ? t(`status.${row.status}`) : ""].filter(Boolean).join(" · ")}</small>}
                             </span>
                             <span>{row.actor || "-"}</span>
-                            <span>{row.details || "-"}</span>
+                            <span>{row.details || t(`resourceHistory.eventType.${row.event}`)}</span>
                           </div>
                         ))}
                       </div>
