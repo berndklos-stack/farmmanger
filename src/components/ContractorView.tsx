@@ -2307,8 +2307,8 @@ export function ContractorView({
             </div>
           </div>
 
-          <div className="dispatch-customer-jobs-layout">
-            <div className="panel dispatch-jobs-panel">
+          <div className="split-grid">
+            <div className="panel">
               <div className="section-heading">
                 <h2>{t("contractor.allCustomerJobs")}</h2>
                 <span>{jobs.length} {t("terms.active")}</span>
@@ -2407,29 +2407,24 @@ export function ContractorView({
               </div>
             </div>
 
-            <details className="panel dispatch-problems-compact" open={problems.length + machineProblems.length > 0}>
-              <summary>
-                <span>{t("contractor.problems")}</span>
-                <strong>{problems.length + machineProblems.length}</strong>
-              </summary>
-              <div className="dispatch-problems-list">
-                {machineProblems.map((problem) => (
-                  <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
-                    <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
-                    <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
-                  </div>
-                ))}
-                {problems.map((problem) => (
-                  <div className="alert-item" key={problem.id}>
-                    <strong><FieldName id={problem.fieldId} /></strong>
-                    <span>{problem.note ?? t("contractor.openFeedback")}</span>
-                  </div>
-                ))}
-                {problems.length + machineProblems.length === 0 && (
-                  <span className="dispatch-problems-empty">{t("contractor.noProblems")}</span>
-                )}
+            <div className="panel">
+              <div className="section-heading">
+                <h2>{t("contractor.problems")}</h2>
+                <span>{problems.length + machineProblems.length}</span>
               </div>
-            </details>
+              {machineProblems.map((problem) => (
+                <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
+                  <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
+                  <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
+                </div>
+              ))}
+              {problems.map((problem) => (
+                <div className="alert-item" key={problem.id}>
+                  <strong><FieldName id={problem.fieldId} /></strong>
+                  <span>{problem.note ?? t("contractor.openFeedback")}</span>
+                </div>
+              ))}
+            </div>
           </div>
         </>
       )}

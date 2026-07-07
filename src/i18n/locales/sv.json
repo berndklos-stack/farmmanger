@@ -1,6 +1,6 @@
 {
   "app": {
-    "prototype": "Farm-Manager",
+    "prototype": "SchlagLink",
     "demoMode": "Demoläge aktivt",
     "supabaseActive": "Supabase aktivt",
     "supabaseError": "Supabasefel",
@@ -33,9 +33,9 @@
   "auth": {
     "subtitle": "Riktig inloggning",
     "eyebrow": "Inloggning",
-    "title": "Logga in i Farm-Manager",
-    "adminTitle": "Farm-Manager Admin",
-    "driverTitle": "Farm-Manager Förare",
+    "title": "Logga in i SchlagLink",
+    "adminTitle": "SchlagLink Admin",
+    "driverTitle": "SchlagLink Förare",
     "copy": "Logga in med ditt personliga konto. Förare hamnar direkt i den mobila förarvyn.",
     "adminCopy": "Logga in för arbetsledning, gårdsadministration och stamdata.",
     "driverCopy": "Logga in som förare. Du kommer direkt till dina uppgifter.",
@@ -220,8 +220,8 @@
     "generateDriverPassword": "Skapa lösenord",
     "sendAccessByEmail": "Åtkomst via e-post",
     "sendAccessBySms": "Åtkomst via SMS",
-    "driverAccessMailSubject": "Din Farm-Manager föraråtkomst",
-    "driverAccessMessage": "Din Farm-Manager föraråtkomst:\n\nApp: {{appUrl}}\nE-post: {{email}}\nLösenord: {{password}}\n\nSpara uppgifterna säkert efter första inloggningen.",
+    "driverAccessMailSubject": "Din SchlagLink föraråtkomst",
+    "driverAccessMessage": "Din SchlagLink föraråtkomst:\n\nApp: {{appUrl}}\nE-post: {{email}}\nLösenord: {{password}}\n\nSpara uppgifterna säkert efter första inloggningen.",
     "driverSectionBase": "Basdata",
     "driverSectionAccess": "Åtkomst & kontakt",
     "driverSectionPlanning": "Planering",

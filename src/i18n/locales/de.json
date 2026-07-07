@@ -1,6 +1,6 @@
 {
   "app": {
-    "prototype": "Farm-Manager",
+    "prototype": "SchlagLink",
     "demoMode": "Demo-Modus aktiv",
     "supabaseActive": "Supabase aktiv",
     "supabaseError": "Supabase-Fehler",
@@ -33,9 +33,9 @@
   "auth": {
     "subtitle": "Echte Anmeldung",
     "eyebrow": "Anmeldung",
-    "title": "Bei Farm-Manager anmelden",
-    "adminTitle": "Farm-Manager Admin",
-    "driverTitle": "Farm-Manager Fahrer",
+    "title": "Bei SchlagLink anmelden",
+    "adminTitle": "SchlagLink Admin",
+    "driverTitle": "SchlagLink Fahrer",
     "copy": "Melde dich mit deinem persönlichen Zugang an. Fahrer landen direkt in der mobilen Fahreransicht.",
     "adminCopy": "Melde dich für Einsatzleitung, Landwirt- und Stammdatenverwaltung an.",
     "driverCopy": "Melde dich als Fahrer an. Du landest direkt in deinen Aufgaben.",
@@ -220,8 +220,8 @@
     "generateDriverPassword": "Passwort erzeugen",
     "sendAccessByEmail": "Zugang per E-Mail",
     "sendAccessBySms": "Zugang per SMS",
-    "driverAccessMailSubject": "Dein Farm-Manager Fahrer-Zugang",
-    "driverAccessMessage": "Dein Farm-Manager Fahrer-Zugang:\n\nApp: {{appUrl}}\nE-Mail: {{email}}\nPasswort: {{password}}\n\nBitte nach dem ersten Login sicher aufbewahren.",
+    "driverAccessMailSubject": "Dein SchlagLink Fahrer-Zugang",
+    "driverAccessMessage": "Dein SchlagLink Fahrer-Zugang:\n\nApp: {{appUrl}}\nE-Mail: {{email}}\nPasswort: {{password}}\n\nBitte nach dem ersten Login sicher aufbewahren.",
     "driverSectionBase": "Basisdaten",
     "driverSectionAccess": "Zugang & Kontakt",
     "driverSectionPlanning": "Planung",

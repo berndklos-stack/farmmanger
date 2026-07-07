@@ -49,7 +49,7 @@ export function AuthLogin({
             <Tractor size={24} />
           </div>
           <div>
-            <strong>Farm-Manager</strong>
+            <strong>SchlagLink</strong>
             <span>{t("auth.subtitle")}</span>
           </div>
         </div>

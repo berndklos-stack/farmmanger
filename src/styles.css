@@ -5225,191 +5225,184 @@ select {
   background: #eef4ea;
 }
 
-/* Farm-Manager design refresh: compact admin workspace + high-legibility driver module */
+/* === 2026 usability refresh: compact operations UI === */
 :root {
-  --radius: 12px;
-  --shadow-card: 0 8px 22px rgba(27, 39, 31, 0.065);
-  --shadow-float: 0 20px 54px rgba(27, 39, 31, 0.16);
+  --ui-shadow: 0 10px 26px rgba(25, 45, 34, 0.08);
+  --ui-shadow-soft: 0 4px 14px rgba(25, 45, 34, 0.06);
+  --ui-radius-lg: 14px;
 }
 
-body {
-  background:
-    radial-gradient(circle at 20% -10%, rgba(144, 183, 109, 0.18), transparent 31rem),
-    linear-gradient(180deg, #f5f7f3, var(--color-page));
-}
-
-/* Desktop workspace: sharper hierarchy, less visual noise */
-.sidebar {
-  padding: 16px 14px;
-  gap: 14px;
-}
-
-.brand-mark {
-  border-radius: 12px;
-  box-shadow: inset 0 0 0 1px rgba(255,255,255,.35), 0 4px 10px rgba(0,0,0,.12);
-}
-
-.nav-item {
-  min-height: 42px;
-  border: 1px solid transparent;
-}
-
-.nav-item:hover,
-.nav-item.active {
-  background: rgba(255,255,255,.11);
-  border-color: rgba(255,255,255,.1);
-}
-
-.metric-card,
+/* Global density: retain information, reduce visual noise. */
 .panel,
 .mobile-frame,
-.driver-card {
-  border-radius: 12px;
+.driver-card,
+.master-data-form,
+.resource-modal {
+  border-radius: var(--ui-radius-lg);
+  box-shadow: var(--ui-shadow-soft);
 }
 
-.metric-card {
-  min-height: 100px;
-  padding: 14px;
+.panel {
+  border-color: rgba(41, 78, 54, 0.12);
 }
 
-.hero-band {
-  border-radius: 14px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg, #eff7eb, #fff 62%);
+.section-heading {
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.section-heading h2,
+.section-heading h3 {
+  letter-spacing: -0.02em;
+}
+
+.form-row,
+.master-data-form .form-row {
+  gap: 10px;
+}
+
+.form-row label,
+.master-data-form label,
+.panel label {
+  font-size: 0.78rem;
+  font-weight: 800;
+  color: #425447;
+}
+
+.form-row input,
+.form-row select,
+.form-row textarea,
+.master-data-form input,
+.master-data-form select,
+.master-data-form textarea,
+.panel input,
+.panel select,
+.panel textarea {
+  min-height: 42px;
+  border-radius: 10px;
+  border-color: #cfdbd2;
+  background: #fff;
+}
+
+.form-row textarea,
+.master-data-form textarea,
+.panel textarea {
+  min-height: 84px;
 }
 
 .primary-action,
 .secondary-action,
-.danger-action,
-.export-actions button,
-.dispatch-actions button,
-.driver-actions button,
-.driver-inputs button,
-.placeholder-row a {
+.danger-action {
+  min-height: 40px;
   border-radius: 10px;
 }
 
-.primary-action {
-  box-shadow: 0 4px 12px rgba(47,107,62,.16);
+/* Better master-data layouts: narrow navigation, readable edit surface. */
+.fields-layout,
+.resource-master-layout {
+  gap: 16px;
 }
 
-.panel {
-  overflow: hidden;
+.field-list-panel,
+.resource-list-panel,
+.resource-category-list {
+  border-radius: var(--ui-radius-lg);
 }
 
-.section-heading {
+.field-list-item,
+.resource-category,
+.roster-item {
+  border-radius: 10px;
+  transition: border-color .15s ease, background .15s ease, transform .15s ease;
+}
+
+.field-list-item:hover,
+.resource-category:hover,
+.roster-item:hover {
+  transform: translateY(-1px);
+  border-color: #a9c7a1;
+}
+
+.master-data-form {
+  padding: 14px;
+  background: linear-gradient(180deg, #fbfdfb 0%, #f6faf6 100%);
+}
+
+.master-data-form > .section-heading {
   padding-bottom: 10px;
-  border-bottom: 1px solid rgba(217,226,213,.8);
+  margin-bottom: 4px;
+  border-bottom: 1px solid #dbe6dc;
 }
 
-/* Master data: clear dense cards and scan-friendly resource groups */
-.resource-board,
-.resource-master-layout,
-.organization-card,
-.resource-group {
-  gap: 10px;
-}
-
-.resource-group {
+.field-map-style-box,
+.field-release-box,
+.resource-form-section,
+.driver-form-section {
+  border: 1px solid #dce7dc;
   border-radius: 12px;
-  overflow: hidden;
+  background: #fff;
+  padding: 12px;
 }
 
-.resource-group-heading {
-  min-height: 48px;
-  padding: 10px 12px;
+.field-release-chip,
+.status-badge,
+.pill {
+  border-radius: 999px;
 }
 
-.resource-card,
-.organization-card,
-.resource-list-panel {
-  border-radius: 10px;
-}
-
-.resource-card {
-  min-height: 74px;
-  padding: 10px 12px;
-}
-
-.resource-card-button {
-  min-height: 58px;
-}
-
-.resource-card small,
-.resource-card span,
-.organization-card small {
-  line-height: 1.22;
-}
-
-.resource-form-row input,
-.resource-form-row select,
-.resource-form-row textarea,
-.form-row input,
-.form-row select,
-.form-row textarea {
-  border-radius: 9px;
-}
-
-/* Driver module: one operational surface, designed for 8–12 inch tablets first */
+/* Driver module: tablet-first command surface. */
 .driver-app-only {
-  background: #edf2eb;
-}
-
-.driver-app-topbar {
-  min-height: 56px;
-  padding: 7px max(12px, env(safe-area-inset-left)) 7px max(12px, env(safe-area-inset-right));
-  background: rgba(255,255,255,.98);
-  backdrop-filter: blur(10px);
+  background:
+    radial-gradient(circle at 10% 0%, rgba(187, 216, 123, 0.18), transparent 32%),
+    var(--color-page);
 }
 
 .driver-shell {
-  min-height: calc(100dvh - 56px);
   align-items: start;
-  background: linear-gradient(180deg, #edf3eb, #f8faf7 38%);
 }
 
 .mobile-frame {
-  max-width: 1180px;
-  height: auto;
-  min-height: calc(100dvh - 56px);
+  max-width: 980px;
   padding: 12px;
-  background: transparent;
-  box-shadow: none;
-  border: 0;
-  overflow: visible;
+  gap: 10px;
+  background: rgba(255,255,255,.78);
+  backdrop-filter: blur(8px);
 }
 
 .driver-header {
   border-radius: 14px;
   padding: 12px 14px;
-  margin-bottom: 10px;
-  background: linear-gradient(135deg, #193127, #29523a);
-  box-shadow: 0 10px 22px rgba(22,48,34,.18);
+  background: linear-gradient(135deg, #203b2d 0%, #315841 100%);
+  box-shadow: 0 10px 24px rgba(23, 57, 39, .18);
 }
 
 .driver-header h2 {
-  font-size: clamp(1.12rem, 2.2vw, 1.45rem);
+  font-size: clamp(1.1rem, 2.5vw, 1.42rem);
 }
 
 .driver-header-actions {
-  grid-template-columns: repeat(3, minmax(64px, 1fr));
-  width: min(330px, 47vw);
+  grid-template-columns: repeat(3, minmax(66px, 1fr));
+  width: min(340px, 45vw);
   gap: 6px;
 }
 
-.driver-yard-open {
-  border-radius: 10px;
+.driver-yard-open,
+.driver-yard-open.secondary-driver-action {
   min-height: 58px;
-  padding: 7px 6px;
+  border-radius: 10px;
+  padding: 7px 8px;
 }
 
-.driver-yard-open:hover {
-  background: rgba(255,255,255,.17);
+.driver-yard-open span {
+  font-size: .72rem;
+}
+
+.driver-yard-open small {
+  font-size: .62rem;
 }
 
 .driver-scroll-content {
-  overflow: visible;
-  padding-right: 0;
+  padding: 0 2px 20px;
 }
 
 .driver-overview {
@@ -5419,120 +5412,227 @@ body {
 
 .driver-overview-head,
 .driver-task-group-list,
-.driver-task-group-map,
-.driver-route-note,
-.access-point-card,
-.driver-hazards-panel,
-.new-hazard-form {
-  border-radius: 12px;
+.driver-card,
+.driver-map-section,
+.driver-resource-yard {
+  border-radius: 14px;
+  border-color: #d8e4d9;
 }
 
 .driver-overview-head {
-  padding: 10px 12px;
+  padding: 11px 12px;
+  background: #f8fbf7;
 }
 
 .driver-task-group-list {
-  padding: 7px;
+  padding: 10px;
+  gap: 8px;
 }
 
 .driver-task-group-card {
-  border-radius: 10px;
-  min-height: 56px;
-  padding: 9px 11px;
+  min-height: 62px;
+  border-radius: 11px;
+  padding: 10px 12px;
 }
 
 .driver-group-field-list {
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
+  gap: 8px;
 }
 
 .driver-group-field-list button {
-  border-radius: 10px;
-  min-height: 64px;
-  grid-template-columns: 1fr auto;
-  gap: 5px 10px;
-  padding: 9px 10px;
+  min-height: 94px;
+  border-radius: 11px;
+  padding: 11px;
 }
 
-.driver-group-field-list button > span:first-child {
+.driver-overview-card {
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 8px 12px;
+  min-height: 82px;
+  border-radius: 12px;
+  padding: 11px 12px;
+  box-shadow: none;
+}
+
+.driver-overview-card > small,
+.driver-overview-card .open-job-link {
   grid-column: 1 / -1;
 }
 
-.driver-overview-card,
 .driver-detail-card {
-  border-radius: 12px;
+  gap: 12px;
+  padding: 14px;
+  background: #fff;
+  box-shadow: var(--ui-shadow);
 }
 
-.driver-detail-card {
-  position: sticky;
-  bottom: 10px;
-  z-index: 15;
-  border-left-width: 5px;
-  box-shadow: 0 12px 30px rgba(47,109,66,.15);
+.driver-card-head {
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.driver-card-head strong {
+  display: block;
+  margin-top: 8px;
+  font-size: clamp(1.1rem, 2vw, 1.35rem);
+  color: #1f3527;
+}
+
+.driver-card-head > div > span {
+  display: block;
+  margin-top: 3px;
+  color: #617268;
+}
+
+.driver-current-status {
+  border-radius: 12px;
+  padding: 10px 12px;
 }
 
 .driver-main-button {
+  min-height: 52px;
   border-radius: 12px;
-  min-height: 64px;
   font-size: 1rem;
-  box-shadow: 0 8px 18px rgba(47,107,62,.2);
+  box-shadow: 0 6px 14px rgba(43, 103, 56, .2);
 }
 
 .driver-actions {
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 7px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
 }
 
 .driver-actions button {
-  min-height: 54px;
-  border-radius: 10px;
-  font-size: .9rem;
+  min-height: 48px;
+  border-radius: 11px;
+  font-size: .92rem;
+}
+
+.tracking-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px;
+}
+
+.tracking-actions .secondary-action,
+.driver-detail-card > .secondary-action.wide {
+  min-height: 46px;
+  border-radius: 11px;
 }
 
 .driver-inputs {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dce7dc;
+  border-radius: 12px;
+  background: #f8fbf8;
+}
+
+.driver-inputs label {
+  font-size: .72rem;
 }
 
 .driver-inputs input {
-  min-height: 50px;
-  border-radius: 10px;
+  min-height: 42px;
+  border-radius: 9px;
   font-size: 1rem;
 }
 
-.driver-task-group-map .leaflet-map,
-.driver-map-section .leaflet-map {
-  min-height: 340px;
-  border-radius: 12px;
+.driver-map-section {
+  overflow: hidden;
+  background: #f7faf7;
 }
 
-.driver-dialog-modal {
-  border-radius: 16px;
-  padding: 16px;
+.driver-map-section .leaflet-map,
+.driver-field-map {
+  min-height: 270px;
 }
 
-.driver-dialog-modal .modal-actions {
-  position: sticky;
-  bottom: -16px;
-  padding: 12px 0 0;
-  background: #fcfef9;
+.driver-route-note,
+.driver-hazards-panel,
+.driver-slot-note {
+  border-radius: 10px;
 }
 
-@media (max-width: 767px) {
-  .driver-app-topbar .user-session-pill small,
-  .driver-app-topbar .role-switcher,
-  .driver-app-topbar .language-switcher { display: none; }
+.driver-photo-button {
+  min-height: 46px;
+  border-radius: 10px;
+}
 
-  .driver-shell { min-height: calc(100dvh - 56px); }
+/* Compact desktop density without making controls too small. */
+@media (min-width: 920px) {
+  .master-data-form .form-row,
+  .driver-base-grid,
+  .driver-planning-grid,
+  .driver-access-grid,
+  .driver-profile-grid {
+    column-gap: 12px;
+    row-gap: 10px;
+  }
+
+  .field-detail > .panel,
+  .resource-master-page > .panel {
+    padding: 14px;
+  }
+}
+
+/* Tablet and phone: large tap targets, one-column reading order. */
+@media (max-width: 760px) {
+  .app-shell {
+    grid-template-columns: 1fr;
+    height: auto;
+    min-height: 100dvh;
+  }
+
+  .sidebar {
+    position: static;
+    height: auto;
+    padding: 10px 12px;
+  }
+
+  .nav-list {
+    display: flex;
+    overflow-x: auto;
+    gap: 6px;
+    padding-bottom: 2px;
+  }
+
+  .nav-item {
+    flex: 0 0 auto;
+    min-height: 38px;
+    padding: 0 10px;
+  }
+
+  .sidebar-controls {
+    display: none;
+  }
+
+  .content {
+    height: auto;
+    overflow: visible;
+    padding: 12px;
+  }
+
+  .fields-layout,
+  .resource-master-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .field-list-panel,
+  .resource-category-list,
+  .resource-list-panel {
+    max-height: none;
+  }
 
   .mobile-frame {
-    padding: 8px;
-    min-height: calc(100dvh - 56px);
+    height: auto;
+    min-height: calc(100dvh - 12px);
+    padding: 7px;
   }
 
   .driver-header {
     grid-template-columns: 1fr;
-    gap: 10px;
-    padding: 11px;
   }
 
   .driver-header-actions {
@@ -5540,328 +5640,94 @@ body {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
-  .driver-yard-open {
-    min-height: 54px;
+  .driver-scroll-content {
+    overflow: visible;
   }
 
-  .driver-group-field-list {
+  .driver-group-field-list,
+  .driver-actions,
+  .tracking-actions,
+  .driver-inputs {
     grid-template-columns: 1fr;
   }
 
-  .driver-task-group-map .leaflet-map,
-  .driver-map-section .leaflet-map { min-height: 250px; }
-
-  .driver-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+  .driver-overview-card {
+    min-height: 0;
   }
 
-  .driver-actions button { min-height: 58px; }
+  .driver-map-section .leaflet-map,
+  .driver-field-map {
+    min-height: 220px;
+  }
 
-  .driver-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .driver-card-head {
+    grid-template-columns: 1fr;
+  }
 
-  .driver-detail-card { bottom: 6px; }
-
-  .driver-job-meta-row { grid-template-columns: 1fr 1fr; }
-  .driver-job-meta-row small:last-child { grid-column: 1 / -1; text-align: left; }
-}
-
-/* Hotfix: dispatch view must remain a normal vertically scrolling workspace.
-   The earlier compact layout treated every section as a separate grid row,
-   which compressed the overview panels into strips. */
-.content {
-  display: block;
-  height: 100dvh;
-  overflow-y: auto;
-  overflow-x: hidden;
-  padding: 18px 22px 22px;
-}
-
-.content > :not(.topbar) {
-  min-height: auto;
-  overflow: visible;
-  padding: 0;
-}
-
-.topbar {
-  position: sticky;
-  top: 0;
-  margin-bottom: 14px;
-}
-
-@media (max-width: 1050px) {
-  .content {
-    height: auto;
-    min-height: 100dvh;
-    overflow: visible;
+  .driver-card-head .status-badge {
+    justify-self: start;
   }
 }
 
-@media (max-width: 720px) {
-  .content {
+/* Small phones: preserve action labels and never compress critical controls. */
+@media (max-width: 430px) {
+  .driver-header {
     padding: 10px;
   }
+
+  .driver-header-actions {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .driver-yard-open,
+  .driver-yard-open.secondary-driver-action {
+    min-height: 54px;
+    padding-inline: 4px;
+  }
+
+  .driver-yard-open span {
+    font-size: .64rem;
+  }
+
+  .driver-yard-open small {
+    display: none;
+  }
+
+  .driver-detail-card {
+    padding: 11px;
+  }
+
+  .driver-main-button,
+  .driver-actions button,
+  .tracking-actions .secondary-action,
+  .driver-detail-card > .secondary-action.wide {
+    min-height: 50px;
+  }
 }
 
-
-/* Einsatzleitung: Aufträge erhalten die volle Breite; Probleme bleiben als kompakter Ausklappbereich verfügbar. */
-.dispatch-customer-jobs-layout {
+/* Job edit modal: keep the driver/vehicle control vertically aligned with the other inputs.
+   The assignment details stay below the selector without pulling the selector upwards. */
+.job-edit-modal .table-row > span:nth-child(8) {
   display: grid;
-  gap: 12px;
-}
-
-.dispatch-jobs-panel {
-  min-width: 0;
-}
-
-.dispatch-problems-compact {
-  padding: 0;
-  overflow: hidden;
-}
-
-.dispatch-problems-compact summary {
-  align-items: center;
-  cursor: pointer;
-  display: flex;
-  gap: 10px;
-  justify-content: space-between;
-  list-style: none;
-  min-height: 42px;
-  padding: 9px 12px;
-}
-
-.dispatch-problems-compact summary::-webkit-details-marker {
-  display: none;
-}
-
-.dispatch-problems-compact summary span {
-  color: #2a4131;
-  font-size: 0.82rem;
-  font-weight: 900;
-}
-
-.dispatch-problems-compact summary strong {
-  background: #f1f5ee;
-  border: 1px solid #d7e2d2;
-  border-radius: 999px;
-  color: #46614c;
-  font-size: 0.76rem;
-  min-width: 28px;
-  padding: 3px 8px;
-  text-align: center;
-}
-
-.dispatch-problems-list {
-  border-top: 1px solid #e0e7dc;
-  display: grid;
-  gap: 6px;
-  max-height: 230px;
-  overflow: auto;
-  padding: 8px 12px 12px;
-}
-
-.dispatch-problems-list .alert-item {
-  padding: 7px 9px;
-}
-
-.dispatch-problems-list .alert-item strong,
-.dispatch-problems-list .alert-item span {
-  font-size: 0.75rem;
-}
-
-.dispatch-problems-empty {
-  color: #68766d;
-  font-size: 0.78rem;
-}
-
-.compact-customer-job {
-  grid-template-columns: minmax(210px, 1.35fr) minmax(100px, 0.48fr) minmax(170px, 0.82fr) minmax(390px, 1.5fr);
-  min-height: 76px;
-}
-
-.compact-dispatch-actions {
+  grid-template-rows: 30px minmax(16px, auto);
   align-content: center;
-  grid-template-columns: repeat(4, max-content);
-  justify-content: end;
-}
-
-.compact-dispatch-actions button {
-  min-height: 25px;
-  white-space: nowrap;
-}
-
-.compact-dispatch-actions .assignment-picker {
-  grid-template-columns: 44px minmax(100px, 1fr) minmax(125px, 1fr) minmax(125px, 1fr);
-  grid-column: 1 / -1;
-  width: 100%;
-}
-
-.compact-dispatch-actions .assignment-picker input,
-.compact-dispatch-actions .assignment-picker select {
-  min-width: 0;
-}
-
-@media (max-width: 1260px) {
-  .compact-customer-job {
-    grid-template-columns: minmax(180px, 1.2fr) minmax(90px, 0.5fr) minmax(150px, 0.8fr) minmax(310px, 1.25fr);
-  }
-
-  .compact-dispatch-actions {
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-  }
-}
-
-@media (max-width: 920px) {
-  .compact-customer-job {
-    grid-template-columns: minmax(0, 1fr) minmax(90px, auto);
-  }
-
-  .compact-customer-resources,
-  .compact-dispatch-actions {
-    grid-column: 1 / -1;
-  }
-
-  .compact-dispatch-actions .assignment-picker {
-    grid-template-columns: 44px repeat(3, minmax(0, 1fr));
-  }
-}
-
-
-/* Einsatzleitung: Kundenaufträge als maximal dreizeilige Einsatzkarten.
-   Zeile 1: Auftrag, Status und Ressourcen. Zeile 2: Aktionen. Zeile 3: direkte Ressourcenzuweisung. */
-.compact-customer-job {
-  grid-template-columns: minmax(230px, 1.15fr) minmax(170px, 0.55fr) minmax(260px, 0.95fr) minmax(520px, 1.7fr);
-  align-items: center;
-  min-height: 0;
-  padding: 7px 10px 7px 14px;
-}
-
-.compact-customer-main {
   gap: 2px;
-}
-
-.compact-customer-status {
-  align-content: center;
-  gap: 3px;
-}
-
-/* Ressourcen werden absichtlich in einer knappen, horizontalen Zeile geführt. */
-.compact-customer-resources {
-  display: flex;
-  align-items: center;
-  gap: 7px;
-  min-width: 0;
-  overflow: hidden;
-  white-space: nowrap;
-}
-
-.compact-customer-resources > span,
-.compact-customer-resources > small {
-  display: block;
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-}
-
-.compact-customer-resources > span {
-  flex: 0 1 auto;
-}
-
-.compact-customer-resources > small {
-  flex: 1 1 0;
-}
-
-.compact-customer-resources .chip-row {
-  flex-wrap: nowrap;
-  overflow: hidden;
-}
-
-.compact-customer-resources .chip-row .chip:not(:first-child) {
-  display: none;
-}
-
-.compact-dispatch-actions {
-  display: grid;
-  grid-template-columns: repeat(3, max-content) minmax(0, 1fr);
-  grid-template-rows: 27px 30px;
-  align-items: center;
-  column-gap: 5px;
-  row-gap: 5px;
-  justify-content: stretch;
-}
-
-.compact-dispatch-actions button {
   align-self: stretch;
-  min-height: 27px;
-  padding: 0 8px;
 }
 
-/* Nur die zentralen drei Aktionen bleiben dauerhaft sichtbar. Weitere Aktionen bleiben erreichbar,
-   beanspruchen aber keine zusätzliche Zeile. */
-.compact-dispatch-actions > button:nth-of-type(n + 4) {
-  display: none;
+.job-edit-modal .table-row > span:nth-child(8) > select {
+  align-self: center;
 }
 
-.compact-dispatch-actions .assignment-picker {
-  grid-column: 1 / -1;
-  grid-row: 2;
-  display: grid;
-  grid-template-columns: 42px minmax(105px, 0.85fr) minmax(150px, 1.1fr) minmax(150px, 1.1fr);
-  gap: 5px;
-  width: 100%;
+.job-edit-modal .table-row > span:nth-child(8) .chip-row,
+.job-edit-modal .table-row > span:nth-child(8) .table-subline {
+  min-height: 16px;
+  margin: 0;
+  align-self: start;
 }
 
-.compact-dispatch-actions .assignment-picker input,
-.compact-dispatch-actions .assignment-picker select {
-  height: 30px;
-  min-height: 30px;
-}
-
-@media (max-width: 1280px) {
-  .compact-customer-job {
-    grid-template-columns: minmax(190px, 1.1fr) minmax(120px, 0.5fr) minmax(170px, 0.8fr) minmax(430px, 1.45fr);
-  }
-
-  .compact-dispatch-actions button {
-    padding: 0 6px;
-    font-size: 0.65rem;
-  }
-}
-
-@media (max-width: 1050px) {
-  .compact-customer-job {
-    grid-template-columns: minmax(0, 1fr) minmax(100px, 0.45fr) minmax(260px, 1fr);
-  }
-
-  .compact-dispatch-actions {
-    grid-column: 1 / -1;
-  }
-}
-
-@media (max-width: 720px) {
-  .compact-customer-job {
-    grid-template-columns: 1fr auto;
-  }
-
-  .compact-customer-resources {
-    grid-column: 1 / -1;
-  }
-
-  .compact-dispatch-actions {
-    grid-column: 1 / -1;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    grid-template-rows: auto auto;
-  }
-
-  .compact-dispatch-actions > button:nth-of-type(n + 4) {
-    display: inline-flex;
-  }
-
-  .compact-dispatch-actions .assignment-picker {
-    grid-template-columns: 38px 1fr;
-  }
-
-  .compact-dispatch-actions .assignment-picker select {
-    grid-column: span 1;
+@media (max-width: 900px) {
+  .job-edit-modal .table-row > span:nth-child(8) {
+    align-self: auto;
   }
 }
