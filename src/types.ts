@@ -6,8 +6,6 @@ export type ViewKey =
   | "driver"
   | "contractor"
   | "masterData"
-  | "rights"
-  | "test"
   | "report";
 
 export type UserRole =
@@ -29,8 +27,6 @@ export type AuthProfile = {
   organizationId?: string;
   vehicleName?: string;
   jobVisibility?: DriverJobVisibility;
-  allowedModules?: ("contractor" | "farmer" | "driver")[];
-  allowedViews?: ViewKey[];
 };
 
 export type OrganizationContact = {
