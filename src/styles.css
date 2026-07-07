@@ -5731,3 +5731,31 @@ select {
     align-self: auto;
   }
 }
+
+/* Job edit: align driver / vehicle selector with the other controls in the row.
+   Keep the availability hint directly below without vertically centering the whole group. */
+.job-edit-modal .table-row > span:nth-child(8) {
+  display: flex;
+  flex-direction: column;
+  justify-content: flex-start;
+  align-self: stretch;
+  gap: 2px;
+  padding-top: 12px;
+}
+
+.job-edit-modal .table-row > span:nth-child(8) > select {
+  flex: 0 0 30px;
+  align-self: stretch;
+}
+
+.job-edit-modal .table-row > span:nth-child(8) .chip-row,
+.job-edit-modal .table-row > span:nth-child(8) .table-subline {
+  min-height: 16px;
+  margin: 0;
+}
+
+@media (max-width: 900px) {
+  .job-edit-modal .table-row > span:nth-child(8) {
+    padding-top: 0;
+  }
+}
