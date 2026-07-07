@@ -5705,57 +5705,32 @@ select {
   }
 }
 
-/* Job edit modal: keep the driver/vehicle control vertically aligned with the other inputs.
-   The assignment details stay below the selector without pulling the selector upwards. */
-.job-edit-modal .table-row > span:nth-child(8) {
-  display: grid;
-  grid-template-rows: 30px minmax(16px, auto);
-  align-content: center;
-  gap: 2px;
-  align-self: stretch;
-}
 
-.job-edit-modal .table-row > span:nth-child(8) > select {
-  align-self: center;
-}
 
-.job-edit-modal .table-row > span:nth-child(8) .chip-row,
-.job-edit-modal .table-row > span:nth-child(8) .table-subline {
-  min-height: 16px;
-  margin: 0;
-  align-self: start;
-}
-
-@media (max-width: 900px) {
-  .job-edit-modal .table-row > span:nth-child(8) {
-    align-self: auto;
-  }
-}
-
-/* Job edit: align driver / vehicle selector with the other controls in the row.
-   Keep the availability hint directly below without vertically centering the whole group. */
-.job-edit-modal .table-row > span:nth-child(8) {
+/* Auftrag bearbeiten: Nur das Fahrer/Fahrzeug-Auswahlfeld an die Eingabefelder
+   der gleichen Zeile ausrichten. Überschriften bleiben unverändert. */
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
   display: flex;
   flex-direction: column;
-  justify-content: flex-start;
   align-self: stretch;
+  justify-content: flex-start;
   gap: 2px;
-  padding-top: 12px;
+  padding-top: 25px;
 }
 
-.job-edit-modal .table-row > span:nth-child(8) > select {
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > select {
   flex: 0 0 30px;
   align-self: stretch;
 }
 
-.job-edit-modal .table-row > span:nth-child(8) .chip-row,
-.job-edit-modal .table-row > span:nth-child(8) .table-subline {
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) .chip-row,
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) .table-subline {
   min-height: 16px;
   margin: 0;
 }
 
 @media (max-width: 900px) {
-  .job-edit-modal .table-row > span:nth-child(8) {
+  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
     padding-top: 0;
   }
 }
