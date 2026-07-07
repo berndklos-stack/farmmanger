@@ -1,4 +1,4 @@
--- SchlagLink Phase 1 resources: vehicles and implements.
+-- Farm-Manager Phase 1 resources: vehicles and implements.
 -- Run this after schema.sql. It is safe to run more than once.
 
 do $$

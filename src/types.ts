@@ -197,6 +197,15 @@ export type SubtaskStatusEvent = {
   createdAt: string;
 };
 
+export type SubtaskAssignment = {
+  id: string;
+  driverId?: string;
+  vehicleId?: string;
+  implementId?: string;
+  role?: string;
+  areaShare?: number;
+};
+
 export type Vehicle = {
   id: string;
   organizationId?: string;
@@ -271,6 +280,7 @@ export type Subtask = {
   progress: number;
   activeDriverIds: string[];
   activeDriverNames?: string[];
+  activeAssignments?: SubtaskAssignment[];
   performedDriverIds?: string[];
   performedDriverNames?: string[];
   activeVehicleIds?: string[];

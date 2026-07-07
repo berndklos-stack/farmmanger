@@ -1,4 +1,4 @@
--- SchlagLink Phase 1 task master data.
+-- Farm-Manager Phase 1 task master data.
 -- Run this after supabase/schema.sql. It is safe to run more than once.
 
 create table if not exists task_templates (

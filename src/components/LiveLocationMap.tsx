@@ -284,10 +284,10 @@ function LiveMapPatternDefs({
   useEffect(() => {
     const svg = map.getPanes().overlayPane.querySelector("svg");
     if (!svg) return;
-    let defs = svg.querySelector("defs[data-schlaglink-dispatch-patterns='true']");
+    let defs = svg.querySelector("defs[data-farm-manager-dispatch-patterns='true']");
     if (!defs) {
       defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      defs.setAttribute("data-schlaglink-dispatch-patterns", "true");
+      defs.setAttribute("data-farm-manager-dispatch-patterns", "true");
       svg.prepend(defs);
     }
     defs.innerHTML = "";

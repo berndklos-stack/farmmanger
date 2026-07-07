@@ -8,7 +8,7 @@ export const supportedLanguages = ["de", "en", "sv"] as const;
 export type SupportedLanguage = (typeof supportedLanguages)[number];
 
 function detectInitialLanguage(): SupportedLanguage {
-  const stored = window.localStorage.getItem("schlaglink.language");
+  const stored = window.localStorage.getItem("farm-manager.language");
   if (stored && supportedLanguages.includes(stored as SupportedLanguage)) {
     return stored as SupportedLanguage;
   }
@@ -37,7 +37,7 @@ i18n
   });
 
 i18n.on("languageChanged", (language) => {
-  window.localStorage.setItem("schlaglink.language", language);
+  window.localStorage.setItem("farm-manager.language", language);
 });
 
 export default i18n;

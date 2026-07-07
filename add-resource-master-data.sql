@@ -1,4 +1,4 @@
--- SchlagLink Phase 1: resource master data in Supabase.
+-- Farm-Manager Phase 1: resource master data in Supabase.
 -- Run this after schema.sql. It is safe to run more than once.
 
 create extension if not exists pgcrypto;
@@ -126,11 +126,11 @@ insert into personnel_resources (
   operation_type
 )
 values
-  ('50000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Max', 'max@schlaglink.app', 'schlaglink-demo', 'Fendt 724', 'contractor_all', '+46 70 111 22 33', array['B', 'T', 'CE'], 10, 'Personal', 'Gülle'),
-  ('50000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Jens', 'jens@schlaglink.app', 'schlaglink-demo', 'John Deere 6250R', 'assigned_only', '+46 70 222 33 44', array['B', 'T', 'CE'], 9, 'Personal', 'Gülle'),
-  ('50000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Lisa', 'lisa@schlaglink.app', 'schlaglink-demo', 'Claas Jaguar 950', 'assigned_only', '+46 70 333 44 55', array['B', 'T'], 8, 'Personal', 'Grünland'),
-  ('50000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Tom', 'tom@schlaglink.app', 'schlaglink-demo', 'John Deere 6250R', 'assigned_only', '+46 70 444 55 66', array['B', 'T'], 8, 'Personal', 'Saat'),
-  ('50000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Olof', 'olof@schlaglink.app', 'schlaglink-demo', 'MAN Agrar-LKW', 'contractor_all', '+46 70 555 66 77', array['B', 'T', 'CE'], 9, 'Personal', 'Transport')
+  ('50000000-0000-4000-8000-000000000001', '22222222-2222-4222-8222-222222222222', 'Max', 'max@farm-manager.app', 'farm-manager-demo', 'Fendt 724', 'contractor_all', '+46 70 111 22 33', array['B', 'T', 'CE'], 10, 'Personal', 'Gülle'),
+  ('50000000-0000-4000-8000-000000000002', '22222222-2222-4222-8222-222222222222', 'Jens', 'jens@farm-manager.app', 'farm-manager-demo', 'John Deere 6250R', 'assigned_only', '+46 70 222 33 44', array['B', 'T', 'CE'], 9, 'Personal', 'Gülle'),
+  ('50000000-0000-4000-8000-000000000003', '22222222-2222-4222-8222-222222222222', 'Lisa', 'lisa@farm-manager.app', 'farm-manager-demo', 'Claas Jaguar 950', 'assigned_only', '+46 70 333 44 55', array['B', 'T'], 8, 'Personal', 'Grünland'),
+  ('50000000-0000-4000-8000-000000000004', '22222222-2222-4222-8222-222222222222', 'Tom', 'tom@farm-manager.app', 'farm-manager-demo', 'John Deere 6250R', 'assigned_only', '+46 70 444 55 66', array['B', 'T'], 8, 'Personal', 'Saat'),
+  ('50000000-0000-4000-8000-000000000005', '22222222-2222-4222-8222-222222222222', 'Olof', 'olof@farm-manager.app', 'farm-manager-demo', 'MAN Agrar-LKW', 'contractor_all', '+46 70 555 66 77', array['B', 'T', 'CE'], 9, 'Personal', 'Transport')
 on conflict (id) do update set
   organization_id = excluded.organization_id,
   full_name = excluded.full_name,

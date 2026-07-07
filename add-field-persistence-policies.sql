@@ -1,4 +1,4 @@
--- SchlagLink: allow saving field master data, boundaries and hazards from the app.
+-- Farm-Manager: allow saving field master data, boundaries and hazards from the app.
 -- Run this once in Supabase SQL editor if new fields disappear after reload.
 
 grant select, insert, update, delete on fields to anon, authenticated;

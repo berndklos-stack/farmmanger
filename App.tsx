@@ -27,7 +27,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { UserRoleSwitcher } from "./components/UserRoleSwitcher";
 import { DataProvider } from "./data/DataContext";
 import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJobTypes, organizations as mockOrganizations, taskTemplates as mockTaskTemplates } from "./data/mockData";
-import { useSchlagLinkData } from "./hooks/useSchlagLinkData";
+import { useFarm-ManagerData } from "./hooks/useFarm-ManagerData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { APP_RELEASE_LABEL } from "./lib/appVersion";
 import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, Field, Implement, Job, JobType, Organization, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
@@ -67,21 +67,21 @@ function roleAllowedInAppMode(role: UserRole, appMode: AppMode) {
 const contractorOrganizationId = "22222222-2222-4222-8222-222222222222";
 const farmerOrganizationId = "11111111-1111-4111-8111-111111111111";
 const klosContractorOrganizationId = "55555555-5555-4555-8555-555555555555";
-const dispatchAssignmentsStorageKey = "schlaglink.dispatchAssignments";
-const fieldReleaseMarker = "__schlaglink_released_contractors:";
-const localFieldsStorageKey = "schlaglink.localFields";
-const deletedFieldsStorageKey = "schlaglink.deletedFields";
-const localDriversStorageKey = "schlaglink.localDrivers";
-const localVehiclesStorageKey = "schlaglink.localVehicles";
-const localOrganizationsStorageKey = "schlaglink.localOrganizations";
-const deletedOrganizationsStorageKey = "schlaglink.deletedOrganizations";
-const driverLocationsStorageKey = "schlaglink.driverLocations";
-const localTaskTemplatesStorageKey = "schlaglink.localTaskTemplates";
-const localJobTypesStorageKey = "schlaglink.localJobTypes";
-const localArchivedJobsStorageKey = "schlaglink.localArchivedJobs";
-const localJobsStorageKey = "schlaglink.localJobs";
-const localSubtasksStorageKey = "schlaglink.localSubtasks";
-const pendingDriverSyncStorageKey = "schlaglink.pendingDriverSync";
+const dispatchAssignmentsStorageKey = "farm-manager.dispatchAssignments";
+const fieldReleaseMarker = "__farm-manager_released_contractors:";
+const localFieldsStorageKey = "farm-manager.localFields";
+const deletedFieldsStorageKey = "farm-manager.deletedFields";
+const localDriversStorageKey = "farm-manager.localDrivers";
+const localVehiclesStorageKey = "farm-manager.localVehicles";
+const localOrganizationsStorageKey = "farm-manager.localOrganizations";
+const deletedOrganizationsStorageKey = "farm-manager.deletedOrganizations";
+const driverLocationsStorageKey = "farm-manager.driverLocations";
+const localTaskTemplatesStorageKey = "farm-manager.localTaskTemplates";
+const localJobTypesStorageKey = "farm-manager.localJobTypes";
+const localArchivedJobsStorageKey = "farm-manager.localArchivedJobs";
+const localJobsStorageKey = "farm-manager.localJobs";
+const localSubtasksStorageKey = "farm-manager.localSubtasks";
+const pendingDriverSyncStorageKey = "farm-manager.pendingDriverSync";
 const driverLocationFreshnessMs = 15 * 60 * 1000;
 const browserAutoSyncIntervalMs = 3 * 60 * 1000;
 
@@ -135,7 +135,7 @@ function profileFromRow(row: ProfileRow): AuthProfile {
   const email = row.email ?? "";
   return {
     id: row.id,
-    fullName: row.full_name ?? row.email ?? "SchlagLink Nutzer",
+    fullName: row.full_name ?? row.email ?? "Farm-Manager Nutzer",
     email,
     role: row.role ?? "driver",
     organizationId: email.toLowerCase() === "bernd@kolaretorp.se" ? klosContractorOrganizationId : row.organization_id ?? undefined,
@@ -145,23 +145,23 @@ function profileFromRow(row: ProfileRow): AuthProfile {
 }
 
 const demoAuthProfiles: Record<string, AuthProfile> = {
-  "support@schlaglink.app": {
+  "support@farm-manager.app": {
     id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    fullName: "SchlagLink Support",
-    email: "support@schlaglink.app",
+    fullName: "Farm-Manager Support",
+    email: "support@farm-manager.app",
     role: "support_admin",
   },
-  "landwirt@schlaglink.app": {
+  "landwirt@farm-manager.app": {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     fullName: "Hof Müller Admin",
-    email: "landwirt@schlaglink.app",
+    email: "landwirt@farm-manager.app",
     role: "farmer_admin",
     organizationId: farmerOrganizationId,
   },
-  "einsatzleiter@schlaglink.app": {
+  "einsatzleiter@farm-manager.app": {
     id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     fullName: "Agrarservice Schneider Admin",
-    email: "einsatzleiter@schlaglink.app",
+    email: "einsatzleiter@farm-manager.app",
     role: "contractor_admin",
     organizationId: contractorOrganizationId,
   },
@@ -172,32 +172,32 @@ const demoAuthProfiles: Record<string, AuthProfile> = {
     role: "contractor_admin",
     organizationId: klosContractorOrganizationId,
   },
-  "andersson@schlaglink.app": {
+  "andersson@farm-manager.app": {
     id: "a3333333-3333-4333-8333-333333333333",
     fullName: "Hof Andersson Admin",
-    email: "andersson@schlaglink.app",
+    email: "andersson@farm-manager.app",
     role: "farmer_admin",
     organizationId: "33333333-3333-4333-8333-333333333333",
   },
-  "nord@schlaglink.app": {
+  "nord@farm-manager.app": {
     id: "b4444444-4444-4444-8444-444444444444",
     fullName: "Lohnbetrieb Nord Admin",
-    email: "nord@schlaglink.app",
+    email: "nord@farm-manager.app",
     role: "contractor_admin",
     organizationId: "44444444-4444-4444-8444-444444444444",
   },
 };
 
 const demoAuthPasswords: Record<string, string> = {
-  "support@schlaglink.app": "1234",
+  "support@farm-manager.app": "1234",
   "bernd@kolaretorp.se": "1234",
-  "andersson@schlaglink.app": "1234",
-  "nord@schlaglink.app": "1234",
+  "andersson@farm-manager.app": "1234",
+  "nord@farm-manager.app": "1234",
 };
 
 function getDemoAuthProfile(email: string, password: string) {
   const normalizedEmail = email.toLowerCase();
-  const expectedPassword = demoAuthPasswords[normalizedEmail] ?? "schlaglink-demo";
+  const expectedPassword = demoAuthPasswords[normalizedEmail] ?? "farm-manager-demo";
   if (password !== expectedPassword) return null;
   return demoAuthProfiles[normalizedEmail] ?? null;
 }
@@ -703,7 +703,7 @@ function cloneJobTypeForOrganization(jobType: JobType, organizationId: string): 
 export function App() {
   const { t } = useTranslation();
   const appMode = getAppModeFromPath();
-  const loadedData = useSchlagLinkData();
+  const loadedData = useFarm-ManagerData();
   const [activeView, setActiveView] = useState<ViewKey>(() => initialViewForAppMode(appMode));
   const [selectedFieldId, setSelectedFieldId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -726,7 +726,7 @@ export function App() {
   const [localJobs, setLocalJobs] = useState<Record<string, Job>>(() => loadLocalJobs());
   const [localSubtasks, setLocalSubtasks] = useState<Record<string, Subtask[]>>(() => loadLocalSubtasks());
   const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
-    const stored = window.localStorage.getItem("schlaglink.role") as UserRole | null;
+    const stored = window.localStorage.getItem("farm-manager.role") as UserRole | null;
     return stored ?? "farmer_admin";
   });
   const [authSession, setAuthSession] = useState<Session | null>(null);
@@ -771,7 +771,7 @@ export function App() {
       setAuthProfile(null);
       setAuthSession(null);
       setCurrentRoleState(appMode === "driver" ? "driver" : "farmer_admin");
-      window.localStorage.setItem("schlaglink.role", appMode === "driver" ? "driver" : "farmer_admin");
+      window.localStorage.setItem("farm-manager.role", appMode === "driver" ? "driver" : "farmer_admin");
       setActiveView(initialViewForAppMode(appMode));
       setAuthError(t(appMode === "driver" ? "auth.driverLoginRequired" : "auth.adminLoginRequired"));
       await supabase.auth.signOut();
@@ -779,7 +779,7 @@ export function App() {
     }
     setAuthProfile(profile);
     setCurrentRoleState(profile.role);
-    window.localStorage.setItem("schlaglink.role", profile.role);
+    window.localStorage.setItem("farm-manager.role", profile.role);
     setAuthError("");
     if (profile.role === "driver") setActiveView("driver");
     if (profile.role !== "driver" && appMode !== "driver") setActiveView("dashboard");
@@ -2667,7 +2667,7 @@ export function App() {
   function setCurrentRole(role: UserRole) {
     if (authProfile) return;
     setCurrentRoleState(role);
-    window.localStorage.setItem("schlaglink.role", role);
+    window.localStorage.setItem("farm-manager.role", role);
   }
 
   async function signIn(email: string, password: string) {
@@ -2689,7 +2689,7 @@ export function App() {
         jobVisibility: driver.jobVisibility,
       });
       setCurrentRoleState("driver");
-      window.localStorage.setItem("schlaglink.role", "driver");
+      window.localStorage.setItem("farm-manager.role", "driver");
       setActiveView("driver");
       setAuthError("");
       setAuthLoading(false);
@@ -2707,7 +2707,7 @@ export function App() {
       if (demoProfile) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
-        window.localStorage.setItem("schlaglink.role", demoProfile.role);
+        window.localStorage.setItem("farm-manager.role", demoProfile.role);
         setAuthError("");
         if (demoProfile.role === "driver") setActiveView("driver");
         return;
@@ -2763,7 +2763,7 @@ export function App() {
       if (demoProfile && (error.status === 500 || error.status === 400)) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
-        window.localStorage.setItem("schlaglink.role", demoProfile.role);
+        window.localStorage.setItem("farm-manager.role", demoProfile.role);
         setAuthError("");
         if (demoProfile.role === "driver") setActiveView("driver");
       } else {
@@ -2781,7 +2781,7 @@ export function App() {
     setAuthSession(null);
     setAuthProfile(null);
     setCurrentRoleState("farmer_admin");
-    window.localStorage.setItem("schlaglink.role", "farmer_admin");
+    window.localStorage.setItem("farm-manager.role", "farmer_admin");
     setActiveView(initialViewForAppMode(appMode));
   }
 
@@ -2845,7 +2845,7 @@ export function App() {
               <Tractor size={24} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("app.brandSubtitle")}</span>
             </div>
           </div>
@@ -2937,7 +2937,7 @@ export function App() {
               <Tractor size={22} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("nav.driver")}</span>
             </div>
           </div>
@@ -2961,7 +2961,7 @@ export function App() {
             <Tractor size={24} />
           </div>
           <div>
-            <strong>SchlagLink</strong>
+            <strong>Farm-Manager</strong>
             <span>{t("app.brandSubtitle")}</span>
           </div>
         </div>

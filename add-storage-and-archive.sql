@@ -1,4 +1,4 @@
--- SchlagLink Phase 1: Supabase Storage and soft archive support.
+-- Farm-Manager Phase 1: Supabase Storage and soft archive support.
 -- Run this after schema.sql and the resource scripts. Safe to run more than once.
 
 create extension if not exists pgcrypto;

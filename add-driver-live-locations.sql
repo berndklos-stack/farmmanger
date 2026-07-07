@@ -1,4 +1,4 @@
--- SchlagLink: shared live driver locations for dispatch view.
+-- Farm-Manager: shared live driver locations for dispatch view.
 -- Safe to run more than once.
 
 create table if not exists driver_locations (

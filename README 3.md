@@ -1,4 +1,4 @@
-# SchlagLink Prototyp
+# Farm-Manager Prototyp
 
 ## Lokal starten
 

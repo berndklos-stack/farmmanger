@@ -1,6 +1,6 @@
 {
-  "name": "SchlagLink",
-  "short_name": "SchlagLink",
+  "name": "Farm-Manager",
+  "short_name": "Farm-Manager",
   "description": "Flächen, Aufträge, Disposition und Fahrer-Rückmeldungen für landwirtschaftliche Einsätze.",
   "start_url": "/?view=driver",
   "scope": "/",

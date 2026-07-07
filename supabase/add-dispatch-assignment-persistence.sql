@@ -1,4 +1,4 @@
--- SchlagLink: allow saving dispatch calendar assignments from the app.
+-- Farm-Manager: allow saving dispatch calendar assignments from the app.
 -- Run this once in Supabase SQL editor if assignment changes do not persist.
 
 grant select, insert, update on task_assignments to anon, authenticated;

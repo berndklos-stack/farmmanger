@@ -74,8 +74,8 @@ type DispatchGroup = {
   orderedSubtasks: Subtask[];
 };
 
-const resourceHistoryStorageKey = "schlaglink.resourceHistory";
-const equipmentLogStorageKey = "schlaglink.driverEquipmentLog";
+const resourceHistoryStorageKey = "farm-manager.resourceHistory";
+const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 
 function readJsonArray<T>(key: string): T[] {
   try {
@@ -246,16 +246,16 @@ export function ContractorView({
   const [showArchivedJobTypes, setShowArchivedJobTypes] = useState(false);
   const [showArchivedOrganizations, setShowArchivedOrganizations] = useState(false);
   const [standardVehicleMode, setStandardVehicleMode] = useState<StandardVehiclePlanningMode>(() => {
-    const stored = window.localStorage.getItem("schlaglink.standardVehiclePlanningMode") as StandardVehiclePlanningMode | null;
+    const stored = window.localStorage.getItem("farm-manager.standardVehiclePlanningMode") as StandardVehiclePlanningMode | null;
     return stored ?? "ask";
   });
   const [mapProviderPreference, setMapProviderPreference] = useState<MapProviderPreference>(() => {
-    const stored = window.localStorage.getItem("schlaglink.mapProviderPreference");
+    const stored = window.localStorage.getItem("farm-manager.mapProviderPreference");
     const allowedProviders: MapProviderPreference[] = ["osm", "google", "hitta_se", "lantmateriet"];
     return allowedProviders.includes(stored as MapProviderPreference) ? stored as MapProviderPreference : "osm";
   });
   const [dispatchGroupingLevel, setDispatchGroupingLevel] = useState<DispatchGroupingLevel>(() => {
-    const stored = window.localStorage.getItem("schlaglink.dispatchGroupingLevel") as DispatchGroupingLevel | null;
+    const stored = window.localStorage.getItem("farm-manager.dispatchGroupingLevel") as DispatchGroupingLevel | null;
     return stored ?? "task";
   });
   const [calendarStartOffset, setCalendarStartOffset] = useState(0);
@@ -585,15 +585,15 @@ export function ContractorView({
   }, [drivers, implementsList, vehicles]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.standardVehiclePlanningMode", standardVehicleMode);
+    window.localStorage.setItem("farm-manager.standardVehiclePlanningMode", standardVehicleMode);
   }, [standardVehicleMode]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.mapProviderPreference", mapProviderPreference);
+    window.localStorage.setItem("farm-manager.mapProviderPreference", mapProviderPreference);
   }, [mapProviderPreference]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.dispatchGroupingLevel", dispatchGroupingLevel);
+    window.localStorage.setItem("farm-manager.dispatchGroupingLevel", dispatchGroupingLevel);
   }, [dispatchGroupingLevel]);
 
   useEffect(() => {
@@ -1271,7 +1271,7 @@ export function ContractorView({
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData("application/x-schlaglink-resource", JSON.stringify({ kind, id, sourceSubtaskId, sourceSubtaskIds }));
+    event.dataTransfer.setData("application/x-farm-manager-resource", JSON.stringify({ kind, id, sourceSubtaskId, sourceSubtaskIds }));
     event.dataTransfer.effectAllowed = "move";
   }
 
@@ -1280,7 +1280,7 @@ export function ContractorView({
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData("application/x-schlaglink-job", JSON.stringify({ jobId: job.id, sourceOffsetDays: parseJobDateOffset(job) ?? sourceOffsetDays }));
+    event.dataTransfer.setData("application/x-farm-manager-job", JSON.stringify({ jobId: job.id, sourceOffsetDays: parseJobDateOffset(job) ?? sourceOffsetDays }));
     event.dataTransfer.effectAllowed = "move";
   }
 
@@ -1353,7 +1353,7 @@ export function ContractorView({
   }
 
   function handleDropJobOnDay(event: DragEvent, targetOffsetDays: number) {
-    const raw = event.dataTransfer.getData("application/x-schlaglink-job");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-job");
     if (!raw) return false;
     event.preventDefault();
     event.stopPropagation();
@@ -1418,7 +1418,7 @@ export function ContractorView({
 
   function handleDropResource(event: DragEvent, subtask: Subtask) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const droppedResource = resource.kind === "driver"
@@ -1455,7 +1455,7 @@ export function ContractorView({
 
   function handleDropResourceOnGroup(event: DragEvent, group: DispatchGroup) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const droppedResource = resource.kind === "driver"
@@ -1488,7 +1488,7 @@ export function ContractorView({
 
   function handleReturnResource(event: DragEvent) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const returnedResource = resource.kind === "driver"
@@ -2068,7 +2068,7 @@ export function ContractorView({
                     className="dispatch-day-column"
                     key={day.id}
                     onDragOver={(event) => {
-                      if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                      if (event.dataTransfer.types.includes("application/x-farm-manager-job")) event.preventDefault();
                     }}
                     onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
                   >
@@ -2167,7 +2167,7 @@ export function ContractorView({
                       className="dispatch-day-column"
                       key={day.id}
                       onDragOver={(event) => {
-                        if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                        if (event.dataTransfer.types.includes("application/x-farm-manager-job")) event.preventDefault();
                       }}
                       onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
                     >

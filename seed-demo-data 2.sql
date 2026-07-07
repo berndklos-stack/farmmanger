@@ -1,4 +1,4 @@
--- SchlagLink Phase 1 demo data for Supabase.
+-- Farm-Manager Phase 1 demo data for Supabase.
 -- Run this in the Supabase SQL Editor after schema.sql and fix-rls-recursion.sql.
 -- This script is idempotent and can be executed more than once.
 
@@ -84,12 +84,12 @@ insert into auth.users (
   updated_at
 )
 values
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'support@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"SchlagLink Support"}', now(), now()),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'landwirt@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Hof Müller Admin"}', now(), now()),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'einsatzleiter@schlaglink.app', crypt('schlaglink-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Agrarservice Schneider Admin"}', now(), now()),
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'support@farm-manager.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Farm-Manager Support"}', now(), now()),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'landwirt@farm-manager.app', crypt('farm-manager-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Hof Müller Admin"}', now(), now()),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'einsatzleiter@farm-manager.app', crypt('farm-manager-demo', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Agrarservice Schneider Admin"}', now(), now()),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'bernd@kolaretorp.se', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Bernd Kolaretorp"}', now(), now()),
-  ('a3333333-3333-4333-8333-333333333333', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'andersson@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Hof Andersson Admin"}', now(), now()),
-  ('b4444444-4444-4444-8444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nord@schlaglink.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Lohnbetrieb Nord Admin"}', now(), now())
+  ('a3333333-3333-4333-8333-333333333333', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'andersson@farm-manager.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Hof Andersson Admin"}', now(), now()),
+  ('b4444444-4444-4444-8444-444444444444', '00000000-0000-0000-0000-000000000000', 'authenticated', 'authenticated', 'nord@farm-manager.app', crypt('1234', gen_salt('bf')), now(), '{"provider":"email","providers":["email"]}', '{"full_name":"Lohnbetrieb Nord Admin"}', now(), now())
 on conflict (id) do update set
   email = excluded.email,
   encrypted_password = excluded.encrypted_password,
@@ -117,21 +117,21 @@ insert into auth.identities (
   updated_at
 )
 values
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'support@schlaglink.app', '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","email":"support@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'landwirt@schlaglink.app', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"landwirt@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'einsatzleiter@schlaglink.app', '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","email":"einsatzleiter@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'support@farm-manager.app', '{"sub":"eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee","email":"support@farm-manager.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'landwirt@farm-manager.app', '{"sub":"aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa","email":"landwirt@farm-manager.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'einsatzleiter@farm-manager.app', '{"sub":"bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb","email":"einsatzleiter@farm-manager.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'bernd@kolaretorp.se', '{"sub":"cccccccc-cccc-4ccc-8ccc-cccccccccccc","email":"bernd@kolaretorp.se","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('a3333333-3333-4333-8333-333333333333', 'a3333333-3333-4333-8333-333333333333', 'andersson@schlaglink.app', '{"sub":"a3333333-3333-4333-8333-333333333333","email":"andersson@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
-  ('b4444444-4444-4444-8444-444444444444', 'b4444444-4444-4444-8444-444444444444', 'nord@schlaglink.app', '{"sub":"b4444444-4444-4444-8444-444444444444","email":"nord@schlaglink.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now());
+  ('a3333333-3333-4333-8333-333333333333', 'a3333333-3333-4333-8333-333333333333', 'andersson@farm-manager.app', '{"sub":"a3333333-3333-4333-8333-333333333333","email":"andersson@farm-manager.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now()),
+  ('b4444444-4444-4444-8444-444444444444', 'b4444444-4444-4444-8444-444444444444', 'nord@farm-manager.app', '{"sub":"b4444444-4444-4444-8444-444444444444","email":"nord@farm-manager.app","email_verified":true,"phone_verified":false}'::jsonb, 'email', now(), now(), now());
 
 insert into profiles (id, full_name, email, role, organization_id, vehicle_name, job_visibility)
 values
-  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'SchlagLink Support', 'support@schlaglink.app', 'support_admin', null, null, 'assigned_only'),
-  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Hof Müller Admin', 'landwirt@schlaglink.app', 'farmer_admin', '11111111-1111-4111-8111-111111111111', null, 'assigned_only'),
-  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Agrarservice Schneider Admin', 'einsatzleiter@schlaglink.app', 'contractor_admin', '22222222-2222-4222-8222-222222222222', null, 'assigned_only'),
+  ('eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee', 'Farm-Manager Support', 'support@farm-manager.app', 'support_admin', null, null, 'assigned_only'),
+  ('aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa', 'Hof Müller Admin', 'landwirt@farm-manager.app', 'farmer_admin', '11111111-1111-4111-8111-111111111111', null, 'assigned_only'),
+  ('bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb', 'Agrarservice Schneider Admin', 'einsatzleiter@farm-manager.app', 'contractor_admin', '22222222-2222-4222-8222-222222222222', null, 'assigned_only'),
   ('cccccccc-cccc-4ccc-8ccc-cccccccccccc', 'Bernd Kolaretorp', 'bernd@kolaretorp.se', 'contractor_admin', '55555555-5555-4555-8555-555555555555', null, 'assigned_only'),
-  ('a3333333-3333-4333-8333-333333333333', 'Hof Andersson Admin', 'andersson@schlaglink.app', 'farmer_admin', '33333333-3333-4333-8333-333333333333', null, 'assigned_only'),
-  ('b4444444-4444-4444-8444-444444444444', 'Lohnbetrieb Nord Admin', 'nord@schlaglink.app', 'contractor_admin', '44444444-4444-4444-8444-444444444444', null, 'assigned_only')
+  ('a3333333-3333-4333-8333-333333333333', 'Hof Andersson Admin', 'andersson@farm-manager.app', 'farmer_admin', '33333333-3333-4333-8333-333333333333', null, 'assigned_only'),
+  ('b4444444-4444-4444-8444-444444444444', 'Lohnbetrieb Nord Admin', 'nord@farm-manager.app', 'contractor_admin', '44444444-4444-4444-8444-444444444444', null, 'assigned_only')
 on conflict (id) do update set
   full_name = excluded.full_name,
   email = excluded.email,

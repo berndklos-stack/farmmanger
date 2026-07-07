@@ -1,4 +1,4 @@
--- SchlagLink: Fahrerfotos zu Teilaufträgen speichern.
+-- Farm-Manager: Fahrerfotos zu Teilaufträgen speichern.
 -- Safe to run more than once.
 
 insert into storage.buckets (id, name, public)

@@ -33,8 +33,8 @@ type CompletionDialogState = {
   status: "teilweise erledigt" | "erledigt";
 } | null;
 
-const equipmentLogStorageKey = "schlaglink.driverEquipmentLog";
-const driverTestLocationStorageKey = "schlaglink.driverTestLocation";
+const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
+const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
 const automaticDriverLocationIntervalMs = 5 * 60 * 1000;
 
 function appendEquipmentLog(entry: Record<string, unknown>) {

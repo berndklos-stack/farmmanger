@@ -1,4 +1,4 @@
-import { Archive, Building2, CalendarDays, CheckCircle, Eye, EyeOff, Mail, MessageSquare, Plus, RadioTower, RotateCcw, Save, Settings, Trash2, Truck, UserMinus, UserPlus, X } from "lucide-react";
+import { Archive, Boxes, Building2, CalendarDays, CheckCircle, ChevronDown, ClipboardList, Eye, EyeOff, Factory, Mail, MessageSquare, Package, Plus, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -7,7 +7,7 @@ import type { Driver, DriverLocation, FieldMapPattern, Implement, Job, Organizat
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 import { LiveLocationMap } from "./LiveLocationMap";
 
-type ContractorSection = "overview" | "masterData" | "organizations" | "taskTemplates" | "jobTypes" | "programSettings";
+type ContractorSection = "overview" | "masterOverview" | "masterData" | "organizations" | "products" | "taskTemplates" | "jobTypes" | "programSettings";
 type MasterResourceGroup = "personnel" | "vehicles" | "implements";
 type DragResourceKind = "driver" | "vehicle" | "implement";
 type DragResourcePayload = {
@@ -74,8 +74,8 @@ type DispatchGroup = {
   orderedSubtasks: Subtask[];
 };
 
-const resourceHistoryStorageKey = "schlaglink.resourceHistory";
-const equipmentLogStorageKey = "schlaglink.driverEquipmentLog";
+const resourceHistoryStorageKey = "farm-manager.resourceHistory";
+const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 
 function readJsonArray<T>(key: string): T[] {
   try {
@@ -226,7 +226,7 @@ export function ContractorView({
     jobTypes,
     taskTemplates,
   } = useAppData();
-  const [activeSection, setActiveSection] = useState<ContractorSection>(() => variant === "masterData" ? "masterData" : "overview");
+  const [activeSection, setActiveSection] = useState<ContractorSection>(() => variant === "masterData" ? "masterOverview" : "overview");
   const [activeMasterGroup, setActiveMasterGroup] = useState<MasterResourceGroup>("personnel");
   const [masterArchiveView, setMasterArchiveView] = useState<Record<MasterResourceGroup, boolean>>({
     personnel: false,
@@ -246,16 +246,16 @@ export function ContractorView({
   const [showArchivedJobTypes, setShowArchivedJobTypes] = useState(false);
   const [showArchivedOrganizations, setShowArchivedOrganizations] = useState(false);
   const [standardVehicleMode, setStandardVehicleMode] = useState<StandardVehiclePlanningMode>(() => {
-    const stored = window.localStorage.getItem("schlaglink.standardVehiclePlanningMode") as StandardVehiclePlanningMode | null;
+    const stored = window.localStorage.getItem("farm-manager.standardVehiclePlanningMode") as StandardVehiclePlanningMode | null;
     return stored ?? "ask";
   });
   const [mapProviderPreference, setMapProviderPreference] = useState<MapProviderPreference>(() => {
-    const stored = window.localStorage.getItem("schlaglink.mapProviderPreference");
+    const stored = window.localStorage.getItem("farm-manager.mapProviderPreference");
     const allowedProviders: MapProviderPreference[] = ["osm", "google", "hitta_se", "lantmateriet"];
     return allowedProviders.includes(stored as MapProviderPreference) ? stored as MapProviderPreference : "osm";
   });
   const [dispatchGroupingLevel, setDispatchGroupingLevel] = useState<DispatchGroupingLevel>(() => {
-    const stored = window.localStorage.getItem("schlaglink.dispatchGroupingLevel") as DispatchGroupingLevel | null;
+    const stored = window.localStorage.getItem("farm-manager.dispatchGroupingLevel") as DispatchGroupingLevel | null;
     return stored ?? "task";
   });
   const [calendarStartOffset, setCalendarStartOffset] = useState(0);
@@ -271,10 +271,12 @@ export function ContractorView({
     added: number;
     max: number;
   } | null>(null);
+  const [isProblemsOpen, setIsProblemsOpen] = useState(false);
   const problems = subtasks.filter((subtask) => subtask.status === "Problem");
   const machineProblems = readJsonArray<DriverEquipmentLogEntry>(equipmentLogStorageKey)
     .filter((row) => row.machineProblem || row.placement === "defect")
     .slice(0, 12);
+  const problemCount = problems.length + machineProblems.length;
   const resourceOrganizationId = currentRole === "contractor_admin" || currentRole === "farmer_admin" ? authProfile?.organizationId : undefined;
   const canControlResource = <T extends { organizationId?: string }>(resource?: T) => currentRole === "support_admin" || !resourceOrganizationId || resource?.organizationId === resourceOrganizationId;
   const organizationResourceFilter = <T extends { organizationId?: string }>(resource: T) => !resourceOrganizationId || resource.organizationId === resourceOrganizationId;
@@ -421,6 +423,119 @@ export function ContractorView({
   const contractorOrganizations = useMemo(() => visibleOrganizations.filter((organization) => organization.kind === "contractor"), [visibleOrganizations]);
   const activeFarmerOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.kind === "farmer"), [activeOrganizations]);
   const activeContractorOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.kind === "contractor"), [activeOrganizations]);
+  const archivedFarmerOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.kind === "farmer"), [archivedOrganizations]);
+  const archivedContractorOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.kind === "contractor"), [archivedOrganizations]);
+  const openMasterResourceGroup = (group: MasterResourceGroup) => {
+    setActiveMasterGroup(group);
+    setActiveSection("masterData");
+  };
+  const masterDataOverviewGroups = [
+    {
+      id: "companies",
+      title: t("masterDataOverview.groups.companies"),
+      items: [
+        {
+          id: "companyData",
+          icon: <Factory size={18} />,
+          title: t("masterDataOverview.companyData.title"),
+          description: t("masterDataOverview.companyData.description"),
+          activeCount: activeContractorOrganizations.length,
+          archivedCount: archivedContractorOrganizations.length,
+          onClick: () => setActiveSection("organizations"),
+        },
+        {
+          id: "customers",
+          icon: <Users size={18} />,
+          title: t("masterDataOverview.customers.title"),
+          description: t("masterDataOverview.customers.description"),
+          activeCount: activeFarmerOrganizations.length,
+          archivedCount: archivedFarmerOrganizations.length,
+          onClick: () => setActiveSection("organizations"),
+        },
+        {
+          id: "suppliers",
+          icon: <Truck size={18} />,
+          title: t("masterDataOverview.suppliers.title"),
+          description: t("masterDataOverview.suppliers.description"),
+          activeCount: 0,
+          archivedCount: 0,
+          onClick: () => setActiveSection("products"),
+        },
+      ],
+    },
+    {
+      id: "resources",
+      title: t("masterDataOverview.groups.resources"),
+      items: [
+        {
+          id: "personnel",
+          icon: <User size={18} />,
+          title: t("masterDataOverview.personnel.title"),
+          description: t("masterDataOverview.personnel.description"),
+          activeCount: drivers.length,
+          archivedCount: archivedDrivers.length,
+          onClick: () => openMasterResourceGroup("personnel"),
+        },
+        {
+          id: "machines",
+          icon: <Tractor size={18} />,
+          title: t("masterDataOverview.machines.title"),
+          description: t("masterDataOverview.machines.description"),
+          activeCount: vehicles.length,
+          archivedCount: archivedVehicles.length,
+          onClick: () => openMasterResourceGroup("vehicles"),
+        },
+        {
+          id: "implements",
+          icon: <Wrench size={18} />,
+          title: t("masterDataOverview.implements.title"),
+          description: t("masterDataOverview.implements.description"),
+          activeCount: implementsList.length,
+          archivedCount: archivedImplements.length,
+          onClick: () => openMasterResourceGroup("implements"),
+        },
+      ],
+    },
+    {
+      id: "inputs",
+      title: t("masterDataOverview.groups.inputs"),
+      items: [
+        {
+          id: "products",
+          icon: <Package size={18} />,
+          title: t("masterDataOverview.products.title"),
+          description: t("masterDataOverview.products.description"),
+          activeCount: 0,
+          archivedCount: 0,
+          onClick: () => setActiveSection("products"),
+        },
+      ],
+    },
+    {
+      id: "planning",
+      title: t("masterDataOverview.groups.planning"),
+      items: [
+        {
+          id: "tasks",
+          icon: <ClipboardList size={18} />,
+          title: t("masterDataOverview.tasks.title"),
+          description: t("masterDataOverview.tasks.description"),
+          activeCount: activeTaskTemplates.length,
+          archivedCount: archivedTaskTemplates.length,
+          onClick: () => setActiveSection("taskTemplates"),
+        },
+        {
+          id: "workChains",
+          icon: <Boxes size={18} />,
+          title: t("masterDataOverview.workChains.title"),
+          description: t("masterDataOverview.workChains.description"),
+          activeCount: activeJobTypes.length,
+          archivedCount: archivedJobTypes.length,
+          onClick: () => setActiveSection("jobTypes"),
+        },
+      ],
+    },
+  ];
   const defaultResourceOrganizationId = resourceOrganizationId ?? authProfile?.organizationId ?? activeContractorOrganizations[0]?.id ?? activeFarmerOrganizations[0]?.id ?? "";
   const isResourceOrganizationLocked = currentRole === "contractor_admin" || currentRole === "farmer_admin";
   const fixedResourceOrganization = activeOrganizations.find((organization) => organization.id === driverForm.organizationId)
@@ -585,20 +700,20 @@ export function ContractorView({
   }, [drivers, implementsList, vehicles]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.standardVehiclePlanningMode", standardVehicleMode);
+    window.localStorage.setItem("farm-manager.standardVehiclePlanningMode", standardVehicleMode);
   }, [standardVehicleMode]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.mapProviderPreference", mapProviderPreference);
+    window.localStorage.setItem("farm-manager.mapProviderPreference", mapProviderPreference);
   }, [mapProviderPreference]);
 
   useEffect(() => {
-    window.localStorage.setItem("schlaglink.dispatchGroupingLevel", dispatchGroupingLevel);
+    window.localStorage.setItem("farm-manager.dispatchGroupingLevel", dispatchGroupingLevel);
   }, [dispatchGroupingLevel]);
 
   useEffect(() => {
     if (variant === "dispatch" && activeSection !== "overview" && !isResourceModalOpen) setActiveSection("overview");
-    if (variant === "masterData" && activeSection === "overview") setActiveSection("masterData");
+    if (variant === "masterData" && activeSection === "overview") setActiveSection("masterOverview");
   }, [activeSection, isResourceModalOpen, variant]);
 
   useEffect(() => {
@@ -1271,7 +1386,7 @@ export function ContractorView({
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData("application/x-schlaglink-resource", JSON.stringify({ kind, id, sourceSubtaskId, sourceSubtaskIds }));
+    event.dataTransfer.setData("application/x-farm-manager-resource", JSON.stringify({ kind, id, sourceSubtaskId, sourceSubtaskIds }));
     event.dataTransfer.effectAllowed = "move";
   }
 
@@ -1280,7 +1395,7 @@ export function ContractorView({
       event.preventDefault();
       return;
     }
-    event.dataTransfer.setData("application/x-schlaglink-job", JSON.stringify({ jobId: job.id, sourceOffsetDays: parseJobDateOffset(job) ?? sourceOffsetDays }));
+    event.dataTransfer.setData("application/x-farm-manager-job", JSON.stringify({ jobId: job.id, sourceOffsetDays: parseJobDateOffset(job) ?? sourceOffsetDays }));
     event.dataTransfer.effectAllowed = "move";
   }
 
@@ -1353,7 +1468,7 @@ export function ContractorView({
   }
 
   function handleDropJobOnDay(event: DragEvent, targetOffsetDays: number) {
-    const raw = event.dataTransfer.getData("application/x-schlaglink-job");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-job");
     if (!raw) return false;
     event.preventDefault();
     event.stopPropagation();
@@ -1418,7 +1533,7 @@ export function ContractorView({
 
   function handleDropResource(event: DragEvent, subtask: Subtask) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const droppedResource = resource.kind === "driver"
@@ -1455,7 +1570,7 @@ export function ContractorView({
 
   function handleDropResourceOnGroup(event: DragEvent, group: DispatchGroup) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const droppedResource = resource.kind === "driver"
@@ -1488,7 +1603,7 @@ export function ContractorView({
 
   function handleReturnResource(event: DragEvent) {
     event.preventDefault();
-    const raw = event.dataTransfer.getData("application/x-schlaglink-resource");
+    const raw = event.dataTransfer.getData("application/x-farm-manager-resource");
     if (!raw) return;
     const resource = JSON.parse(raw) as DragResourcePayload;
     const returnedResource = resource.kind === "driver"
@@ -1852,21 +1967,73 @@ export function ContractorView({
     <section className="view-stack">
       {variant === "masterData" && (
         <div className="subpage-tabs" role="tablist" aria-label={t("contractor.sections")}>
+          <button className={activeSection === "masterOverview" ? "active" : ""} onClick={() => setActiveSection("masterOverview")} type="button">
+            {t("masterDataOverview.overview")}
+          </button>
           <button className={activeSection === "masterData" ? "active" : ""} onClick={() => setActiveSection("masterData")} type="button">
-            {t("contractor.resourceMasterData")}
+            {t("masterDataOverview.groups.resources")}
           </button>
           <button className={activeSection === "organizations" ? "active" : ""} onClick={() => setActiveSection("organizations")} type="button">
-            {t("contractor.organizationMasterData")}
+            {t("masterDataOverview.groups.companies")}
+          </button>
+          <button className={activeSection === "products" ? "active" : ""} onClick={() => setActiveSection("products")} type="button">
+            {t("masterDataOverview.groups.inputs")}
           </button>
           <button className={activeSection === "taskTemplates" ? "active" : ""} onClick={() => setActiveSection("taskTemplates")} type="button">
-            {t("contractor.taskTemplateMasterData")}
+            {t("masterDataOverview.tasks.title")}
           </button>
           <button className={activeSection === "jobTypes" ? "active" : ""} onClick={() => setActiveSection("jobTypes")} type="button">
-            {t("contractor.jobTypeMasterData")}
+            {t("masterDataOverview.workChains.title")}
           </button>
           <button className={activeSection === "programSettings" ? "active" : ""} onClick={() => setActiveSection("programSettings")} type="button">
             {t("contractor.programSettings")}
           </button>
+        </div>
+      )}
+
+      {activeSection === "masterOverview" && (
+        <div className="panel master-overview-page">
+          <div className="section-heading">
+            <div>
+              <h2>{t("masterDataOverview.title")}</h2>
+              <p>{t("masterDataOverview.subtitle")}</p>
+            </div>
+            <span className="master-overview-total">
+              {activeOrganizations.length + drivers.length + vehicles.length + implementsList.length + activeTaskTemplates.length + activeJobTypes.length}
+            </span>
+          </div>
+
+          <div className="master-overview-groups">
+            {masterDataOverviewGroups.map((group) => (
+              <section className="master-overview-group" key={group.id}>
+                <div className="master-overview-group-heading">
+                  <h3>{group.title}</h3>
+                </div>
+                <div className="master-overview-grid">
+                  {group.items.map((item) => (
+                    <button className="master-overview-tile" key={item.id} onClick={item.onClick} type="button">
+                      <span className="master-overview-icon">{item.icon}</span>
+                      <span className="master-overview-copy">
+                        <strong>{item.title}</strong>
+                        <small>{item.description}</small>
+                      </span>
+                      <span className="master-overview-counts">
+                        <span>{t("masterDataOverview.activeCount", { count: item.activeCount })}</span>
+                        <small>{t("masterDataOverview.archivedCount", { count: item.archivedCount })}</small>
+                      </span>
+                    </button>
+                  ))}
+                </div>
+              </section>
+            ))}
+          </div>
+
+          <div className="master-overview-examples">
+            <strong>{t("masterDataOverview.workChainExamplesTitle")}</strong>
+            <span>{t("masterDataOverview.workChainExampleSilage")}</span>
+            <span>{t("masterDataOverview.workChainExampleSlurry")}</span>
+            <span>{t("masterDataOverview.workChainExampleBales")}</span>
+          </div>
         </div>
       )}
 
@@ -2068,7 +2235,7 @@ export function ContractorView({
                     className="dispatch-day-column"
                     key={day.id}
                     onDragOver={(event) => {
-                      if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                      if (event.dataTransfer.types.includes("application/x-farm-manager-job")) event.preventDefault();
                     }}
                     onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
                   >
@@ -2167,7 +2334,7 @@ export function ContractorView({
                       className="dispatch-day-column"
                       key={day.id}
                       onDragOver={(event) => {
-                        if (event.dataTransfer.types.includes("application/x-schlaglink-job")) event.preventDefault();
+                        if (event.dataTransfer.types.includes("application/x-farm-manager-job")) event.preventDefault();
                       }}
                       onDrop={(event) => { handleDropJobOnDay(event, day.offsetDays); }}
                     >
@@ -2307,7 +2474,7 @@ export function ContractorView({
             </div>
           </div>
 
-          <div className="split-grid">
+          <div className="dispatch-workflow">
             <div className="panel">
               <div className="section-heading">
                 <h2>{t("contractor.allCustomerJobs")}</h2>
@@ -2407,24 +2574,33 @@ export function ContractorView({
               </div>
             </div>
 
-            <div className="panel">
-              <div className="section-heading">
-                <h2>{t("contractor.problems")}</h2>
-                <span>{problems.length + machineProblems.length}</span>
-              </div>
-              {machineProblems.map((problem) => (
-                <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
-                  <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
-                  <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
+            <section className="dispatch-problems-panel" aria-label={t("contractor.problems")}>
+              <button
+                className="dispatch-problems-toggle"
+                aria-expanded={isProblemsOpen}
+                onClick={() => setIsProblemsOpen((open) => !open)}
+                type="button"
+              >
+                <span>{t("contractor.problems")} ({problemCount})</span>
+                <ChevronDown className={isProblemsOpen ? "open" : ""} size={18} />
+              </button>
+              {isProblemsOpen && problemCount > 0 && (
+                <div className="dispatch-problems-list">
+                  {machineProblems.map((problem) => (
+                    <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
+                      <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
+                      <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
+                    </div>
+                  ))}
+                  {problems.map((problem) => (
+                    <div className="alert-item" key={problem.id}>
+                      <strong><FieldName id={problem.fieldId} /></strong>
+                      <span>{problem.note ?? t("contractor.openFeedback")}</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {problems.map((problem) => (
-                <div className="alert-item" key={problem.id}>
-                  <strong><FieldName id={problem.fieldId} /></strong>
-                  <span>{problem.note ?? t("contractor.openFeedback")}</span>
-                </div>
-              ))}
-            </div>
+              )}
+            </section>
           </div>
         </>
       )}
@@ -2769,6 +2945,53 @@ export function ContractorView({
                 {contractorOrganizations.map((organization) => renderOrganizationCard(organization))}
               </div>
             </div>
+          </div>
+        </div>
+      )}
+
+      {activeSection === "products" && (
+        <div className="panel resource-master-page">
+          <div className="section-heading">
+            <div>
+              <h2><Package size={20} /> {t("masterDataOverview.groups.inputs")}</h2>
+              <p>{t("masterDataOverview.productsSectionHint")}</p>
+            </div>
+            <span>0</span>
+          </div>
+          <div className="master-placeholder-grid">
+            <section className="master-placeholder-panel">
+              <div className="master-placeholder-heading">
+                <Package size={18} />
+                <h3>{t("masterDataOverview.products.title")}</h3>
+              </div>
+              <p>{t("masterDataOverview.products.description")}</p>
+              <div className="master-field-list">
+                <span>{t("masterDataOverview.productFields.name")}</span>
+                <span>{t("masterDataOverview.productFields.category")}</span>
+                <span>{t("masterDataOverview.productFields.unit")}</span>
+                <span>{t("masterDataOverview.productFields.supplier")}</span>
+                <span>{t("masterDataOverview.productFields.articleNumber")}</span>
+                <span>{t("masterDataOverview.productFields.price")}</span>
+                <span>{t("masterDataOverview.productFields.status")}</span>
+              </div>
+            </section>
+            <section className="master-placeholder-panel">
+              <div className="master-placeholder-heading">
+                <Truck size={18} />
+                <h3>{t("masterDataOverview.suppliers.title")}</h3>
+              </div>
+              <p>{t("masterDataOverview.suppliers.description")}</p>
+              <div className="master-field-list">
+                <span>{t("masterDataOverview.supplierFields.company")}</span>
+                <span>{t("masterDataOverview.supplierFields.contact")}</span>
+                <span>{t("masterDataOverview.supplierFields.category")}</span>
+                <span>{t("masterDataOverview.supplierFields.phone")}</span>
+                <span>{t("masterDataOverview.supplierFields.email")}</span>
+                <span>{t("masterDataOverview.supplierFields.address")}</span>
+                <span>{t("masterDataOverview.supplierFields.notes")}</span>
+                <span>{t("masterDataOverview.supplierFields.status")}</span>
+              </div>
+            </section>
           </div>
         </div>
       )}

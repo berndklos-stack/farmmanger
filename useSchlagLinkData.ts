@@ -22,8 +22,8 @@ type RefreshDataOptions = {
   silent?: boolean;
 };
 
-const offlineDataCacheKey = "schlaglink.offlineDataCache";
-const fieldReleaseMarker = "__schlaglink_released_contractors:";
+const offlineDataCacheKey = "farm-manager.offlineDataCache";
+const fieldReleaseMarker = "__farm-manager_released_contractors:";
 
 type CachedDataState = Omit<DataState, "isLoading" | "error" | "refreshData">;
 
@@ -604,7 +604,7 @@ function mapTaskTemplates(taskTemplateRows: TaskTemplateRow[]): TaskTemplate[] {
   }));
 }
 
-export function useSchlagLinkData(): DataState {
+export function useFarm-ManagerData(): DataState {
   const cachedData = isSupabaseConfigured ? readOfflineDataCache() : null;
   const [state, setState] = useState<Omit<DataState, "refreshData">>({
     fields: cachedData?.fields ?? (isSupabaseConfigured ? [] : mockFields),

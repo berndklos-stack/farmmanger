@@ -1,4 +1,4 @@
--- SchlagLink: Teilauftrags-Zuordnungen direkt mit Personal-Stammdaten verbinden.
+-- Farm-Manager: Teilauftrags-Zuordnungen direkt mit Personal-Stammdaten verbinden.
 -- Safe to run more than once.
 --
 -- Hintergrund:

@@ -22,8 +22,8 @@ type RefreshDataOptions = {
   silent?: boolean;
 };
 
-const offlineDataCacheKey = "schlaglink.offlineDataCache";
-const fieldReleaseMarker = "__schlaglink_released_contractors:";
+const offlineDataCacheKey = "farm-manager.offlineDataCache";
+const fieldReleaseMarker = "__farm-manager_released_contractors:";
 
 type CachedDataState = Omit<DataState, "isLoading" | "error" | "refreshData">;
 
@@ -132,6 +132,7 @@ type JobTaskRow = {
   target_quantity: number | null;
   quantity_unit: string | null;
   target_trips: number | null;
+  planned_columns?: number | null;
   max_active_workers: number | null;
   status: string | null;
   updated_at?: string | null;
@@ -456,6 +457,11 @@ function mapSubtasks(
     const activeVehicleIds = activeAssignments
       .map((assignment) => vehicleIdByName.get(normalizeName(assignment.vehicle_name)))
       .filter((id): id is string => Boolean(id));
+    const activeAssignmentRows = activeAssignments.map((assignment) => ({
+      id: assignment.id,
+      driverId: assignmentDriverId(assignment),
+      vehicleId: vehicleIdByName.get(normalizeName(assignment.vehicle_name)) ?? undefined,
+    }));
     return {
       id: task.id,
       jobId: task.job_id,
@@ -464,6 +470,7 @@ function mapSubtasks(
       status: toStatus(task.status ?? activeAssignments[0]?.status ?? completed?.status ?? null),
       progress: task.status === "completed" ? 100 : task.status === "partial" ? 60 : activeAssignments.length > 0 ? 25 : 0,
       activeDriverIds: activeAssignments.map(assignmentDriverId),
+      activeAssignments: activeAssignmentRows,
       activeDriverNames: Array.from(new Set(activeAssignments
         .map(assignmentDriverName)
         .filter((name): name is string => Boolean(name)))),
@@ -479,6 +486,7 @@ function mapSubtasks(
         : undefined,
       workStartedAt: (activeAssignments[0] ?? feedbackAssignment)?.started_at ?? undefined,
       workEndedAt: feedbackAssignment?.completed_at ?? undefined,
+      plannedCrews: task.planned_columns ?? task.max_active_workers ?? undefined,
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
       targetUnit: task.quantity_unit ?? (task.progress_type === "area" ? "ha" : task.progress_type === "trips" ? "Fuhren" : undefined),
       doneHa: feedbackAssignment?.completed_area_ha ?? undefined,
@@ -604,7 +612,7 @@ function mapTaskTemplates(taskTemplateRows: TaskTemplateRow[]): TaskTemplate[] {
   }));
 }
 
-export function useSchlagLinkData(): DataState {
+export function useFarmManagerData(): DataState {
   const cachedData = isSupabaseConfigured ? readOfflineDataCache() : null;
   const [state, setState] = useState<Omit<DataState, "refreshData">>({
     fields: cachedData?.fields ?? (isSupabaseConfigured ? [] : mockFields),

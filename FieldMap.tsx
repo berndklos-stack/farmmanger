@@ -454,10 +454,10 @@ function FieldMapPatternDefs({
   useEffect(() => {
     const svg = map.getPanes().overlayPane.querySelector("svg");
     if (!svg) return;
-    let defs = svg.querySelector("defs[data-schlaglink-patterns='true']");
+    let defs = svg.querySelector("defs[data-farm-manager-patterns='true']");
     if (!defs) {
       defs = document.createElementNS("http://www.w3.org/2000/svg", "defs");
-      defs.setAttribute("data-schlaglink-patterns", "true");
+      defs.setAttribute("data-farm-manager-patterns", "true");
       svg.prepend(defs);
     }
     defs.innerHTML = "";

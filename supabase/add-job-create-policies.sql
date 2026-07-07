@@ -1,4 +1,4 @@
--- SchlagLink: Auftragserstellung für Landwirte und Lohnunternehmer freigeben.
+-- Farm-Manager: Auftragserstellung für Landwirte und Lohnunternehmer freigeben.
 -- Einmal im Supabase SQL Editor ausführen, wenn neu angelegte Aufträge nicht
 -- dauerhaft in der Dispo anderer Nutzer erscheinen.
 

@@ -1,4 +1,4 @@
--- SchlagLink: allow saving organization master data from the app.
+-- Farm-Manager: allow saving organization master data from the app.
 -- Run this once in Supabase SQL editor if browser-to-Supabase sync reports
 -- row-level security errors on the organizations table.
 -- Prototype policy: permissive for anon/authenticated. Tighten before production.

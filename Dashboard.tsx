@@ -29,7 +29,7 @@ type Props = {
 
 function readEquipmentProblemRows() {
   try {
-    const raw = window.localStorage.getItem("schlaglink.driverEquipmentLog");
+    const raw = window.localStorage.getItem("farm-manager.driverEquipmentLog");
     const rows = raw ? JSON.parse(raw) as DriverEquipmentLogEntry[] : [];
     return rows.filter((row) => row.machineProblem || row.placement === "defect").slice(0, 8);
   } catch {

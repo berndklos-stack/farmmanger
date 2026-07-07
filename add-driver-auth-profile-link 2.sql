@@ -1,4 +1,4 @@
--- SchlagLink Phase 1: Verknuepfung Personalstammdaten mit Supabase Auth/Profile.
+-- Farm-Manager Phase 1: Verknuepfung Personalstammdaten mit Supabase Auth/Profile.
 -- Vor dem Deploy der Edge Function sync-driver-auth ausfuehren.
 
 alter table personnel_resources

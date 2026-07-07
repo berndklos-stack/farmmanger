@@ -5,12 +5,12 @@ import { useTranslation } from "react-i18next";
 type LoginAppMode = "admin" | "driver" | "auto";
 
 const demoAccounts = [
-  { labelKey: "auth.demoSupport", email: "support@schlaglink.app", password: "1234", app: "admin" },
-  { labelKey: "auth.demoFarmer", email: "landwirt@schlaglink.app", app: "admin" },
-  { labelKey: "auth.demoFarmerAndersson", email: "andersson@schlaglink.app", password: "1234", app: "admin" },
-  { labelKey: "auth.demoDispatcher", email: "einsatzleiter@schlaglink.app", app: "admin" },
+  { labelKey: "auth.demoSupport", email: "support@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoFarmer", email: "landwirt@farm-manager.app", app: "admin" },
+  { labelKey: "auth.demoFarmerAndersson", email: "andersson@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoDispatcher", email: "einsatzleiter@farm-manager.app", app: "admin" },
   { labelKey: "auth.demoBerndDispatcher", email: "bernd@kolaretorp.se", password: "1234", app: "admin" },
-  { labelKey: "auth.demoNordDispatcher", email: "nord@schlaglink.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoNordDispatcher", email: "nord@farm-manager.app", password: "1234", app: "admin" },
 ];
 
 export function AuthLogin({
@@ -29,13 +29,13 @@ export function AuthLogin({
   const defaultDemoAccount = visibleDemoAccounts[0] ?? demoAccounts[0];
   const showDemoAccounts = appMode !== "driver";
   const [email, setEmail] = useState(appMode === "driver" ? "" : defaultDemoAccount.email);
-  const [password, setPassword] = useState(appMode === "driver" ? "" : defaultDemoAccount.password ?? "schlaglink-demo");
+  const [password, setPassword] = useState(appMode === "driver" ? "" : defaultDemoAccount.password ?? "farm-manager-demo");
 
   async function submit() {
     await onSignIn(email.trim(), password);
   }
 
-  async function useDemoAccount(nextEmail: string, nextPassword = "schlaglink-demo") {
+  async function useDemoAccount(nextEmail: string, nextPassword = "farm-manager-demo") {
     setEmail(nextEmail);
     setPassword(nextPassword);
     await onSignIn(nextEmail, nextPassword);
@@ -49,7 +49,7 @@ export function AuthLogin({
             <Tractor size={24} />
           </div>
           <div>
-            <strong>SchlagLink</strong>
+            <strong>Farm-Manager</strong>
             <span>{t("auth.subtitle")}</span>
           </div>
         </div>

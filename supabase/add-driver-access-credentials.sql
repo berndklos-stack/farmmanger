@@ -1,4 +1,4 @@
--- SchlagLink: Fahrer-Zugangsdaten in den Personal-Stammdaten.
+-- Farm-Manager: Fahrer-Zugangsdaten in den Personal-Stammdaten.
 -- Einmal im Supabase SQL Editor ausführen.
 
 alter table personnel_resources add column if not exists email text;

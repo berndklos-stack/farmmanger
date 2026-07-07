@@ -1,4 +1,4 @@
--- SchlagLink: Status-Protokolle fuer Teilauftraege speichern.
+-- Farm-Manager: Status-Protokolle fuer Teilauftraege speichern.
 -- Safe to run more than once.
 --
 -- Warum:

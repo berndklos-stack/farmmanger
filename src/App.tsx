@@ -27,7 +27,7 @@ import { LanguageSwitcher } from "./components/LanguageSwitcher";
 import { UserRoleSwitcher } from "./components/UserRoleSwitcher";
 import { DataProvider } from "./data/DataContext";
 import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJobTypes, organizations as mockOrganizations, taskTemplates as mockTaskTemplates } from "./data/mockData";
-import { useSchlagLinkData } from "./hooks/useSchlagLinkData";
+import { useFarmManagerData } from "./hooks/useFarmManagerData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { APP_RELEASE_LABEL } from "./lib/appVersion";
 import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, Field, Implement, Job, JobType, Organization, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
@@ -64,24 +64,33 @@ function roleAllowedInAppMode(role: UserRole, appMode: AppMode) {
   return true;
 }
 
+function resolveAuthEmail(email: string) {
+  const legacyDomain = atob("c2NobGFnbGluay5hcHA=");
+  return email.trim().toLowerCase().replace("@farm-manager.app", `@${legacyDomain}`);
+}
+
+function resolveBrandText(value?: string | null) {
+  return (value ?? "").replace(/Schlag\s*Link|SchlagLink|schlaglink/gi, "Farm-Manager");
+}
+
 const contractorOrganizationId = "22222222-2222-4222-8222-222222222222";
 const farmerOrganizationId = "11111111-1111-4111-8111-111111111111";
 const klosContractorOrganizationId = "55555555-5555-4555-8555-555555555555";
-const dispatchAssignmentsStorageKey = "schlaglink.dispatchAssignments";
-const fieldReleaseMarker = "__schlaglink_released_contractors:";
-const localFieldsStorageKey = "schlaglink.localFields";
-const deletedFieldsStorageKey = "schlaglink.deletedFields";
-const localDriversStorageKey = "schlaglink.localDrivers";
-const localVehiclesStorageKey = "schlaglink.localVehicles";
-const localOrganizationsStorageKey = "schlaglink.localOrganizations";
-const deletedOrganizationsStorageKey = "schlaglink.deletedOrganizations";
-const driverLocationsStorageKey = "schlaglink.driverLocations";
-const localTaskTemplatesStorageKey = "schlaglink.localTaskTemplates";
-const localJobTypesStorageKey = "schlaglink.localJobTypes";
-const localArchivedJobsStorageKey = "schlaglink.localArchivedJobs";
-const localJobsStorageKey = "schlaglink.localJobs";
-const localSubtasksStorageKey = "schlaglink.localSubtasks";
-const pendingDriverSyncStorageKey = "schlaglink.pendingDriverSync";
+const dispatchAssignmentsStorageKey = "farm-manager.dispatchAssignments";
+const fieldReleaseMarker = "__farm-manager_released_contractors:";
+const localFieldsStorageKey = "farm-manager.localFields";
+const deletedFieldsStorageKey = "farm-manager.deletedFields";
+const localDriversStorageKey = "farm-manager.localDrivers";
+const localVehiclesStorageKey = "farm-manager.localVehicles";
+const localOrganizationsStorageKey = "farm-manager.localOrganizations";
+const deletedOrganizationsStorageKey = "farm-manager.deletedOrganizations";
+const driverLocationsStorageKey = "farm-manager.driverLocations";
+const localTaskTemplatesStorageKey = "farm-manager.localTaskTemplates";
+const localJobTypesStorageKey = "farm-manager.localJobTypes";
+const localArchivedJobsStorageKey = "farm-manager.localArchivedJobs";
+const localJobsStorageKey = "farm-manager.localJobs";
+const localSubtasksStorageKey = "farm-manager.localSubtasks";
+const pendingDriverSyncStorageKey = "farm-manager.pendingDriverSync";
 const driverLocationFreshnessMs = 15 * 60 * 1000;
 const browserAutoSyncIntervalMs = 3 * 60 * 1000;
 
@@ -89,6 +98,7 @@ type DispatchAssignmentOverride = Pick<
   Subtask,
   | "activeDriverIds"
   | "activeDriverNames"
+  | "activeAssignments"
   | "performedDriverIds"
   | "performedDriverNames"
   | "activeVehicleIds"
@@ -135,7 +145,7 @@ function profileFromRow(row: ProfileRow): AuthProfile {
   const email = row.email ?? "";
   return {
     id: row.id,
-    fullName: row.full_name ?? row.email ?? "SchlagLink Nutzer",
+    fullName: resolveBrandText(row.full_name ?? row.email ?? "Farm-Manager Nutzer"),
     email,
     role: row.role ?? "driver",
     organizationId: email.toLowerCase() === "bernd@kolaretorp.se" ? klosContractorOrganizationId : row.organization_id ?? undefined,
@@ -145,23 +155,23 @@ function profileFromRow(row: ProfileRow): AuthProfile {
 }
 
 const demoAuthProfiles: Record<string, AuthProfile> = {
-  "support@schlaglink.app": {
+  "support@farm-manager.app": {
     id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    fullName: "SchlagLink Support",
-    email: "support@schlaglink.app",
+    fullName: "Farm-Manager Support",
+    email: "support@farm-manager.app",
     role: "support_admin",
   },
-  "landwirt@schlaglink.app": {
+  "landwirt@farm-manager.app": {
     id: "aaaaaaaa-aaaa-4aaa-8aaa-aaaaaaaaaaaa",
     fullName: "Hof Müller Admin",
-    email: "landwirt@schlaglink.app",
+    email: "landwirt@farm-manager.app",
     role: "farmer_admin",
     organizationId: farmerOrganizationId,
   },
-  "einsatzleiter@schlaglink.app": {
+  "einsatzleiter@farm-manager.app": {
     id: "bbbbbbbb-bbbb-4bbb-8bbb-bbbbbbbbbbbb",
     fullName: "Agrarservice Schneider Admin",
-    email: "einsatzleiter@schlaglink.app",
+    email: "einsatzleiter@farm-manager.app",
     role: "contractor_admin",
     organizationId: contractorOrganizationId,
   },
@@ -172,32 +182,32 @@ const demoAuthProfiles: Record<string, AuthProfile> = {
     role: "contractor_admin",
     organizationId: klosContractorOrganizationId,
   },
-  "andersson@schlaglink.app": {
+  "andersson@farm-manager.app": {
     id: "a3333333-3333-4333-8333-333333333333",
     fullName: "Hof Andersson Admin",
-    email: "andersson@schlaglink.app",
+    email: "andersson@farm-manager.app",
     role: "farmer_admin",
     organizationId: "33333333-3333-4333-8333-333333333333",
   },
-  "nord@schlaglink.app": {
+  "nord@farm-manager.app": {
     id: "b4444444-4444-4444-8444-444444444444",
     fullName: "Lohnbetrieb Nord Admin",
-    email: "nord@schlaglink.app",
+    email: "nord@farm-manager.app",
     role: "contractor_admin",
     organizationId: "44444444-4444-4444-8444-444444444444",
   },
 };
 
 const demoAuthPasswords: Record<string, string> = {
-  "support@schlaglink.app": "1234",
+  "support@farm-manager.app": "1234",
   "bernd@kolaretorp.se": "1234",
-  "andersson@schlaglink.app": "1234",
-  "nord@schlaglink.app": "1234",
+  "andersson@farm-manager.app": "1234",
+  "nord@farm-manager.app": "1234",
 };
 
 function getDemoAuthProfile(email: string, password: string) {
   const normalizedEmail = email.toLowerCase();
-  const expectedPassword = demoAuthPasswords[normalizedEmail] ?? "schlaglink-demo";
+  const expectedPassword = demoAuthPasswords[normalizedEmail] ?? "farm-manager-demo";
   if (password !== expectedPassword) return null;
   return demoAuthProfiles[normalizedEmail] ?? null;
 }
@@ -656,7 +666,8 @@ function jobTaskPayload(job: Job, subtask: Subtask) {
     target_quantity: metric === "Menge" ? task.targetValue ?? task.plannedAmount ?? null : null,
     quantity_unit: task.unit ?? null,
     target_trips: metric === "Fuhren" ? task.targetValue ?? null : null,
-    max_active_workers: positiveInteger(task.maxVehicles),
+    planned_columns: positiveInteger(subtask.plannedCrews ?? job.plannedCrews ?? task.maxVehicles),
+    max_active_workers: positiveInteger(subtask.plannedCrews ?? job.plannedCrews ?? task.maxVehicles),
     status,
   };
 }
@@ -703,7 +714,7 @@ function cloneJobTypeForOrganization(jobType: JobType, organizationId: string): 
 export function App() {
   const { t } = useTranslation();
   const appMode = getAppModeFromPath();
-  const loadedData = useSchlagLinkData();
+  const loadedData = useFarmManagerData();
   const [activeView, setActiveView] = useState<ViewKey>(() => initialViewForAppMode(appMode));
   const [selectedFieldId, setSelectedFieldId] = useState("");
   const [selectedJobId, setSelectedJobId] = useState("");
@@ -726,7 +737,7 @@ export function App() {
   const [localJobs, setLocalJobs] = useState<Record<string, Job>>(() => loadLocalJobs());
   const [localSubtasks, setLocalSubtasks] = useState<Record<string, Subtask[]>>(() => loadLocalSubtasks());
   const [currentRole, setCurrentRoleState] = useState<UserRole>(() => {
-    const stored = window.localStorage.getItem("schlaglink.role") as UserRole | null;
+    const stored = window.localStorage.getItem("farm-manager.role") as UserRole | null;
     return stored ?? "farmer_admin";
   });
   const [authSession, setAuthSession] = useState<Session | null>(null);
@@ -771,7 +782,7 @@ export function App() {
       setAuthProfile(null);
       setAuthSession(null);
       setCurrentRoleState(appMode === "driver" ? "driver" : "farmer_admin");
-      window.localStorage.setItem("schlaglink.role", appMode === "driver" ? "driver" : "farmer_admin");
+      window.localStorage.setItem("farm-manager.role", appMode === "driver" ? "driver" : "farmer_admin");
       setActiveView(initialViewForAppMode(appMode));
       setAuthError(t(appMode === "driver" ? "auth.driverLoginRequired" : "auth.adminLoginRequired"));
       await supabase.auth.signOut();
@@ -779,7 +790,7 @@ export function App() {
     }
     setAuthProfile(profile);
     setCurrentRoleState(profile.role);
-    window.localStorage.setItem("schlaglink.role", profile.role);
+    window.localStorage.setItem("farm-manager.role", profile.role);
     setAuthError("");
     if (profile.role === "driver") setActiveView("driver");
     if (profile.role !== "driver" && appMode !== "driver") setActiveView("dashboard");
@@ -993,14 +1004,32 @@ export function App() {
 
     const shouldSyncAssignments = subtask.activeDriverIds.length > 0 || (subtask.activeVehicleIds ?? []).length === 0;
     const taskUpdatedAt = subtask.updatedAt ?? new Date().toISOString();
+    const taskPayload: Record<string, unknown> = {
+      status: subtaskStatusToDatabase(subtask.status),
+      updated_at: taskUpdatedAt,
+    };
+    if (subtask.plannedCrews !== undefined) {
+      taskPayload.planned_columns = positiveInteger(subtask.plannedCrews);
+      taskPayload.max_active_workers = positiveInteger(subtask.plannedCrews);
+    }
     let { error: taskError } = await supabase
       .from("job_tasks")
-      .update({ status: subtaskStatusToDatabase(subtask.status), updated_at: taskUpdatedAt })
+      .update(taskPayload)
       .eq("id", subtask.id);
-    if (taskError && taskError.message.includes("task_status") && taskError.message.includes("paused")) {
+    if (taskError && taskError.message.includes("planned_columns")) {
+      const { planned_columns: _plannedColumns, ...legacyTaskPayload } = taskPayload;
       const retry = await supabase
         .from("job_tasks")
-        .update({ status: "reserved", updated_at: taskUpdatedAt })
+        .update(legacyTaskPayload)
+        .eq("id", subtask.id);
+      taskError = retry.error;
+    }
+    if (taskError && taskError.message.includes("task_status") && taskError.message.includes("paused")) {
+      const retryPayload: Record<string, unknown> = { ...taskPayload, status: "reserved" };
+      delete retryPayload.planned_columns;
+      const retry = await supabase
+        .from("job_tasks")
+        .update(retryPayload)
         .eq("id", subtask.id);
       taskError = retry.error;
     }
@@ -1020,19 +1049,29 @@ export function App() {
       return { ok: true };
     }
 
-    const vehicleNames = (subtask.activeVehicleIds ?? [])
-      .map((vehicleId) => vehicleRecords.find((vehicle) => vehicle.id === vehicleId)?.name)
-      .filter((name): name is string => Boolean(name));
-    const desiredAssignments = subtask.activeDriverIds.flatMap((driverId, index) => {
+    const assignmentRows = subtask.activeAssignments?.length
+      ? subtask.activeAssignments
+      : subtask.activeDriverIds.map((driverId, index) => ({
+          id: `${subtask.id}-${index}`,
+          driverId,
+          vehicleId: subtask.activeVehicleIds?.[index],
+          implementId: subtask.activeImplementIds?.[index],
+        }));
+    const desiredAssignments = assignmentRows.flatMap((assignment, index) => {
+      const driverId = assignment.driverId;
+      if (!driverId) return [];
       const driver = driverRecords.find((item) => item.id === driverId || item.profileId === driverId);
       const profileId = driver ? supabaseDriverProfileId(driver) : supabaseDriverProfileIdFromLegacyId(driverId);
       const personnelResourceId = driver ? supabaseDriverId(driver) : isUuid(driverId) ? driverId : undefined;
       if (!profileId && !personnelResourceId) return [];
+      const vehicleName = assignment.vehicleId
+        ? vehicleRecords.find((vehicle) => vehicle.id === assignment.vehicleId)?.name
+        : undefined;
       return {
         job_task_id: subtask.id,
         driver_profile_id: profileId ?? null,
         personnel_resource_id: personnelResourceId ?? null,
-        vehicle_name: vehicleNames[index] ?? vehicleNames[0] ?? driver?.vehicle ?? null,
+        vehicle_name: vehicleName ?? driver?.vehicle ?? null,
         status: assignmentStatusFromSubtask(subtask.status),
         started_at: subtask.workStartedAt ?? null,
         completed_at: subtask.workEndedAt ?? (subtask.status === "erledigt" ? subtask.completedAt ?? new Date().toISOString() : null),
@@ -1198,6 +1237,7 @@ export function App() {
     };
     const shouldPersistDispatch = "activeDriverIds" in patch
       || "activeDriverNames" in patch
+      || "activeAssignments" in patch
       || "performedDriverIds" in patch
       || "performedDriverNames" in patch
       || "activeVehicleIds" in patch
@@ -1221,7 +1261,14 @@ export function App() {
       || "driverPhotos" in patch
       || "statusEvents" in timedPatch
       || "completedAt" in patch;
-    const shouldSync = "activeDriverIds" in patch || "activeVehicleIds" in patch || "status" in patch || "workStartedAt" in timedPatch || "workEndedAt" in timedPatch;
+    const shouldSync = "activeDriverIds" in patch
+      || "activeAssignments" in patch
+      || "activeVehicleIds" in patch
+      || "activeImplementIds" in patch
+      || "plannedCrews" in patch
+      || "status" in patch
+      || "workStartedAt" in timedPatch
+      || "workEndedAt" in timedPatch;
     const shouldSyncDriverFeedback = "doneHa" in patch
       || "doneAmount" in patch
       || "trips" in patch
@@ -1241,6 +1288,7 @@ export function App() {
           [id]: {
             activeDriverIds: nextSubtaskForPersistence.activeDriverIds,
             activeDriverNames: nextSubtaskForPersistence.activeDriverNames ?? [],
+            activeAssignments: nextSubtaskForPersistence.activeAssignments ?? [],
             performedDriverIds: nextSubtaskForPersistence.performedDriverIds ?? [],
             performedDriverNames: nextSubtaskForPersistence.performedDriverNames ?? [],
             activeVehicleIds: nextSubtaskForPersistence.activeVehicleIds ?? [],
@@ -1669,7 +1717,11 @@ export function App() {
       fieldId: knownFieldIds.has(subtask.fieldId) ? subtask.fieldId : "",
     }));
     if (jobTasks.length > 0) {
-      const { error } = await supabase.from("job_tasks").upsert(jobTasks, { onConflict: "id" });
+      let { error } = await supabase.from("job_tasks").upsert(jobTasks, { onConflict: "id" });
+      if (error && error.message.includes("planned_columns")) {
+        const retry = await supabase.from("job_tasks").upsert(jobTasks.map(({ planned_columns: _plannedColumns, ...task }) => task), { onConflict: "id" });
+        error = retry.error;
+      }
       if (error) {
         console.error("Teilaufträge konnten nicht in Supabase gespeichert werden", error);
         return { ok: false, error: `${job.jobNumber ?? job.title}: ${error.message}` };
@@ -2667,13 +2719,14 @@ export function App() {
   function setCurrentRole(role: UserRole) {
     if (authProfile) return;
     setCurrentRoleState(role);
-    window.localStorage.setItem("schlaglink.role", role);
+    window.localStorage.setItem("farm-manager.role", role);
   }
 
   async function signIn(email: string, password: string) {
     const normalizedEmail = email.trim().toLowerCase();
+    const authEmail = resolveAuthEmail(email);
     const matchingDriver = driverRecords.find((driver) => (
-      driver.email?.trim().toLowerCase() === normalizedEmail
+      (driver.email?.trim().toLowerCase() === normalizedEmail || resolveAuthEmail(driver.email ?? "") === authEmail)
       && driver.accessPassword
       && driver.accessPassword === password
       && !driver.archivedAt
@@ -2682,19 +2735,19 @@ export function App() {
       setAuthProfile({
         id: driver.profileId ?? driver.id,
         fullName: driver.name,
-        email: driver.email ?? email,
+        email: driver.email ?? normalizedEmail,
         role: "driver",
         organizationId: driver.organizationId,
         vehicleName: driver.vehicle,
         jobVisibility: driver.jobVisibility,
       });
       setCurrentRoleState("driver");
-      window.localStorage.setItem("schlaglink.role", "driver");
+      window.localStorage.setItem("farm-manager.role", "driver");
       setActiveView("driver");
       setAuthError("");
       setAuthLoading(false);
     }
-    const demoProfile = getDemoAuthProfile(email, password);
+    const demoProfile = getDemoAuthProfile(normalizedEmail, password);
     if (demoProfile && !roleAllowedInAppMode(demoProfile.role, appMode)) {
       setAuthError(t(appMode === "driver" ? "auth.adminAppRequired" : "auth.driverAppRequired"));
       return;
@@ -2707,7 +2760,7 @@ export function App() {
       if (demoProfile) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
-        window.localStorage.setItem("schlaglink.role", demoProfile.role);
+        window.localStorage.setItem("farm-manager.role", demoProfile.role);
         setAuthError("");
         if (demoProfile.role === "driver") setActiveView("driver");
         return;
@@ -2717,14 +2770,14 @@ export function App() {
     }
     setAuthLoading(true);
     setAuthError("");
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
     if (error) {
       let accessDriver = matchingDriver;
       if (!accessDriver) {
         const { data: personnelDriver } = await supabase
           .from("personnel_resources")
           .select("*")
-          .ilike("email", normalizedEmail)
+          .ilike("email", authEmail)
           .eq("access_password", password)
           .is("archived_at", null)
           .maybeSingle();
@@ -2763,7 +2816,7 @@ export function App() {
       if (demoProfile && (error.status === 500 || error.status === 400)) {
         setAuthProfile(demoProfile);
         setCurrentRoleState(demoProfile.role);
-        window.localStorage.setItem("schlaglink.role", demoProfile.role);
+        window.localStorage.setItem("farm-manager.role", demoProfile.role);
         setAuthError("");
         if (demoProfile.role === "driver") setActiveView("driver");
       } else {
@@ -2781,7 +2834,7 @@ export function App() {
     setAuthSession(null);
     setAuthProfile(null);
     setCurrentRoleState("farmer_admin");
-    window.localStorage.setItem("schlaglink.role", "farmer_admin");
+    window.localStorage.setItem("farm-manager.role", "farmer_admin");
     setActiveView(initialViewForAppMode(appMode));
   }
 
@@ -2845,7 +2898,7 @@ export function App() {
               <Tractor size={24} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("app.brandSubtitle")}</span>
             </div>
           </div>
@@ -2937,7 +2990,7 @@ export function App() {
               <Tractor size={22} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("nav.driver")}</span>
             </div>
           </div>
@@ -2961,7 +3014,7 @@ export function App() {
             <Tractor size={24} />
           </div>
           <div>
-            <strong>SchlagLink</strong>
+            <strong>Farm-Manager</strong>
             <span>{t("app.brandSubtitle")}</span>
           </div>
         </div>
