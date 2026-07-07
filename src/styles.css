@@ -5956,3 +5956,15 @@ select {
   .compact-dispatch-actions .assignment-picker { grid-template-columns: 48px 1fr; }
   .compact-dispatch-actions .assignment-picker select { grid-column: span 1; }
 }
+
+/* v0.2.2 — Job edit: align the driver assignment control with the neighbouring fields.
+   The assignment cell includes a second status line, while the other table cells don't.
+   Keep the field itself on the common input baseline and move the auxiliary line with it. */
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > select {
+  transform: translateY(13px);
+}
+
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .muted,
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .chip-row {
+  transform: translateY(13px);
+}

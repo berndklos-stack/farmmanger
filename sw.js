@@ -1,4 +1,4 @@
-const CACHE_VERSION = "schlaglink-v3";
+const CACHE_VERSION = "farm-manager-v0-2-2";
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const APP_SHELL = [
