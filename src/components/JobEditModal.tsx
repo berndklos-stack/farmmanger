@@ -160,7 +160,7 @@ export function JobEditModal({
                   <span>
                     <input disabled={showArchived} min={1} max={8} value={subtask.plannedCrews ?? job.plannedCrews ?? 1} onChange={(event) => onUpdateSubtask(subtask.id, { plannedCrews: Number(event.target.value) })} type="number" />
                   </span>
-                  <span>
+                  <span className="driver-assignment-cell">
                     <select
                       aria-label={t("actions.assignDriver")}
                       disabled={showArchived}

@@ -5707,42 +5707,232 @@ select {
 
 
 
-/* Auftrag bearbeiten: Das Fahrer-/Fahrzeug-Auswahlfeld exakt auf die
-   gleiche Feld-Grundlinie wie Dauer, Kolonnen und Aktion setzen.
-   Die Statuszeile darunter nimmt keinen Platz in der Ausrichtung ein. */
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
-  position: relative;
-  display: flex;
-  align-items: center;
-  min-height: 30px;
-  overflow: visible;
-  padding: 0 0 20px;
+
+
+/* Farm-Manager: refined operational workspace --------------------------------
+   The dispatch and job editor are deliberately dense, but every control shares
+   one visual baseline. Driver feedback stays below the control without changing
+   its vertical alignment. */
+.job-edit-modal {
+  width: min(1540px, calc(100vw - 32px));
+  max-height: min(860px, calc(100dvh - 32px));
+  padding: 20px;
+  gap: 14px;
+  background: #fff;
+  border: 1px solid rgba(203, 216, 199, .94);
+  box-shadow: 0 24px 70px rgba(22, 42, 30, .20);
 }
 
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > select {
+.job-edit-modal .section-heading {
+  align-items: flex-start;
+  padding: 0 0 14px;
+  border-bottom: 1px solid #e2ebe0;
+}
+
+.job-edit-modal .section-heading h2 {
+  letter-spacing: -.035em;
+  font-size: clamp(1.35rem, 2vw, 1.72rem);
+}
+
+.job-edit-modal .section-heading p {
+  color: #708075;
+  font-weight: 700;
+}
+
+.job-edit-modal .master-data-form {
+  padding: 12px;
+  border: 1px solid #e0e9dd;
+  border-radius: 12px;
+  background: linear-gradient(180deg, #fcfdfb, #f7faf5);
+}
+
+.job-edit-modal .modal-form-row {
+  gap: 10px;
+  margin: 0;
+}
+
+.job-edit-modal .modal-form-row label {
+  color: #4c6052;
+  font-size: .76rem;
+  font-weight: 900;
+  letter-spacing: .01em;
+}
+
+.job-edit-modal .modal-form-row input,
+.job-edit-modal .modal-form-row select,
+.job-edit-modal .table-row input,
+.job-edit-modal .table-row select {
+  border-color: #cfdcca;
+  background: #fff;
+  box-shadow: 0 1px 1px rgba(27, 48, 34, .025);
+}
+
+.job-edit-modal .modal-form-row input:focus,
+.job-edit-modal .modal-form-row select:focus,
+.job-edit-modal .table-row input:focus,
+.job-edit-modal .table-row select:focus {
+  border-color: #5e9a59;
+  box-shadow: 0 0 0 3px rgba(94, 154, 89, .13);
+}
+
+.job-edit-modal .job-meta {
+  margin: 0;
+  padding: 0 2px;
+}
+
+.job-edit-modal .job-meta span {
+  color: #5e6f63;
+  background: #f4f8f1;
+  border: 1px solid #e3ecdf;
+  font-size: .82rem;
+  font-weight: 800;
+  padding: 6px 9px;
+}
+
+.job-edit-modal .table-card {
+  border: 1px solid #dce7d8;
+  border-radius: 12px;
+  overflow: auto;
+  background: #fff;
+}
+
+.job-edit-modal .table-row {
+  min-width: 1120px;
+  padding: 10px 12px;
+  gap: 10px;
+}
+
+.job-edit-modal .table-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  background: #f8fbf6;
+  color: #5d7062;
+  border-bottom: 1px solid #dce7d8;
+  font-size: .74rem;
+  font-weight: 950;
+  letter-spacing: .015em;
+  text-transform: uppercase;
+}
+
+.job-edit-modal .table-row:not(.table-head) {
+  min-height: 72px;
+  background: #fff;
+  transition: background .15s ease;
+}
+
+.job-edit-modal .table-row:not(.table-head):hover {
+  background: #fbfdf9;
+}
+
+.job-edit-modal .table-row > span {
+  align-self: center;
+}
+
+.job-edit-modal .table-row .table-subline,
+.job-edit-modal .table-row .target-warning {
+  margin-top: 3px;
+  line-height: 1.22;
+}
+
+/* Exact baseline alignment: the select has the same 30px box and the same
+   vertical centering as the neighbour fields. The status is absolutely placed
+   below it so it no longer makes the cell taller. */
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell {
+  position: relative;
+  display: block;
+  min-height: 30px;
+  padding: 0;
+  overflow: visible;
+  align-self: center;
+}
+
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > select {
+  display: block;
   width: 100%;
   min-height: 30px;
   margin: 0;
 }
 
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .muted,
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .chip-row {
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .muted,
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .chip-row {
   position: absolute;
-  top: 34px;
+  top: calc(100% + 4px);
   left: 0;
   right: 0;
   margin: 0;
-  min-height: 16px;
+  min-height: 15px;
+  pointer-events: none;
 }
 
-@media (max-width: 900px) {
-  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
-    padding-bottom: 0;
-  }
+.job-edit-modal .job-activity-panel {
+  margin-top: 2px;
+  padding: 14px;
+  border-radius: 12px;
+  background: #fbfdf9;
+}
 
-  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .muted,
-  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .chip-row {
-    position: static;
-    margin-top: 3px;
-  }
+.job-edit-modal .modal-actions {
+  position: sticky;
+  bottom: -20px;
+  margin: 0 -20px -20px;
+  padding: 14px 20px 18px;
+  background: rgba(255,255,255,.96);
+  border-top: 1px solid #e4ece1;
+  backdrop-filter: blur(10px);
+}
+
+/* Compact dispatch cards: a clear two-row operational pattern on desktop. */
+.compact-customer-job {
+  grid-template-columns: minmax(220px, 1.35fr) minmax(120px, .72fr) minmax(190px, 1fr) minmax(330px, 1.42fr);
+  padding: 9px 10px 9px 14px;
+  gap: 10px;
+  border-radius: 10px;
+}
+
+.compact-customer-main strong { font-size: .9rem; }
+.compact-customer-main span,
+.compact-customer-main small,
+.compact-customer-status small,
+.compact-customer-resources small { font-size: .73rem; }
+
+.compact-dispatch-actions {
+  grid-template-columns: repeat(3, auto) minmax(0, 1fr);
+  align-items: center;
+  gap: 5px;
+}
+
+.compact-dispatch-actions button {
+  min-height: 30px;
+  padding: 0 8px;
+  font-size: .72rem;
+  white-space: nowrap;
+}
+
+.compact-dispatch-actions .assignment-picker {
+  grid-column: 1 / -1;
+  grid-template-columns: 52px minmax(95px, 1fr) minmax(120px, 1.15fr) minmax(130px, 1.2fr);
+  align-items: center;
+}
+
+.compact-dispatch-actions .assignment-picker input,
+.compact-dispatch-actions .assignment-picker select { min-height: 30px; }
+
+@media (max-width: 980px) {
+  .job-edit-modal { width: min(100vw - 16px, 940px); padding: 14px; }
+  .job-edit-modal .modal-actions { bottom: -14px; margin: 0 -14px -14px; padding: 12px 14px 14px; }
+  .compact-customer-job { grid-template-columns: 1.2fr .7fr 1fr; }
+  .compact-dispatch-actions { grid-column: 1 / -1; }
+}
+
+@media (max-width: 720px) {
+  .job-edit-modal { width: 100vw; height: 100dvh; max-height: none; border-radius: 0; padding: 12px; }
+  .job-edit-modal .master-data-form { padding: 10px; }
+  .job-edit-modal .modal-form-row { grid-template-columns: 1fr; }
+  .job-edit-modal .table-card { border-radius: 10px; }
+  .job-edit-modal .modal-actions { bottom: -12px; margin: 0 -12px -12px; padding: 10px 12px max(12px, env(safe-area-inset-bottom)); }
+  .job-edit-modal .modal-actions .primary-action { flex: 1 1 100%; }
+  .compact-customer-job { grid-template-columns: 1fr; }
+  .compact-dispatch-actions .assignment-picker { grid-template-columns: 48px 1fr; }
+  .compact-dispatch-actions .assignment-picker select { grid-column: span 1; }
 }
