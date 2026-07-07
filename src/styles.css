@@ -5957,14 +5957,38 @@ select {
   .compact-dispatch-actions .assignment-picker select { grid-column: span 1; }
 }
 
-/* v0.2.2 — Job edit: align the driver assignment control with the neighbouring fields.
-   The assignment cell includes a second status line, while the other table cells don't.
-   Keep the field itself on the common input baseline and move the auxiliary line with it. */
+/* v0.2.3 — Structural alignment for the driver assignment field.
+   The row is taller because the driver status sits below the select. Instead of
+   centering the whole two-line block, stretch the cell across the row and pin
+   the select to the exact vertical centre shared by all other controls. */
+.job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell {
+  position: relative;
+  display: block;
+  align-self: stretch;
+  min-height: 0;
+  padding: 0;
+  overflow: visible;
+}
+
 .job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > select {
-  transform: translateY(13px);
+  position: absolute;
+  top: 50%;
+  left: 0;
+  right: 0;
+  width: 100%;
+  min-height: 30px;
+  margin: 0;
+  transform: translateY(-50%);
 }
 
 .job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .muted,
 .job-edit-modal .table-row:not(.table-head) > .driver-assignment-cell > .chip-row {
-  transform: translateY(13px);
+  position: absolute;
+  top: calc(50% + 19px);
+  left: 0;
+  right: 0;
+  min-height: 15px;
+  margin: 0;
+  transform: none;
+  pointer-events: none;
 }
