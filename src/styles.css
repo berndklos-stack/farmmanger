@@ -5707,30 +5707,42 @@ select {
 
 
 
-/* Auftrag bearbeiten: Nur das Fahrer/Fahrzeug-Auswahlfeld an die Eingabefelder
-   der gleichen Zeile ausrichten. Überschriften bleiben unverändert. */
+/* Auftrag bearbeiten: Das Fahrer-/Fahrzeug-Auswahlfeld exakt auf die
+   gleiche Feld-Grundlinie wie Dauer, Kolonnen und Aktion setzen.
+   Die Statuszeile darunter nimmt keinen Platz in der Ausrichtung ein. */
 .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
+  position: relative;
   display: flex;
-  flex-direction: column;
-  align-self: stretch;
-  justify-content: flex-start;
-  gap: 2px;
-  padding-top: 25px;
+  align-items: center;
+  min-height: 30px;
+  overflow: visible;
+  padding: 0 0 20px;
 }
 
 .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > select {
-  flex: 0 0 30px;
-  align-self: stretch;
+  width: 100%;
+  min-height: 30px;
+  margin: 0;
 }
 
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) .chip-row,
-.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) .table-subline {
-  min-height: 16px;
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .muted,
+.job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .chip-row {
+  position: absolute;
+  top: 34px;
+  left: 0;
+  right: 0;
   margin: 0;
+  min-height: 16px;
 }
 
 @media (max-width: 900px) {
   .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) {
-    padding-top: 0;
+    padding-bottom: 0;
+  }
+
+  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .muted,
+  .job-edit-modal .table-row:not(.table-head) > span:nth-child(8) > .chip-row {
+    position: static;
+    margin-top: 3px;
   }
 }
