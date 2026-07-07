@@ -5,6 +5,7 @@ import {
   Database,
   FileText,
   Map,
+  Settings,
   Smartphone,
   Tractor,
   Users,
@@ -43,6 +44,7 @@ const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
 ];
 
 type AppMode = "admin" | "driver" | "auto";
+type MasterDataFocus = { group: "personnel" | "vehicles" | "implements"; id: string } | { section: "programSettings" };
 
 function getAppModeFromPath(pathname = window.location.pathname): AppMode {
   const normalized = pathname.toLowerCase();
@@ -756,10 +758,7 @@ export function App() {
   const [isCreateJobModalOpen, setIsCreateJobModalOpen] = useState(false);
   const [jobTemplateDraft, setJobTemplateDraft] = useState<Job | null>(null);
   const [dispatchEditJobId, setDispatchEditJobId] = useState("");
-  const [masterDataFocus, setMasterDataFocus] = useState<{
-    group: "personnel" | "vehicles" | "implements";
-    id: string;
-  } | null>(null);
+  const [masterDataFocus, setMasterDataFocus] = useState<MasterDataFocus | null>(null);
   const loginLocationSentForDriverRef = useRef<string | null>(null);
 
   async function loadAuthProfile(session: Session | null) {
@@ -3017,6 +3016,17 @@ export function App() {
             <strong>Farm-Manager</strong>
             <span>{t("app.brandSubtitle")}</span>
           </div>
+          <button
+            className="brand-settings-button"
+            onClick={() => {
+              setMasterDataFocus({ section: "programSettings" });
+              setActiveView("masterData");
+            }}
+            title={t("contractor.programSettings")}
+            type="button"
+          >
+            <Settings size={18} />
+          </button>
         </div>
         <nav className="nav-list" aria-label="Hauptnavigation">
           {visibleNavItems.map((item) => {

@@ -218,6 +218,10 @@ textarea:focus-visible {
   gap: 12px;
 }
 
+.brand > div:nth-child(2) {
+  min-width: 0;
+}
+
 .brand strong {
   display: block;
   font-size: 1.18rem;
@@ -238,6 +242,26 @@ textarea:focus-visible {
   color: #192a20;
   display: grid;
   place-items: center;
+}
+
+.brand-settings-button {
+  align-items: center;
+  background: rgba(255, 255, 255, .08);
+  border: 1px solid rgba(190, 208, 195, .3);
+  border-radius: 8px;
+  color: #dce8de;
+  display: inline-flex;
+  height: 34px;
+  justify-content: center;
+  margin-left: auto;
+  padding: 0;
+  width: 34px;
+}
+
+.brand-settings-button:hover {
+  background: rgba(185, 214, 123, .18);
+  border-color: rgba(185, 214, 123, .58);
+  color: #f0f7ed;
 }
 
 .nav-list {
@@ -783,6 +807,25 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.field-farmer-filter {
+  display: grid;
+  gap: 5px;
+  margin: -2px 0 0;
+}
+
+.field-farmer-filter span,
+.field-owner-line,
+.field-list-item small {
+  color: #617268;
+  font-size: .76rem;
+  font-weight: 850;
+  line-height: 1.2;
+}
+
+.field-farmer-filter select {
+  min-height: 34px;
+}
+
 .field-list-scroll {
   display: grid;
   gap: 4px;
@@ -1232,6 +1275,18 @@ textarea:focus-visible {
   white-space: nowrap;
 }
 
+.field-list-item small {
+  display: block;
+  margin-top: 3px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.field-owner-line {
+  margin: 4px 0 0;
+}
+
 .job-row:hover,
 .job-tab.active,
 .field-list-item.active {
@@ -1311,12 +1366,6 @@ textarea:focus-visible {
 .master-overview-group {
   display: grid;
   gap: 8px;
-}
-
-.master-overview-group-heading h3 {
-  color: #33443a;
-  font-size: .92rem;
-  margin: 0;
 }
 
 .master-overview-grid {
@@ -1431,6 +1480,10 @@ textarea:focus-visible {
   display: grid;
   gap: 10px;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.master-placeholder-grid.single-column {
+  grid-template-columns: minmax(0, 1fr);
 }
 
 .master-placeholder-heading {

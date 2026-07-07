@@ -9,6 +9,7 @@ import { LiveLocationMap } from "./LiveLocationMap";
 
 type ContractorSection = "overview" | "masterOverview" | "masterData" | "organizations" | "products" | "taskTemplates" | "jobTypes" | "programSettings";
 type MasterResourceGroup = "personnel" | "vehicles" | "implements";
+type MasterDataFocus = { group: MasterResourceGroup; id: string } | { section: "programSettings" };
 type DragResourceKind = "driver" | "vehicle" | "implement";
 type DragResourcePayload = {
   kind: DragResourceKind;
@@ -182,7 +183,7 @@ export function ContractorView({
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void;
   onUpdateJob?: (id: string, patch: Partial<Job>) => void;
   variant?: "dispatch" | "masterData";
-  masterDataFocus?: { group: MasterResourceGroup; id: string } | null;
+  masterDataFocus?: MasterDataFocus | null;
   onOpenMasterData?: (focus: { group: MasterResourceGroup; id: string }) => void;
   onOpenJob?: (jobId: string) => void;
 }) {
@@ -459,7 +460,7 @@ export function ContractorView({
           description: t("masterDataOverview.suppliers.description"),
           activeCount: 0,
           archivedCount: 0,
-          onClick: () => setActiveSection("products"),
+          onClick: () => setActiveSection("organizations"),
         },
       ],
     },
@@ -718,6 +719,10 @@ export function ContractorView({
 
   useEffect(() => {
     if (!masterDataFocus) return;
+    if ("section" in masterDataFocus) {
+      setActiveSection(masterDataFocus.section);
+      return;
+    }
     setActiveMasterGroup(masterDataFocus.group);
     setActiveSection("masterData");
     if (masterDataFocus.group === "personnel") setSelectedDriverId(masterDataFocus.id);
@@ -1970,24 +1975,6 @@ export function ContractorView({
           <button className={activeSection === "masterOverview" ? "active" : ""} onClick={() => setActiveSection("masterOverview")} type="button">
             {t("masterDataOverview.overview")}
           </button>
-          <button className={activeSection === "masterData" ? "active" : ""} onClick={() => setActiveSection("masterData")} type="button">
-            {t("masterDataOverview.groups.resources")}
-          </button>
-          <button className={activeSection === "organizations" ? "active" : ""} onClick={() => setActiveSection("organizations")} type="button">
-            {t("masterDataOverview.groups.companies")}
-          </button>
-          <button className={activeSection === "products" ? "active" : ""} onClick={() => setActiveSection("products")} type="button">
-            {t("masterDataOverview.groups.inputs")}
-          </button>
-          <button className={activeSection === "taskTemplates" ? "active" : ""} onClick={() => setActiveSection("taskTemplates")} type="button">
-            {t("masterDataOverview.tasks.title")}
-          </button>
-          <button className={activeSection === "jobTypes" ? "active" : ""} onClick={() => setActiveSection("jobTypes")} type="button">
-            {t("masterDataOverview.workChains.title")}
-          </button>
-          <button className={activeSection === "programSettings" ? "active" : ""} onClick={() => setActiveSection("programSettings")} type="button">
-            {t("contractor.programSettings")}
-          </button>
         </div>
       )}
 
@@ -2006,9 +1993,6 @@ export function ContractorView({
           <div className="master-overview-groups">
             {masterDataOverviewGroups.map((group) => (
               <section className="master-overview-group" key={group.id}>
-                <div className="master-overview-group-heading">
-                  <h3>{group.title}</h3>
-                </div>
                 <div className="master-overview-grid">
                   {group.items.map((item) => (
                     <button className="master-overview-tile" key={item.id} onClick={item.onClick} type="button">
@@ -2026,13 +2010,6 @@ export function ContractorView({
                 </div>
               </section>
             ))}
-          </div>
-
-          <div className="master-overview-examples">
-            <strong>{t("masterDataOverview.workChainExamplesTitle")}</strong>
-            <span>{t("masterDataOverview.workChainExampleSilage")}</span>
-            <span>{t("masterDataOverview.workChainExampleSlurry")}</span>
-            <span>{t("masterDataOverview.workChainExampleBales")}</span>
           </div>
         </div>
       )}
@@ -2958,7 +2935,7 @@ export function ContractorView({
             </div>
             <span>0</span>
           </div>
-          <div className="master-placeholder-grid">
+          <div className="master-placeholder-grid single-column">
             <section className="master-placeholder-panel">
               <div className="master-placeholder-heading">
                 <Package size={18} />
@@ -2973,23 +2950,6 @@ export function ContractorView({
                 <span>{t("masterDataOverview.productFields.articleNumber")}</span>
                 <span>{t("masterDataOverview.productFields.price")}</span>
                 <span>{t("masterDataOverview.productFields.status")}</span>
-              </div>
-            </section>
-            <section className="master-placeholder-panel">
-              <div className="master-placeholder-heading">
-                <Truck size={18} />
-                <h3>{t("masterDataOverview.suppliers.title")}</h3>
-              </div>
-              <p>{t("masterDataOverview.suppliers.description")}</p>
-              <div className="master-field-list">
-                <span>{t("masterDataOverview.supplierFields.company")}</span>
-                <span>{t("masterDataOverview.supplierFields.contact")}</span>
-                <span>{t("masterDataOverview.supplierFields.category")}</span>
-                <span>{t("masterDataOverview.supplierFields.phone")}</span>
-                <span>{t("masterDataOverview.supplierFields.email")}</span>
-                <span>{t("masterDataOverview.supplierFields.address")}</span>
-                <span>{t("masterDataOverview.supplierFields.notes")}</span>
-                <span>{t("masterDataOverview.supplierFields.status")}</span>
               </div>
             </section>
           </div>
@@ -3114,6 +3074,12 @@ export function ContractorView({
           <div className="section-heading">
             <h2>{t("contractor.jobTypeMasterData")}</h2>
             <span>{showArchivedJobTypes ? archivedJobTypes.length : activeJobTypes.length}</span>
+          </div>
+          <div className="master-overview-examples">
+            <strong>{t("masterDataOverview.workChainExamplesTitle")}</strong>
+            <span>{t("masterDataOverview.workChainExampleSilage")}</span>
+            <span>{t("masterDataOverview.workChainExampleSlurry")}</span>
+            <span>{t("masterDataOverview.workChainExampleBales")}</span>
           </div>
           <div className="resource-editor-block">
             <div className="section-heading">

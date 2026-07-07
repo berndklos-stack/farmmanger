@@ -387,6 +387,9 @@
   "fields": {
     "fields": "Skiften",
     "fieldStats": "Fältstatistik",
+    "filterFarmer": "Filtrera efter lantbrukare",
+    "allFarmers": "Alla lantbrukare",
+    "unknownFarmer": "Okänd lantbrukare",
     "selected": "{{count}} valda",
     "noFields": "Inga fält finns",
     "noArchivedFields": "Inga arkiverade fält finns",
@@ -725,7 +728,7 @@
     "workChainExampleSilage": "Gräsensilage: slå → vända → stränglägga → hacka → köra → packa",
     "workChainExampleSlurry": "Sprida flytgödsel: transport → spridning → dokumentation",
     "workChainExampleBales": "Pressa balar: slå → stränglägga → pressa → samla in",
-    "productsSectionHint": "Området för produkter och leverantörer är förberett; egen produktionslagring är ännu inte ansluten.",
+    "productsSectionHint": "Området för produkter är förberett; egen produktionslagring är ännu inte ansluten.",
     "productFields": {
       "name": "Namn",
       "category": "Kategori",

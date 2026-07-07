@@ -387,6 +387,9 @@
   "fields": {
     "fields": "Field parcels",
     "fieldStats": "Field statistics",
+    "filterFarmer": "Filter by farmer",
+    "allFarmers": "All farmers",
+    "unknownFarmer": "Unknown farmer",
     "selected": "{{count}} selected",
     "noFields": "No fields available",
     "noArchivedFields": "No archived fields available",
@@ -724,7 +727,7 @@
     "workChainExampleSilage": "Grass silage: mowing → tedding → raking → chopping → hauling → rolling",
     "workChainExampleSlurry": "Slurry spreading: travel → spreading → documentation",
     "workChainExampleBales": "Baling: mowing → raking → baling → collecting",
-    "productsSectionHint": "The products and suppliers area is prepared; dedicated production storage is not connected yet.",
+    "productsSectionHint": "The products area is prepared; dedicated production storage is not connected yet.",
     "productFields": {
       "name": "Name",
       "category": "Category",

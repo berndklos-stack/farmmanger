@@ -96,7 +96,7 @@ export function Fields({
   onOpenJob?: (jobId: string) => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { addField, archiveField, archiveFieldAttachment, deleteField, drivers, fields, implementsList, jobTypes, organizations, permissions, taskTemplates, updateField, uploadFieldAttachments, vehicles } = useAppData();
+  const { addField, archiveField, archiveFieldAttachment, currentRole, deleteField, drivers, fields, implementsList, jobTypes, organizations, permissions, taskTemplates, updateField, uploadFieldAttachments, vehicles } = useAppData();
   const [boundaryOverrides, setBoundaryOverrides] = useState<Record<string, GeoPoint[]>>({});
   const [showArchivedFields, setShowArchivedFields] = useState(false);
   const [showArchivedAttachments, setShowArchivedAttachments] = useState(false);
@@ -109,6 +109,7 @@ export function Fields({
   const [bulkReleaseContractorToAdd, setBulkReleaseContractorToAdd] = useState("");
   const [bulkReleaseNotice, setBulkReleaseNotice] = useState("");
   const [bulkReleaseNoticeType, setBulkReleaseNoticeType] = useState<"applied" | "removed">("applied");
+  const [farmerFilterId, setFarmerFilterId] = useState("");
   const [historyFilters, setHistoryFilters] = useState<FieldHistoryFilters>({
     date: "",
     activityTime: "",
@@ -125,9 +126,18 @@ export function Fields({
   const documentInputRef = useRef<HTMLInputElement>(null);
   const activeFields = fields.filter((field) => !field.archivedAt);
   const archivedFields = fields.filter((field) => Boolean(field.archivedAt));
-  const visibleFields = showArchivedFields ? archivedFields : activeFields;
+  const baseVisibleFields = showArchivedFields ? archivedFields : activeFields;
+  const farmerOrganizations = organizations.filter((organization) => organization.kind === "farmer" && !organization.archivedAt);
+  const fieldFarmerOptions = farmerOrganizations.filter((organization) => (
+    fields.some((field) => field.organizationId === organization.id)
+  ));
+  const canFilterByFarmer = currentRole === "contractor_admin" && fieldFarmerOptions.length > 1;
+  const visibleFields = farmerFilterId
+    ? baseVisibleFields.filter((field) => field.organizationId === farmerFilterId)
+    : baseVisibleFields;
   const visibleFieldAreaHa = visibleFields.reduce((sum, field) => sum + field.areaHa, 0);
   const contractorOrganizations = organizations.filter((organization) => organization.kind === "contractor" && !organization.archivedAt);
+  const getFieldFarmer = (organizationId?: string) => farmerOrganizations.find((organization) => organization.id === organizationId);
   const baseSelected = visibleFields.find((field) => field.id === selectedFieldId) ?? visibleFields[0];
   const selected = useMemo(
     () => baseSelected ? ({
@@ -136,6 +146,16 @@ export function Fields({
     }) : undefined,
     [baseSelected, boundaryOverrides],
   );
+  useEffect(() => {
+    if (!farmerFilterId) return;
+    if (fieldFarmerOptions.some((organization) => organization.id === farmerFilterId)) return;
+    setFarmerFilterId("");
+  }, [farmerFilterId, fieldFarmerOptions]);
+  useEffect(() => {
+    if (!visibleFields.length) return;
+    if (visibleFields.some((field) => field.id === selectedFieldId)) return;
+    onSelectField(visibleFields[0].id);
+  }, [onSelectField, selectedFieldId, visibleFields]);
   const fieldMapStatuses = useMemo(() => {
     const next: Record<string, FieldWorkMapStatus> = {};
     const findConfiguredMapStyle = (taskName?: string) => {
@@ -267,6 +287,7 @@ export function Fields({
     );
   }
   const selectedField = selected;
+  const selectedFarmer = getFieldFarmer(selectedField.organizationId);
   const selectedSubtasks = subtasks.filter((subtask) => subtask.fieldId === selectedField.id && subtask.status !== "erledigt");
   const statusList = Array.from(new Set(selectedSubtasks.map((subtask) => subtask.status)));
   const allSelectedFieldSubtasks = subtasks.filter((subtask) => subtask.fieldId === selectedField.id);
@@ -872,6 +893,17 @@ export function Fields({
             {t("archive.archived")} · {archivedFields.length}
           </button>
         </div>
+        {canFilterByFarmer && (
+          <label className="field-farmer-filter">
+            <span>{t("fields.filterFarmer")}</span>
+            <select value={farmerFilterId} onChange={(event) => setFarmerFilterId(event.target.value)}>
+              <option value="">{t("fields.allFarmers")}</option>
+              {fieldFarmerOptions.map((organization) => (
+                <option key={organization.id} value={organization.id}>{organization.name}</option>
+              ))}
+            </select>
+          </label>
+        )}
         {permissions.canEditFields && !showArchivedFields && (
           <button className="primary-action wide" onClick={createNewField} type="button">
             {t("masterData.newField")}
@@ -895,6 +927,7 @@ export function Fields({
               <span className="map-dot" />
               <div>
                 <strong>{field.name}</strong>
+                <small>{getFieldFarmer(field.organizationId)?.name ?? t("fields.unknownFarmer")} · {field.tenure === "Pacht" ? t("masterData.leased") : t("masterData.owned")}</small>
               </div>
             </button>
           ))}
@@ -917,7 +950,12 @@ export function Fields({
 
         <div className="panel">
           <div className="section-heading">
-            <h2>{selected.name}</h2>
+            <div>
+              <h2>{selected.name}</h2>
+              <p className="field-owner-line">
+                {selectedFarmer?.name ?? t("fields.unknownFarmer")} · {selected.tenure === "Pacht" ? t("masterData.leased") : t("masterData.owned")}
+              </p>
+            </div>
             <span>{formatArea(selected.areaHa, i18n.language)}</span>
           </div>
           <div className="master-data-form">

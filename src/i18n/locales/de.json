@@ -387,6 +387,9 @@
   "fields": {
     "fields": "Schläge",
     "fieldStats": "Flächenstatistik",
+    "filterFarmer": "Nach Landwirt filtern",
+    "allFarmers": "Alle Landwirte",
+    "unknownFarmer": "Unbekannter Landwirt",
     "selected": "{{count}} ausgewählt",
     "noFields": "Keine Flächen vorhanden",
     "noArchivedFields": "Keine archivierten Flächen vorhanden",
@@ -725,7 +728,7 @@
     "workChainExampleSilage": "Grassilage: Mähen → Wenden → Schwaden → Häckseln → Abfahren → Walzen",
     "workChainExampleSlurry": "Gülle ausbringen: Anfahrt → Ausbringen → Dokumentation",
     "workChainExampleBales": "Ballen pressen: Mähen → Schwaden → Pressen → Einsammeln",
-    "productsSectionHint": "Für Produkte und Lieferanten ist der fachliche Bereich vorbereitet; eine eigene produktive Speicherung ist noch nicht angebunden.",
+    "productsSectionHint": "Für Produkte ist der fachliche Bereich vorbereitet; eine eigene produktive Speicherung ist noch nicht angebunden.",
     "productFields": {
       "name": "Name",
       "category": "Kategorie",
