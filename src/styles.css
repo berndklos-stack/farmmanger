@@ -5725,3 +5725,143 @@ body {
   }
 }
 
+
+/* Einsatzleitung: Kundenaufträge als maximal dreizeilige Einsatzkarten.
+   Zeile 1: Auftrag, Status und Ressourcen. Zeile 2: Aktionen. Zeile 3: direkte Ressourcenzuweisung. */
+.compact-customer-job {
+  grid-template-columns: minmax(230px, 1.15fr) minmax(170px, 0.55fr) minmax(260px, 0.95fr) minmax(520px, 1.7fr);
+  align-items: center;
+  min-height: 0;
+  padding: 7px 10px 7px 14px;
+}
+
+.compact-customer-main {
+  gap: 2px;
+}
+
+.compact-customer-status {
+  align-content: center;
+  gap: 3px;
+}
+
+/* Ressourcen werden absichtlich in einer knappen, horizontalen Zeile geführt. */
+.compact-customer-resources {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+}
+
+.compact-customer-resources > span,
+.compact-customer-resources > small {
+  display: block;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.compact-customer-resources > span {
+  flex: 0 1 auto;
+}
+
+.compact-customer-resources > small {
+  flex: 1 1 0;
+}
+
+.compact-customer-resources .chip-row {
+  flex-wrap: nowrap;
+  overflow: hidden;
+}
+
+.compact-customer-resources .chip-row .chip:not(:first-child) {
+  display: none;
+}
+
+.compact-dispatch-actions {
+  display: grid;
+  grid-template-columns: repeat(3, max-content) minmax(0, 1fr);
+  grid-template-rows: 27px 30px;
+  align-items: center;
+  column-gap: 5px;
+  row-gap: 5px;
+  justify-content: stretch;
+}
+
+.compact-dispatch-actions button {
+  align-self: stretch;
+  min-height: 27px;
+  padding: 0 8px;
+}
+
+/* Nur die zentralen drei Aktionen bleiben dauerhaft sichtbar. Weitere Aktionen bleiben erreichbar,
+   beanspruchen aber keine zusätzliche Zeile. */
+.compact-dispatch-actions > button:nth-of-type(n + 4) {
+  display: none;
+}
+
+.compact-dispatch-actions .assignment-picker {
+  grid-column: 1 / -1;
+  grid-row: 2;
+  display: grid;
+  grid-template-columns: 42px minmax(105px, 0.85fr) minmax(150px, 1.1fr) minmax(150px, 1.1fr);
+  gap: 5px;
+  width: 100%;
+}
+
+.compact-dispatch-actions .assignment-picker input,
+.compact-dispatch-actions .assignment-picker select {
+  height: 30px;
+  min-height: 30px;
+}
+
+@media (max-width: 1280px) {
+  .compact-customer-job {
+    grid-template-columns: minmax(190px, 1.1fr) minmax(120px, 0.5fr) minmax(170px, 0.8fr) minmax(430px, 1.45fr);
+  }
+
+  .compact-dispatch-actions button {
+    padding: 0 6px;
+    font-size: 0.65rem;
+  }
+}
+
+@media (max-width: 1050px) {
+  .compact-customer-job {
+    grid-template-columns: minmax(0, 1fr) minmax(100px, 0.45fr) minmax(260px, 1fr);
+  }
+
+  .compact-dispatch-actions {
+    grid-column: 1 / -1;
+  }
+}
+
+@media (max-width: 720px) {
+  .compact-customer-job {
+    grid-template-columns: 1fr auto;
+  }
+
+  .compact-customer-resources {
+    grid-column: 1 / -1;
+  }
+
+  .compact-dispatch-actions {
+    grid-column: 1 / -1;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    grid-template-rows: auto auto;
+  }
+
+  .compact-dispatch-actions > button:nth-of-type(n + 4) {
+    display: inline-flex;
+  }
+
+  .compact-dispatch-actions .assignment-picker {
+    grid-template-columns: 38px 1fr;
+  }
+
+  .compact-dispatch-actions .assignment-picker select {
+    grid-column: span 1;
+  }
+}
