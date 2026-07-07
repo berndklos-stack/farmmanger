@@ -268,13 +268,27 @@ function formatTimeWindow(start: string | null, end: string | null) {
   return `${start ? new Date(start).toLocaleString("de-DE") : "offen"} bis ${end ? new Date(end).toLocaleString("de-DE") : "offen"}`;
 }
 
-function documentUrl(row: DocumentRow) {
-  if (!supabase) return "";
-  const bucket = row.file_type?.startsWith("image/") ? "field-photos" : "job-documents";
-  return supabase.storage.from(bucket).getPublicUrl(row.file_path).data.publicUrl;
+function documentBucket(row: Pick<DocumentRow, "file_type">) {
+  return row.file_type?.startsWith("image/") ? "field-photos" : "job-documents";
 }
 
-function mapFields(fieldRows: FieldRow[], boundaryRows: BoundaryRow[], hazardRows: HazardRow[], documentRows: DocumentRow[]): Field[] {
+async function signedStorageUrl(bucket: "field-photos" | "job-documents" | "task-reports", pathOrUrl?: string | null) {
+  if (!supabase || !pathOrUrl) return "";
+  if (/^https?:\/\//i.test(pathOrUrl)) return pathOrUrl;
+  const { data, error } = await supabase.storage.from(bucket).createSignedUrl(pathOrUrl, 60 * 60 * 24 * 7);
+  if (error) {
+    console.error("Signierte Storage-URL konnte nicht erstellt werden", error);
+    return "";
+  }
+  return data.signedUrl;
+}
+
+function documentUrl(row: DocumentRow, signedUrls: Map<string, string>) {
+  if (!supabase) return "";
+  return signedUrls.get(row.id) ?? "";
+}
+
+function mapFields(fieldRows: FieldRow[], boundaryRows: BoundaryRow[], hazardRows: HazardRow[], documentRows: DocumentRow[], documentSignedUrls = new Map<string, string>()): Field[] {
   return fieldRows.map((row) => {
     const parsedNotes = parseFieldNotes(row.notes);
     const boundary = boundaryRows.find((item) => item.field_id === row.id)?.points_json ?? [];
@@ -297,7 +311,7 @@ function mapFields(fieldRows: FieldRow[], boundaryRows: BoundaryRow[], hazardRow
         kind: document.file_type?.startsWith("image/") ? "photo" : "document",
         name: document.file_name,
         filePath: document.file_path,
-        placeholderUrl: documentUrl(document),
+        placeholderUrl: documentUrl(document, documentSignedUrls),
         mimeType: document.file_type ?? undefined,
         uploadedAt: document.created_at ?? undefined,
       }));
@@ -407,6 +421,7 @@ function mapSubtasks(
   profileToPersonnelName = new Map<string, string>(),
   personnelIdToName = new Map<string, string>(),
   vehicleRows: VehicleRow[] = [],
+  taskReportSignedUrls = new Map<string, string>(),
 ): Subtask[] {
   const vehicleIdByName = new Map(vehicleRows.map((vehicle) => [normalizeName(vehicle.name), vehicle.id]));
   const assignmentDriverId = (assignment: AssignmentRow) => {
@@ -425,7 +440,8 @@ function mapSubtasks(
       .map((report) => ({
         id: report.id,
         name: report.message ?? "Fahrerfoto",
-        url: report.photo_url ?? "",
+        url: taskReportSignedUrls.get(report.id) ?? report.photo_url ?? "",
+        filePath: report.photo_url && !/^https?:\/\//i.test(report.photo_url) ? report.photo_url : undefined,
         uploadedAt: report.created_at ?? new Date().toISOString(),
         uploadedByDriverId: report.created_by ?? undefined,
     }));
@@ -453,6 +469,9 @@ function mapSubtasks(
       ?? activeAssignments.find((assignment) => assignment.completed_at || assignment.completed_area_ha || assignment.completed_quantity || assignment.completed_trips || assignment.notes)
       ?? assignments.find((assignment) => assignment.started_at && assignment.completed_at)
       ?? assignments.find((assignment) => assignment.notes);
+    const completedAreaHa = performedAssignments.reduce((sum, assignment) => sum + (assignment.completed_area_ha ?? 0), 0);
+    const completedQuantity = performedAssignments.reduce((sum, assignment) => sum + (assignment.completed_quantity ?? 0), 0);
+    const completedTrips = performedAssignments.reduce((sum, assignment) => sum + (assignment.completed_trips ?? 0), 0);
     const activeVehicleIds = activeAssignments
       .map((assignment) => vehicleIdByName.get(normalizeName(assignment.vehicle_name)))
       .filter((id): id is string => Boolean(id));
@@ -481,9 +500,9 @@ function mapSubtasks(
       workEndedAt: feedbackAssignment?.completed_at ?? undefined,
       targetValue: task.target_quantity ?? task.target_area_ha ?? task.target_trips ?? undefined,
       targetUnit: task.quantity_unit ?? (task.progress_type === "area" ? "ha" : task.progress_type === "trips" ? "Fuhren" : undefined),
-      doneHa: feedbackAssignment?.completed_area_ha ?? undefined,
-      doneAmount: feedbackAssignment?.completed_quantity ?? undefined,
-      trips: feedbackAssignment?.completed_trips ?? undefined,
+      doneHa: completedAreaHa > 0 ? completedAreaHa : feedbackAssignment?.completed_area_ha ?? undefined,
+      doneAmount: completedQuantity > 0 ? completedQuantity : feedbackAssignment?.completed_quantity ?? undefined,
+      trips: completedTrips > 0 ? completedTrips : feedbackAssignment?.completed_trips ?? undefined,
       note: feedbackAssignment?.notes ?? undefined,
       driverNote: feedbackAssignment?.notes ?? undefined,
       driverPhotoName: driverPhotos.at(-1)?.name,
@@ -708,6 +727,18 @@ export function useSchlagLinkData(): DataState {
 
     const fieldRows = (fieldsResult.data ?? []) as FieldRow[];
     const taskRows = (tasksResult.data ?? []) as JobTaskRow[];
+    const documentRows = (documentsResult.data ?? []) as DocumentRow[];
+    const taskReportRows = (taskReportsResult.data ?? []) as TaskReportRow[];
+    const documentSignedUrls = new Map<string, string>(await Promise.all(documentRows.map(async (document) => [
+      document.id,
+      await signedStorageUrl(documentBucket(document), document.file_path),
+    ] as const)));
+    const taskReportSignedUrls = new Map<string, string>(await Promise.all(taskReportRows
+      .filter((report) => Boolean(report.photo_url))
+      .map(async (report) => [
+        report.id,
+        await signedStorageUrl("task-reports", report.photo_url),
+      ] as const)));
     const organizationRows = (organizationsResult.data ?? []) as OrganizationRow[];
     const organizationRecords = organizationRows.length > 0 ? mapOrganizations(organizationRows) : mockOrganizations;
     const profileRows = (driversResult.data ?? []) as DriverRow[];
@@ -716,7 +747,7 @@ export function useSchlagLinkData(): DataState {
     const profileToPersonnelName = buildProfileToPersonnelNameMap(profileRows, personnelRows);
     const personnelIdToName = buildPersonnelIdToNameMap(personnelRows);
     const nextState: CachedDataState = {
-      fields: mapFields(fieldRows, (boundariesResult.data ?? []) as BoundaryRow[], (hazardsResult.data ?? []) as HazardRow[], (documentsResult.data ?? []) as DocumentRow[]),
+      fields: mapFields(fieldRows, (boundariesResult.data ?? []) as BoundaryRow[], (hazardsResult.data ?? []) as HazardRow[], documentRows, documentSignedUrls),
       drivers: personnelResourcesResult.error || personnelRows.length === 0
         ? mapDrivers(profileRows)
         : mapPersonnelResources(personnelRows, profileRows),
@@ -725,7 +756,7 @@ export function useSchlagLinkData(): DataState {
       organizations: organizationRecords,
       taskTemplates: taskTemplatesResult.error ? mockTaskTemplates : mapTaskTemplates((taskTemplatesResult.data ?? []) as TaskTemplateRow[]),
       jobs: mapJobs((jobsResult.data ?? []) as JobRow[], (jobFieldsResult.data ?? []) as JobFieldRow[], taskRows, organizationRecords),
-      subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], (taskReportsResult.data ?? []) as TaskReportRow[], profileToPersonnelId, profileToPersonnelName, personnelIdToName, (vehiclesResult.data ?? []) as VehicleRow[]),
+      subtasks: mapSubtasks(taskRows, (assignmentsResult.data ?? []) as AssignmentRow[], taskReportRows, profileToPersonnelId, profileToPersonnelName, personnelIdToName, (vehiclesResult.data ?? []) as VehicleRow[], taskReportSignedUrls),
       isDemoMode: false,
     };
     writeOfflineDataCache(nextState);

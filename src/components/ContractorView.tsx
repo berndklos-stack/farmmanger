@@ -310,7 +310,6 @@ export function ContractorView({
   const selectedDriver = (variant === "masterData" ? masterDrivers : drivers).find((driver) => driver.id === selectedDriverId) ?? (variant === "masterData" ? masterDrivers[0] : drivers[0]);
   const selectedVehicle = (variant === "masterData" ? masterVehicles : vehicles).find((vehicle) => vehicle.id === selectedVehicleId) ?? (variant === "masterData" ? masterVehicles[0] : vehicles[0]);
   const selectedImplement = (variant === "masterData" ? masterImplements : implementsList).find((implement) => implement.id === selectedImplementId) ?? (variant === "masterData" ? masterImplements[0] : implementsList[0]);
-  const canManageOrganizations = currentRole === "contractor_admin" || currentRole === "support_admin";
   const canManageResources = permissions.canEditDrivers;
   const canManageOwnTemplates = currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin";
   const selectedJobType = visibleJobTypes.find((jobType) => jobType.id === selectedJobTypeId) ?? visibleJobTypes[0];
@@ -427,6 +426,10 @@ export function ContractorView({
     ?? activeOrganizations.find((organization) => organization.id === defaultResourceOrganizationId);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(activeOrganizations[0]?.id ?? "");
   const selectedOrganization = accessibleOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? visibleOrganizations[0];
+  const canManageOrganizations = currentRole === "contractor_admin" || currentRole === "farmer_admin" || currentRole === "support_admin";
+  const canCreateOrganizations = currentRole === "contractor_admin" || currentRole === "support_admin";
+  const canEditSelectedOrganization = canManageOrganizations
+    && (currentRole !== "farmer_admin" || (!creatingOrganization && selectedOrganization?.id === authProfile?.organizationId));
   const [organizationForm, setOrganizationForm] = useState({
     name: "",
     kind: "farmer" as Organization["kind"],
@@ -2741,7 +2744,7 @@ export function ContractorView({
                   {t("archive.archived")} · {archivedOrganizations.length}
                 </button>
               </div>
-              {canManageOrganizations && !showArchivedOrganizations && (
+              {canCreateOrganizations && !showArchivedOrganizations && (
                 <button className="primary-action" onClick={createOrganization} type="button">
                   <Plus size={16} /> {t("masterData.newOrganization")}
                 </button>
@@ -3066,7 +3069,7 @@ export function ContractorView({
             <div className="form-row resource-form-row modal-form-row">
               <label>
                 {t("masterData.organizationName")}
-                <input disabled={!canManageOrganizations} value={organizationForm.name} onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.name} onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.organizationKind")}
@@ -3078,49 +3081,49 @@ export function ContractorView({
               </label>
               <label>
                 {t("masterData.street")}
-                <input disabled={!canManageOrganizations} value={organizationForm.street} onChange={(event) => setOrganizationForm((current) => ({ ...current, street: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.street} onChange={(event) => setOrganizationForm((current) => ({ ...current, street: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.country")}
-                <input disabled={!canManageOrganizations} value={organizationForm.country} onChange={(event) => setOrganizationForm((current) => ({ ...current, country: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.country} onChange={(event) => setOrganizationForm((current) => ({ ...current, country: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.postalCode")}
-                <input disabled={!canManageOrganizations} value={organizationForm.postalCode} onChange={(event) => setOrganizationForm((current) => ({ ...current, postalCode: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.postalCode} onChange={(event) => setOrganizationForm((current) => ({ ...current, postalCode: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.city")}
-                <input disabled={!canManageOrganizations} value={organizationForm.city} onChange={(event) => setOrganizationForm((current) => ({ ...current, city: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.city} onChange={(event) => setOrganizationForm((current) => ({ ...current, city: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.phone")}
-                <input disabled={!canManageOrganizations} value={organizationForm.phone} onChange={(event) => setOrganizationForm((current) => ({ ...current, phone: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.phone} onChange={(event) => setOrganizationForm((current) => ({ ...current, phone: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.mobile")}
-                <input disabled={!canManageOrganizations} value={organizationForm.mobile} onChange={(event) => setOrganizationForm((current) => ({ ...current, mobile: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.mobile} onChange={(event) => setOrganizationForm((current) => ({ ...current, mobile: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.email")}
-                <input disabled={!canManageOrganizations} type="email" value={organizationForm.email} onChange={(event) => setOrganizationForm((current) => ({ ...current, email: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} type="email" value={organizationForm.email} onChange={(event) => setOrganizationForm((current) => ({ ...current, email: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.website")}
-                <input disabled={!canManageOrganizations} value={organizationForm.website} onChange={(event) => setOrganizationForm((current) => ({ ...current, website: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.website} onChange={(event) => setOrganizationForm((current) => ({ ...current, website: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.vatId")}
-                <input disabled={!canManageOrganizations} value={organizationForm.vatId} onChange={(event) => setOrganizationForm((current) => ({ ...current, vatId: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.vatId} onChange={(event) => setOrganizationForm((current) => ({ ...current, vatId: event.target.value }))} />
               </label>
               <label>
                 {t("terms.notes")}
-                <input disabled={!canManageOrganizations} value={organizationForm.notes} onChange={(event) => setOrganizationForm((current) => ({ ...current, notes: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.notes} onChange={(event) => setOrganizationForm((current) => ({ ...current, notes: event.target.value }))} />
               </label>
             </div>
             <div className="resource-editor-block contact-editor-block">
               <div className="section-heading">
                 <h2>{t("masterData.contacts")}</h2>
-                {canManageOrganizations && (
+                {canEditSelectedOrganization && (
                   <button className="secondary-action" onClick={addOrganizationContact} type="button">
                     <Plus size={16} /> {t("masterData.addContact")}
                   </button>
@@ -3130,14 +3133,14 @@ export function ContractorView({
                 {organizationForm.contacts.length === 0 && <p className="permission-note">{t("masterData.noContacts")}</p>}
                 {organizationForm.contacts.map((contact) => (
                   <div className="contact-editor-card" key={contact.id}>
-                    <label>{t("masterData.contactName")}<input disabled={!canManageOrganizations} value={contact.name} onChange={(event) => updateOrganizationContact(contact.id, { name: event.target.value })} /></label>
-                    <label>{t("masterData.contactRole")}<input disabled={!canManageOrganizations} value={contact.role ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { role: event.target.value })} /></label>
-                    <label>{t("masterData.phone")}<input disabled={!canManageOrganizations} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
-                    <label>{t("masterData.mobile")}<input disabled={!canManageOrganizations} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
-                    <label>{t("masterData.sms")}<input disabled={!canManageOrganizations} value={contact.sms ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { sms: event.target.value })} /></label>
-                    <label>{t("masterData.email")}<input disabled={!canManageOrganizations} type="email" value={contact.email ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { email: event.target.value })} /></label>
-                    <label>{t("terms.notes")}<input disabled={!canManageOrganizations} value={contact.notes ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { notes: event.target.value })} /></label>
-                    {canManageOrganizations && (
+                    <label>{t("masterData.contactName")}<input disabled={!canEditSelectedOrganization} value={contact.name} onChange={(event) => updateOrganizationContact(contact.id, { name: event.target.value })} /></label>
+                    <label>{t("masterData.contactRole")}<input disabled={!canEditSelectedOrganization} value={contact.role ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { role: event.target.value })} /></label>
+                    <label>{t("masterData.phone")}<input disabled={!canEditSelectedOrganization} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
+                    <label>{t("masterData.mobile")}<input disabled={!canEditSelectedOrganization} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
+                    <label>{t("masterData.sms")}<input disabled={!canEditSelectedOrganization} value={contact.sms ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { sms: event.target.value })} /></label>
+                    <label>{t("masterData.email")}<input disabled={!canEditSelectedOrganization} type="email" value={contact.email ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { email: event.target.value })} /></label>
+                    <label>{t("terms.notes")}<input disabled={!canEditSelectedOrganization} value={contact.notes ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { notes: event.target.value })} /></label>
+                    {canEditSelectedOrganization && (
                       <button className="danger-action" onClick={() => removeOrganizationContact(contact.id)} type="button">
                         <Trash2 size={16} /> {t("actions.delete")}
                       </button>
@@ -3147,12 +3150,12 @@ export function ContractorView({
               </div>
             </div>
             <div className="modal-actions">
-              {canManageOrganizations && !showArchivedOrganizations && !creatingOrganization && (
+              {canCreateOrganizations && !showArchivedOrganizations && !creatingOrganization && (
                 <button className="danger-action" onClick={archiveSelectedOrganization} type="button">
                   <Archive size={16} /> {t("actions.archive")}
                 </button>
               )}
-              {canManageOrganizations && showArchivedOrganizations && !creatingOrganization && (
+              {canCreateOrganizations && showArchivedOrganizations && !creatingOrganization && (
                 <button className="danger-action" onClick={requestDeleteSelectedOrganization} type="button">
                   <Trash2 size={16} /> {t("actions.deletePermanent")}
                 </button>
@@ -3160,7 +3163,7 @@ export function ContractorView({
               <button className="secondary-action" onClick={() => setIsOrganizationModalOpen(false)} type="button">
                 {t("actions.cancel")}
               </button>
-              {canManageOrganizations && !showArchivedOrganizations && (
+              {canEditSelectedOrganization && !showArchivedOrganizations && (
                 <button className="primary-action" onClick={saveOrganization} type="button">
                   <Save size={16} /> {t("masterData.saveChanges")}
                 </button>

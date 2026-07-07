@@ -1,6 +1,6 @@
 {
   "app": {
-    "prototype": "SchlagLink",
+    "prototype": "Farm-Manager",
     "demoMode": "Demo mode active",
     "supabaseActive": "Supabase active",
     "supabaseError": "Supabase error",
@@ -33,9 +33,9 @@
   "auth": {
     "subtitle": "Real sign-in",
     "eyebrow": "Sign-in",
-    "title": "Sign in to SchlagLink",
-    "adminTitle": "SchlagLink Admin",
-    "driverTitle": "SchlagLink Driver",
+    "title": "Sign in to Farm-Manager",
+    "adminTitle": "Farm-Manager Admin",
+    "driverTitle": "Farm-Manager Driver",
     "copy": "Sign in with your personal account. Drivers are taken straight to the mobile driver view.",
     "adminCopy": "Sign in for dispatch, farm administration and master data.",
     "driverCopy": "Sign in as a driver. You will go straight to your tasks.",
@@ -220,8 +220,8 @@
     "generateDriverPassword": "Generate password",
     "sendAccessByEmail": "Access by email",
     "sendAccessBySms": "Access by SMS",
-    "driverAccessMailSubject": "Your SchlagLink driver access",
-    "driverAccessMessage": "Your SchlagLink driver access:\n\nApp: {{appUrl}}\nEmail: {{email}}\nPassword: {{password}}\n\nPlease keep this safe after your first login.",
+    "driverAccessMailSubject": "Your Farm-Manager driver access",
+    "driverAccessMessage": "Your Farm-Manager driver access:\n\nApp: {{appUrl}}\nEmail: {{email}}\nPassword: {{password}}\n\nPlease keep this safe after your first login.",
     "driverSectionBase": "Basic data",
     "driverSectionAccess": "Access & contact",
     "driverSectionPlanning": "Planning",

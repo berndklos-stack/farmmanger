@@ -5224,3 +5224,343 @@ select {
   border: 1px solid #d8e2d4;
   background: #eef4ea;
 }
+
+/* Farm-Manager design refresh: compact admin workspace + high-legibility driver module */
+:root {
+  --radius: 12px;
+  --shadow-card: 0 8px 22px rgba(27, 39, 31, 0.065);
+  --shadow-float: 0 20px 54px rgba(27, 39, 31, 0.16);
+}
+
+body {
+  background:
+    radial-gradient(circle at 20% -10%, rgba(144, 183, 109, 0.18), transparent 31rem),
+    linear-gradient(180deg, #f5f7f3, var(--color-page));
+}
+
+/* Desktop workspace: sharper hierarchy, less visual noise */
+.sidebar {
+  padding: 16px 14px;
+  gap: 14px;
+}
+
+.brand-mark {
+  border-radius: 12px;
+  box-shadow: inset 0 0 0 1px rgba(255,255,255,.35), 0 4px 10px rgba(0,0,0,.12);
+}
+
+.nav-item {
+  min-height: 42px;
+  border: 1px solid transparent;
+}
+
+.nav-item:hover,
+.nav-item.active {
+  background: rgba(255,255,255,.11);
+  border-color: rgba(255,255,255,.1);
+}
+
+.metric-card,
+.panel,
+.mobile-frame,
+.driver-card {
+  border-radius: 12px;
+}
+
+.metric-card {
+  min-height: 100px;
+  padding: 14px;
+}
+
+.hero-band {
+  border-radius: 14px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, #eff7eb, #fff 62%);
+}
+
+.primary-action,
+.secondary-action,
+.danger-action,
+.export-actions button,
+.dispatch-actions button,
+.driver-actions button,
+.driver-inputs button,
+.placeholder-row a {
+  border-radius: 10px;
+}
+
+.primary-action {
+  box-shadow: 0 4px 12px rgba(47,107,62,.16);
+}
+
+.panel {
+  overflow: hidden;
+}
+
+.section-heading {
+  padding-bottom: 10px;
+  border-bottom: 1px solid rgba(217,226,213,.8);
+}
+
+/* Master data: clear dense cards and scan-friendly resource groups */
+.resource-board,
+.resource-master-layout,
+.organization-card,
+.resource-group {
+  gap: 10px;
+}
+
+.resource-group {
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+.resource-group-heading {
+  min-height: 48px;
+  padding: 10px 12px;
+}
+
+.resource-card,
+.organization-card,
+.resource-list-panel {
+  border-radius: 10px;
+}
+
+.resource-card {
+  min-height: 74px;
+  padding: 10px 12px;
+}
+
+.resource-card-button {
+  min-height: 58px;
+}
+
+.resource-card small,
+.resource-card span,
+.organization-card small {
+  line-height: 1.22;
+}
+
+.resource-form-row input,
+.resource-form-row select,
+.resource-form-row textarea,
+.form-row input,
+.form-row select,
+.form-row textarea {
+  border-radius: 9px;
+}
+
+/* Driver module: one operational surface, designed for 8–12 inch tablets first */
+.driver-app-only {
+  background: #edf2eb;
+}
+
+.driver-app-topbar {
+  min-height: 56px;
+  padding: 7px max(12px, env(safe-area-inset-left)) 7px max(12px, env(safe-area-inset-right));
+  background: rgba(255,255,255,.98);
+  backdrop-filter: blur(10px);
+}
+
+.driver-shell {
+  min-height: calc(100dvh - 56px);
+  align-items: start;
+  background: linear-gradient(180deg, #edf3eb, #f8faf7 38%);
+}
+
+.mobile-frame {
+  max-width: 1180px;
+  height: auto;
+  min-height: calc(100dvh - 56px);
+  padding: 12px;
+  background: transparent;
+  box-shadow: none;
+  border: 0;
+  overflow: visible;
+}
+
+.driver-header {
+  border-radius: 14px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: linear-gradient(135deg, #193127, #29523a);
+  box-shadow: 0 10px 22px rgba(22,48,34,.18);
+}
+
+.driver-header h2 {
+  font-size: clamp(1.12rem, 2.2vw, 1.45rem);
+}
+
+.driver-header-actions {
+  grid-template-columns: repeat(3, minmax(64px, 1fr));
+  width: min(330px, 47vw);
+  gap: 6px;
+}
+
+.driver-yard-open {
+  border-radius: 10px;
+  min-height: 58px;
+  padding: 7px 6px;
+}
+
+.driver-yard-open:hover {
+  background: rgba(255,255,255,.17);
+}
+
+.driver-scroll-content {
+  overflow: visible;
+  padding-right: 0;
+}
+
+.driver-overview {
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.driver-overview-head,
+.driver-task-group-list,
+.driver-task-group-map,
+.driver-route-note,
+.access-point-card,
+.driver-hazards-panel,
+.new-hazard-form {
+  border-radius: 12px;
+}
+
+.driver-overview-head {
+  padding: 10px 12px;
+}
+
+.driver-task-group-list {
+  padding: 7px;
+}
+
+.driver-task-group-card {
+  border-radius: 10px;
+  min-height: 56px;
+  padding: 9px 11px;
+}
+
+.driver-group-field-list {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.driver-group-field-list button {
+  border-radius: 10px;
+  min-height: 64px;
+  grid-template-columns: 1fr auto;
+  gap: 5px 10px;
+  padding: 9px 10px;
+}
+
+.driver-group-field-list button > span:first-child {
+  grid-column: 1 / -1;
+}
+
+.driver-overview-card,
+.driver-detail-card {
+  border-radius: 12px;
+}
+
+.driver-detail-card {
+  position: sticky;
+  bottom: 10px;
+  z-index: 15;
+  border-left-width: 5px;
+  box-shadow: 0 12px 30px rgba(47,109,66,.15);
+}
+
+.driver-main-button {
+  border-radius: 12px;
+  min-height: 64px;
+  font-size: 1rem;
+  box-shadow: 0 8px 18px rgba(47,107,62,.2);
+}
+
+.driver-actions {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 7px;
+}
+
+.driver-actions button {
+  min-height: 54px;
+  border-radius: 10px;
+  font-size: .9rem;
+}
+
+.driver-inputs {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.driver-inputs input {
+  min-height: 50px;
+  border-radius: 10px;
+  font-size: 1rem;
+}
+
+.driver-task-group-map .leaflet-map,
+.driver-map-section .leaflet-map {
+  min-height: 340px;
+  border-radius: 12px;
+}
+
+.driver-dialog-modal {
+  border-radius: 16px;
+  padding: 16px;
+}
+
+.driver-dialog-modal .modal-actions {
+  position: sticky;
+  bottom: -16px;
+  padding: 12px 0 0;
+  background: #fcfef9;
+}
+
+@media (max-width: 767px) {
+  .driver-app-topbar .user-session-pill small,
+  .driver-app-topbar .role-switcher,
+  .driver-app-topbar .language-switcher { display: none; }
+
+  .driver-shell { min-height: calc(100dvh - 56px); }
+
+  .mobile-frame {
+    padding: 8px;
+    min-height: calc(100dvh - 56px);
+  }
+
+  .driver-header {
+    grid-template-columns: 1fr;
+    gap: 10px;
+    padding: 11px;
+  }
+
+  .driver-header-actions {
+    width: 100%;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .driver-yard-open {
+    min-height: 54px;
+  }
+
+  .driver-group-field-list {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-task-group-map .leaflet-map,
+  .driver-map-section .leaflet-map { min-height: 250px; }
+
+  .driver-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .driver-actions button { min-height: 58px; }
+
+  .driver-inputs { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+
+  .driver-detail-card { bottom: 6px; }
+
+  .driver-job-meta-row { grid-template-columns: 1fr 1fr; }
+  .driver-job-meta-row small:last-child { grid-column: 1 / -1; text-align: left; }
+}

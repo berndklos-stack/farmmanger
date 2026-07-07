@@ -65,9 +65,9 @@ function distanceKm(a?: { lat: number; lng: number }, b?: { lat: number; lng: nu
 
 function draftFromSubtask(subtask?: Subtask): DriverFeedbackDraft {
   return {
-    doneHa: subtask?.doneHa ? String(subtask.doneHa) : "",
-    doneAmount: subtask?.doneAmount ? String(subtask.doneAmount) : "",
-    trips: subtask?.trips ? String(subtask.trips) : "",
+    doneHa: "",
+    doneAmount: "",
+    trips: "",
     note: subtask?.driverNote ?? subtask?.note ?? "",
     photoName: subtask?.driverPhotoName ?? "",
   };
@@ -424,15 +424,30 @@ export function DriverView({
       performedVehicleNames,
       activeImplementIds,
       performedImplementIds,
-      doneHa,
-      doneAmount,
-      trips,
+      doneHa: doneHa === undefined ? subtask.doneHa : (subtask.doneHa ?? 0) + doneHa,
+      doneAmount: doneAmount === undefined ? subtask.doneAmount : (subtask.doneAmount ?? 0) + doneAmount,
+      trips: trips === undefined ? subtask.trips : (subtask.trips ?? 0) + trips,
       note: note || subtask.note,
       driverNote: note || subtask.driverNote,
       driverPhotoName: draft.photoName || subtask.driverPhotoName,
       accessUsed: selectedField?.accessPoint.label,
       accessOk: status === "Problem" ? false : true,
     };
+  }
+
+  function targetWarning(subtask: Subtask, patch: Partial<Subtask>) {
+    const target = subtask.targetValue;
+    if (!target || target <= 0) return "";
+    const doneHa = patch.doneHa ?? subtask.doneHa;
+    const doneAmount = patch.doneAmount ?? subtask.doneAmount;
+    const trips = patch.trips ?? subtask.trips;
+    const value = doneHa ?? doneAmount ?? trips;
+    if (!value || value <= target) return "";
+    const unit = subtask.targetUnit ?? "";
+    return t("driver.targetExceeded", {
+      actual: `${value.toLocaleString("de-DE", { maximumFractionDigits: 2 })} ${unit}`.trim(),
+      target: `${target.toLocaleString("de-DE", { maximumFractionDigits: 2 })} ${unit}`.trim(),
+    });
   }
 
   function handlePhotosSelected(subtask: Subtask, fileList: FileList | null) {
@@ -448,8 +463,11 @@ export function DriverView({
       const { error } = await claimJobTask(subtask.id, activeDriver.vehicle);
       if (error) {
         console.error("Fahrer-Anmeldung konnte nicht direkt synchronisiert werden", error);
-        setEquipmentNotice(t("driver.claimSyncFailed"));
+        setEquipmentNotice(error.message || t("driver.claimSyncFailed"));
+        await refreshData();
+        return false;
       }
+      await refreshData();
     }
     const activeDriverIds = task?.mode === "Einzelmodus" ? [activeDriver.id] : Array.from(new Set([...subtask.activeDriverIds, activeDriver.id]));
     const activeDriverNames = task?.mode === "Einzelmodus" ? [activeDriver.name] : Array.from(new Set([...(subtask.activeDriverNames ?? []), activeDriver.name]));
@@ -458,6 +476,7 @@ export function DriverView({
       : Array.from(new Set([...(subtask.activeVehicleIds ?? []), ...selectedYardVehicleIds]));
     const activeImplementIds = Array.from(new Set([...(subtask.activeImplementIds ?? []), ...selectedImplementIds]));
 	    onUpdateSubtask(subtask.id, { activeDriverIds, activeDriverNames, activeVehicleIds, activeImplementIds, status: "reserviert" });
+    return true;
 	  }
 
   function selectFieldForClaim(subtask: Subtask) {
@@ -468,7 +487,8 @@ export function DriverView({
     const subtask = pendingFieldClaim;
     if (!subtask) return;
     setPendingFieldClaimId("");
-    await claim(subtask);
+    const claimed = await claim(subtask);
+    if (!claimed) return;
     setOpenSubtaskId(subtask.id);
     sendLocation({
       ...subtask,
@@ -740,10 +760,13 @@ export function DriverView({
 
   function confirmCompletionDialog() {
     if (!completionDialog || !completionSubtask) return;
+    const patch = feedbackPatch(completionSubtask, completionDialog.status, completionDialog.status === "erledigt" ? 100 : 60);
+    const warning = targetWarning(completionSubtask, patch);
+    if (warning) setEquipmentNotice(warning);
     if (completionDialog.status === "erledigt") {
-      completeSubtask(completionSubtask);
+      updateStatusAndSendLocation(completionSubtask, patch);
     } else {
-      updateStatusAndSendLocation(completionSubtask, feedbackPatch(completionSubtask, "teilweise erledigt", 60));
+      updateStatusAndSendLocation(completionSubtask, patch);
     }
     setCompletionDialog(null);
   }

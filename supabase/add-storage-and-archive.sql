@@ -23,9 +23,9 @@ create index if not exists implements_archived_at_idx on implements(archived_at)
 
 insert into storage.buckets (id, name, public)
 values
-  ('field-photos', 'field-photos', true),
-  ('job-documents', 'job-documents', true),
-  ('task-reports', 'task-reports', true)
+  ('field-photos', 'field-photos', false),
+  ('job-documents', 'job-documents', false),
+  ('task-reports', 'task-reports', false)
 on conflict (id) do update set public = excluded.public;
 
 alter table documents enable row level security;
@@ -48,12 +48,14 @@ drop policy if exists "phase1 demo public upload storage objects" on storage.obj
 create policy "phase1 demo public upload storage objects" on storage.objects
 for insert with check (
   bucket_id in ('field-photos', 'job-documents', 'task-reports')
+  and auth.role() = 'authenticated'
 );
 
 drop policy if exists "phase1 demo public read storage objects" on storage.objects;
 create policy "phase1 demo public read storage objects" on storage.objects
 for select using (
   bucket_id in ('field-photos', 'job-documents', 'task-reports')
+  and auth.role() = 'authenticated'
 );
 
 drop policy if exists "phase1 demo public update storage objects" on storage.objects;
