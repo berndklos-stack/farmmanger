@@ -29,6 +29,7 @@ import { DataProvider } from "./data/DataContext";
 import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJobTypes, organizations as mockOrganizations, taskTemplates as mockTaskTemplates } from "./data/mockData";
 import { useSchlagLinkData } from "./hooks/useSchlagLinkData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
+import { APP_RELEASE_LABEL } from "./lib/appVersion";
 import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, Field, Implement, Job, JobType, Organization, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
 
 const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
@@ -3014,6 +3015,10 @@ export function App() {
               {t("app.supabaseError")}: {loadedData.error}
             </span>
           )}
+          <div className="app-version" title="Diese Kennung muss nach jedem Deployment mit der erwarteten Version übereinstimmen.">
+            <span>Farm-Manager</span>
+            <strong>{APP_RELEASE_LABEL}</strong>
+          </div>
         </div>
       </aside>
 

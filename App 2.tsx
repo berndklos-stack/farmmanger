@@ -29,7 +29,6 @@ import { DataProvider } from "./data/DataContext";
 import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJobTypes, organizations as mockOrganizations, taskTemplates as mockTaskTemplates } from "./data/mockData";
 import { useSchlagLinkData } from "./hooks/useSchlagLinkData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
-import { APP_RELEASE_LABEL } from "./lib/appVersion";
 import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, Field, Implement, Job, JobType, Organization, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
 
 const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
@@ -135,7 +134,7 @@ function profileFromRow(row: ProfileRow): AuthProfile {
   const email = row.email ?? "";
   return {
     id: row.id,
-    fullName: row.full_name ?? row.email ?? "SchlagLink Nutzer",
+    fullName: row.full_name ?? row.email ?? "Farm-Manager Nutzer",
     email,
     role: row.role ?? "driver",
     organizationId: email.toLowerCase() === "bernd@kolaretorp.se" ? klosContractorOrganizationId : row.organization_id ?? undefined,
@@ -147,7 +146,7 @@ function profileFromRow(row: ProfileRow): AuthProfile {
 const demoAuthProfiles: Record<string, AuthProfile> = {
   "support@schlaglink.app": {
     id: "eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee",
-    fullName: "SchlagLink Support",
+    fullName: "Farm-Manager Support",
     email: "support@schlaglink.app",
     role: "support_admin",
   },
@@ -2845,7 +2844,7 @@ export function App() {
               <Tractor size={24} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("app.brandSubtitle")}</span>
             </div>
           </div>
@@ -2937,7 +2936,7 @@ export function App() {
               <Tractor size={22} />
             </div>
             <div>
-              <strong>SchlagLink</strong>
+              <strong>Farm-Manager</strong>
               <span>{t("nav.driver")}</span>
             </div>
           </div>
@@ -2961,7 +2960,7 @@ export function App() {
             <Tractor size={24} />
           </div>
           <div>
-            <strong>SchlagLink</strong>
+            <strong>Farm-Manager</strong>
             <span>{t("app.brandSubtitle")}</span>
           </div>
         </div>
@@ -3015,10 +3014,6 @@ export function App() {
               {t("app.supabaseError")}: {loadedData.error}
             </span>
           )}
-          <div className="app-version" title="Diese Kennung muss nach jedem Deployment mit der erwarteten Version übereinstimmen.">
-            <span>Farm-Manager</span>
-            <strong>{APP_RELEASE_LABEL}</strong>
-          </div>
         </div>
       </aside>
 

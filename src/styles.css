@@ -294,6 +294,26 @@ textarea:focus-visible {
   height: 13px;
 }
 
+
+.app-version {
+  margin-top: 5px;
+  border-top: 1px solid rgba(233, 245, 226, 0.18);
+  padding: 8px 4px 1px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  color: rgba(239, 248, 236, 0.72);
+  font-size: 0.66rem;
+  line-height: 1.2;
+}
+
+.app-version strong {
+  color: #dff1d7;
+  font-size: 0.7rem;
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.01em;
+}
+
 .sidebar-sync-button {
   width: 100%;
   border: 1px solid var(--line);
