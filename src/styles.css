@@ -5601,3 +5601,127 @@ body {
     padding: 10px;
   }
 }
+
+
+/* Einsatzleitung: Aufträge erhalten die volle Breite; Probleme bleiben als kompakter Ausklappbereich verfügbar. */
+.dispatch-customer-jobs-layout {
+  display: grid;
+  gap: 12px;
+}
+
+.dispatch-jobs-panel {
+  min-width: 0;
+}
+
+.dispatch-problems-compact {
+  padding: 0;
+  overflow: hidden;
+}
+
+.dispatch-problems-compact summary {
+  align-items: center;
+  cursor: pointer;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+  list-style: none;
+  min-height: 42px;
+  padding: 9px 12px;
+}
+
+.dispatch-problems-compact summary::-webkit-details-marker {
+  display: none;
+}
+
+.dispatch-problems-compact summary span {
+  color: #2a4131;
+  font-size: 0.82rem;
+  font-weight: 900;
+}
+
+.dispatch-problems-compact summary strong {
+  background: #f1f5ee;
+  border: 1px solid #d7e2d2;
+  border-radius: 999px;
+  color: #46614c;
+  font-size: 0.76rem;
+  min-width: 28px;
+  padding: 3px 8px;
+  text-align: center;
+}
+
+.dispatch-problems-list {
+  border-top: 1px solid #e0e7dc;
+  display: grid;
+  gap: 6px;
+  max-height: 230px;
+  overflow: auto;
+  padding: 8px 12px 12px;
+}
+
+.dispatch-problems-list .alert-item {
+  padding: 7px 9px;
+}
+
+.dispatch-problems-list .alert-item strong,
+.dispatch-problems-list .alert-item span {
+  font-size: 0.75rem;
+}
+
+.dispatch-problems-empty {
+  color: #68766d;
+  font-size: 0.78rem;
+}
+
+.compact-customer-job {
+  grid-template-columns: minmax(210px, 1.35fr) minmax(100px, 0.48fr) minmax(170px, 0.82fr) minmax(390px, 1.5fr);
+  min-height: 76px;
+}
+
+.compact-dispatch-actions {
+  align-content: center;
+  grid-template-columns: repeat(4, max-content);
+  justify-content: end;
+}
+
+.compact-dispatch-actions button {
+  min-height: 25px;
+  white-space: nowrap;
+}
+
+.compact-dispatch-actions .assignment-picker {
+  grid-template-columns: 44px minmax(100px, 1fr) minmax(125px, 1fr) minmax(125px, 1fr);
+  grid-column: 1 / -1;
+  width: 100%;
+}
+
+.compact-dispatch-actions .assignment-picker input,
+.compact-dispatch-actions .assignment-picker select {
+  min-width: 0;
+}
+
+@media (max-width: 1260px) {
+  .compact-customer-job {
+    grid-template-columns: minmax(180px, 1.2fr) minmax(90px, 0.5fr) minmax(150px, 0.8fr) minmax(310px, 1.25fr);
+  }
+
+  .compact-dispatch-actions {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 920px) {
+  .compact-customer-job {
+    grid-template-columns: minmax(0, 1fr) minmax(90px, auto);
+  }
+
+  .compact-customer-resources,
+  .compact-dispatch-actions {
+    grid-column: 1 / -1;
+  }
+
+  .compact-dispatch-actions .assignment-picker {
+    grid-template-columns: 44px repeat(3, minmax(0, 1fr));
+  }
+}
+
