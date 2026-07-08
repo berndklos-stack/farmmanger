@@ -197,6 +197,16 @@ export type SubtaskStatusEvent = {
   createdAt: string;
 };
 
+export type SubtaskTravelEvent = {
+  id: string;
+  driverId?: string;
+  driverName?: string;
+  startedAt: string;
+  endedAt: string;
+  minutes: number;
+  km: number;
+};
+
 export type SubtaskAssignment = {
   id: string;
   driverId?: string;
@@ -307,6 +317,7 @@ export type Subtask = {
   driverPhotoName?: string;
   driverPhotos?: SubtaskPhoto[];
   statusEvents?: SubtaskStatusEvent[];
+  travelEvents?: SubtaskTravelEvent[];
   completedAt?: string;
   updatedAt?: string;
   statusChangedAt?: string;

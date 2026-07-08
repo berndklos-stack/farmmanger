@@ -98,6 +98,13 @@ type OrganizationRow = {
   name: string;
   organization_type: "farmer" | "contractor";
   address: string | null;
+  phone?: string | null;
+  mobile?: string | null;
+  email?: string | null;
+  website?: string | null;
+  vat_id?: string | null;
+  notes?: string | null;
+  contacts?: Organization["contacts"] | string | null;
   archived_at?: string | null;
 };
 
@@ -325,13 +332,34 @@ function mapFields(fieldRows: FieldRow[], boundaryRows: BoundaryRow[], hazardRow
 }
 
 function mapOrganizations(organizationRows: OrganizationRow[]): Organization[] {
-  return organizationRows.map((row) => ({
-    id: row.id,
-    name: row.name,
-    kind: row.organization_type,
-    address: row.address ?? "",
-    archivedAt: row.archived_at ?? undefined,
-  }));
+  return organizationRows.map((row) => {
+    const contacts = Array.isArray(row.contacts)
+      ? row.contacts
+      : typeof row.contacts === "string"
+        ? (() => {
+            try {
+              const parsed = JSON.parse(row.contacts) as Organization["contacts"];
+              return Array.isArray(parsed) ? parsed : [];
+            } catch {
+              return [];
+            }
+          })()
+        : [];
+    return {
+      id: row.id,
+      name: row.name,
+      kind: row.organization_type,
+      address: row.address ?? "",
+      phone: row.phone ?? undefined,
+      mobile: row.mobile ?? undefined,
+      email: row.email ?? undefined,
+      website: row.website ?? undefined,
+      vatId: row.vat_id ?? undefined,
+      notes: row.notes ?? undefined,
+      contacts,
+      archivedAt: row.archived_at ?? undefined,
+    };
+  });
 }
 
 function mapJobs(jobRows: JobRow[], jobFieldRows: JobFieldRow[], taskRows: JobTaskRow[], organizationRecords: Organization[]): Job[] {

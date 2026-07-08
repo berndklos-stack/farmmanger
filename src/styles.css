@@ -1514,6 +1514,10 @@ textarea:focus-visible {
   gap: 14px;
 }
 
+.resource-master-layout-single {
+  grid-template-columns: minmax(0, 1fr);
+}
+
 .resource-category-list,
 .resource-list-panel {
   display: grid;
@@ -4830,6 +4834,86 @@ select {
   gap: 8px;
 }
 
+.driver-contact-grid {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driver-contact-card,
+.driver-travel-box {
+  background: #fbfdf9;
+  border: 1px solid #dbe6dc;
+  border-radius: 8px;
+  display: grid;
+  gap: 7px;
+  padding: 10px;
+}
+
+.driver-contact-card span,
+.driver-travel-box span {
+  color: #617268;
+  font-size: .74rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.driver-contact-card strong {
+  color: #14221a;
+  font-size: .94rem;
+}
+
+.driver-contact-card small,
+.driver-travel-box small {
+  color: #617268;
+  font-size: .78rem;
+  font-weight: 750;
+}
+
+.driver-contact-card a {
+  align-items: center;
+  color: #245530;
+  display: inline-flex;
+  font-size: .9rem;
+  font-weight: 950;
+  gap: 6px;
+  text-decoration: none;
+}
+
+.driver-travel-box > div:first-child {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 7px;
+}
+
+.driver-travel-box > div:first-child strong {
+  color: #14221a;
+  font-size: .96rem;
+}
+
+.driver-travel-fields {
+  display: grid;
+  gap: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driver-travel-fields label {
+  display: grid;
+  gap: 4px;
+}
+
+.driver-travel-fields input {
+  min-height: 38px;
+}
+
+.driver-travel-log {
+  border-top: 1px solid #dbe6dc;
+  display: grid;
+  gap: 4px;
+  padding-top: 7px;
+}
+
 .driver-test-location-toggle {
   border: 1px solid #d7e3d2;
   border-radius: 8px;
@@ -5961,6 +6045,8 @@ select {
   .driver-group-field-list,
   .driver-actions,
   .tracking-actions,
+  .driver-contact-grid,
+  .driver-travel-fields,
   .driver-inputs {
     grid-template-columns: 1fr;
   }

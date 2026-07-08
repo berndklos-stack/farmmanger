@@ -2585,30 +2585,27 @@ export function ContractorView({
       {activeSection === "masterData" && (
         <div className="panel resource-master-page">
           <div className="section-heading">
-            <h2>{t("contractor.resourceMasterData")}</h2>
-            <span>{masterDrivers.length + masterVehicles.length + masterImplements.length}</span>
+            <h2>
+              {activeMasterGroup === "personnel" && t("masterData.personnel")}
+              {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
+              {activeMasterGroup === "implements" && t("contractor.implementResources")}
+            </h2>
+            <span>
+              {activeMasterGroup === "personnel" && masterDrivers.length}
+              {activeMasterGroup === "vehicles" && masterVehicles.length}
+              {activeMasterGroup === "implements" && masterImplements.length}
+            </span>
           </div>
 
-          <div className="resource-master-layout">
-            <div className="resource-category-list">
-              <button className={activeMasterGroup === "personnel" ? "resource-category active" : "resource-category"} onClick={() => setActiveMasterGroup("personnel")} type="button">
-                <strong>{t("masterData.personnel")}</strong>
-                <span>{drivers.length} {t("archive.active")} · {archivedDrivers.length} {t("archive.archived")}</span>
-              </button>
-              <button className={activeMasterGroup === "vehicles" ? "resource-category active" : "resource-category"} onClick={() => setActiveMasterGroup("vehicles")} type="button">
-                <strong>{t("contractor.vehicleResources")}</strong>
-                <span>{vehicles.length} {t("archive.active")} · {archivedVehicles.length} {t("archive.archived")}</span>
-              </button>
-              <button className={activeMasterGroup === "implements" ? "resource-category active" : "resource-category"} onClick={() => setActiveMasterGroup("implements")} type="button">
-                <strong>{t("contractor.implementResources")}</strong>
-                <span>{implementsList.length} {t("archive.active")} · {archivedImplements.length} {t("archive.archived")}</span>
-              </button>
-            </div>
-
+          <div className="resource-master-layout resource-master-layout-single">
             <div className="resource-editor-block">
               <div className="section-heading">
                 <div>
-                  <h2>{t("contractor.resourceMasterData")}</h2>
+                  <h2>
+                    {activeMasterGroup === "personnel" && t("masterData.personnel")}
+                    {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
+                    {activeMasterGroup === "implements" && t("contractor.implementResources")}
+                  </h2>
                   <span className="resource-category-pill">
                     {activeMasterGroup === "personnel" && t("masterData.personnel")}
                     {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
@@ -3282,11 +3279,11 @@ export function ContractorView({
                 <input disabled={!canManageOrganizations} value={organizationForm.city} onChange={(event) => setOrganizationForm((current) => ({ ...current, city: event.target.value }))} />
               </label>
               <label>
-                {t("masterData.phone")}
+                {t("masterData.queryPhone")}
                 <input disabled={!canManageOrganizations} value={organizationForm.phone} onChange={(event) => setOrganizationForm((current) => ({ ...current, phone: event.target.value }))} />
               </label>
               <label>
-                {t("masterData.mobile")}
+                {t("masterData.contactMobile")}
                 <input disabled={!canManageOrganizations} value={organizationForm.mobile} onChange={(event) => setOrganizationForm((current) => ({ ...current, mobile: event.target.value }))} />
               </label>
               <label>
@@ -3321,8 +3318,8 @@ export function ContractorView({
                   <div className="contact-editor-card" key={contact.id}>
                     <label>{t("masterData.contactName")}<input disabled={!canManageOrganizations} value={contact.name} onChange={(event) => updateOrganizationContact(contact.id, { name: event.target.value })} /></label>
                     <label>{t("masterData.contactRole")}<input disabled={!canManageOrganizations} value={contact.role ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { role: event.target.value })} /></label>
-                    <label>{t("masterData.phone")}<input disabled={!canManageOrganizations} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
-                    <label>{t("masterData.mobile")}<input disabled={!canManageOrganizations} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
+                    <label>{t("masterData.queryPhone")}<input disabled={!canManageOrganizations} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
+                    <label>{t("masterData.contactMobile")}<input disabled={!canManageOrganizations} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
                     <label>{t("masterData.sms")}<input disabled={!canManageOrganizations} value={contact.sms ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { sms: event.target.value })} /></label>
                     <label>{t("masterData.email")}<input disabled={!canManageOrganizations} type="email" value={contact.email ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { email: event.target.value })} /></label>
                     <label>{t("terms.notes")}<input disabled={!canManageOrganizations} value={contact.notes ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { notes: event.target.value })} /></label>

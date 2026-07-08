@@ -1,9 +1,9 @@
-import { Camera, Check, ChevronLeft, Cog, Crosshair, Flag, LogOut, MapPinned, Pause, Play, Plus, Radio, RadioTower, Repeat, Trash2, TriangleAlert } from "lucide-react";
+import { Camera, Check, ChevronLeft, Clock3, Cog, Crosshair, Flag, LogOut, MapPinned, Pause, Phone, Play, Plus, Radio, RadioTower, Repeat, Route, Trash2, TriangleAlert } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { claimJobTask } from "../services/tasks";
-import type { DriverLocation, Job, Subtask } from "../types";
+import type { DriverLocation, Job, Organization, Subtask } from "../types";
 import { DriverFieldMap } from "./DriverFieldMap";
 import { DriverTaskGroupMap } from "./DriverTaskGroupMap";
 import { NewHazardForm } from "./NewHazardForm";
@@ -32,6 +32,11 @@ type CompletionDialogState = {
   subtaskId: string;
   status: "teilweise erledigt" | "erledigt";
 } | null;
+type TravelDraft = {
+  startedAt?: string;
+  km: string;
+  minutes: string;
+};
 
 const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
@@ -82,6 +87,14 @@ function parseOptionalNumber(value: string) {
 
 function formatDriverHours(value: number) {
   return `${value.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} h`;
+}
+
+function formatTravelMinutes(minutes: number) {
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  if (hours > 0 && rest > 0) return `${hours} h ${rest} min`;
+  if (hours > 0) return `${hours} h`;
+  return `${rest} min`;
 }
 
 export function DriverView({
@@ -230,6 +243,7 @@ export function DriverView({
   const [handoverNote, setHandoverNote] = useState("");
   const [equipmentNotice, setEquipmentNotice] = useState("");
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, DriverFeedbackDraft>>({});
+  const [travelDrafts, setTravelDrafts] = useState<Record<string, TravelDraft>>({});
   const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
@@ -354,6 +368,69 @@ export function DriverView({
 
   function feedbackMetric(task?: Job["tasks"][number]) {
     return task?.progressMetric[0] ?? "Fläche";
+  }
+
+  function organizationPhone(organization?: Organization) {
+    return organization?.contacts?.find((contact) => contact.mobile || contact.phone || contact.sms)?.mobile
+      ?? organization?.contacts?.find((contact) => contact.phone || contact.mobile || contact.sms)?.phone
+      ?? organization?.mobile
+      ?? organization?.phone
+      ?? "";
+  }
+
+  function organizationContactLabel(organization?: Organization) {
+    const contact = organization?.contacts?.find((item) => item.mobile || item.phone || item.sms || item.email);
+    if (!contact) return organization?.name ?? t("driver.noContactData");
+    return [contact.name, contact.role].filter(Boolean).join(" · ");
+  }
+
+  function updateTravelDraft(subtaskId: string, patch: Partial<TravelDraft>) {
+    setTravelDrafts((current) => ({
+      ...current,
+      [subtaskId]: { ...(current[subtaskId] ?? { km: "", minutes: "" }), ...patch },
+    }));
+  }
+
+  function startTravel(subtask: Subtask) {
+    const startedAt = new Date().toISOString();
+    updateTravelDraft(subtask.id, { startedAt, minutes: "" });
+    sendLocation({ ...subtask, status: subtask.status === "offen" ? "reserviert" : subtask.status }, true);
+  }
+
+  function saveTravel(subtask: Subtask) {
+    const draft = travelDrafts[subtask.id] ?? { km: "", minutes: "" };
+    const endedAt = new Date().toISOString();
+    const startedAt = draft.startedAt ?? endedAt;
+    const elapsedMinutes = Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000));
+    const minutes = parseOptionalNumber(draft.minutes) ?? elapsedMinutes;
+    const km = parseOptionalNumber(draft.km) ?? 0;
+    if (km <= 0 || minutes <= 0) {
+      setEquipmentNotice(t("driver.travelMissingValues"));
+      return;
+    }
+    const event = {
+      id: crypto.randomUUID(),
+      driverId: activeDriver.id,
+      driverName: activeDriver.name,
+      startedAt,
+      endedAt,
+      minutes: Math.round(minutes),
+      km,
+    };
+    const message = t("driver.travelEventMessage", {
+      driver: activeDriver.name,
+      km: km.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 }),
+      time: formatTravelMinutes(Math.round(minutes)),
+      from: new Date(startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
+      to: new Date(endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }),
+    });
+    onUpdateSubtask(subtask.id, {
+      travelEvents: [...(subtask.travelEvents ?? []), event],
+      statusEvents: [...(subtask.statusEvents ?? []), { id: event.id, message, createdAt: endedAt }],
+    });
+    updateTravelDraft(subtask.id, { startedAt: undefined, km: "", minutes: "" });
+    setEquipmentNotice(t("driver.travelSaved"));
+    sendTravelLocationFromSubtask(subtask, true);
   }
 
   function feedbackValueConfig(task?: Job["tasks"][number], subtask?: Subtask) {
@@ -879,6 +956,12 @@ export function DriverView({
               const subtask = selectedSubtask;
               const task = selectedTask;
               const field = selectedField;
+              const job = jobs.find((item) => item.id === subtask.jobId);
+              const farmerOrganization = organizations.find((organization) => organization.id === job?.farmerOrganizationId);
+              const contractorOrganization = organizations.find((organization) => organization.id === job?.contractorOrganizationId);
+              const farmerPhone = organizationPhone(farmerOrganization);
+              const contractorPhone = organizationPhone(contractorOrganization);
+              const travelDraft = travelDrafts[subtask.id] ?? { km: "", minutes: "" };
               const activeCount = subtask.activeDriverIds.length;
               const maxWorkers = task?.maxVehicles ?? 1;
               const alreadyJoined = isAssignedToDriver(subtask);
@@ -894,15 +977,37 @@ export function DriverView({
                       <ChevronLeft size={16} /> {t("driver.backToOverview")}
                     </button>
                     <div className="driver-job-meta-row">
-                      <small>{t("jobs.jobNumberShort")}: {jobs.find((job) => job.id === subtask.jobId)?.jobNumber ?? subtask.jobId}</small>
-                      <small>{jobs.find((job) => job.id === subtask.jobId)?.customer ?? "-"}</small>
-                      <small>{jobs.find((job) => job.id === subtask.jobId)?.timeWindow || t("createJob.noTimeWindow")}</small>
+                      <small>{t("jobs.jobNumberShort")}: {job?.jobNumber ?? subtask.jobId}</small>
+                      <small>{job?.customer ?? "-"}</small>
+                      <small>{job?.timeWindow || t("createJob.noTimeWindow")}</small>
                     </div>
                     <strong>{task?.name}</strong>
                     <span><FieldName id={subtask.fieldId} /></span>
                     <span>{t("driver.estimatedTime", { time: formatDriverHours(estimatedHours) })}</span>
                   </div>
                   <StatusBadge status={subtask.status} />
+                </div>
+                <div className="driver-contact-grid">
+                  <div className="driver-contact-card">
+                    <span>{t("driver.customerContact")}</span>
+                    <strong>{farmerOrganization?.name ?? job?.customer ?? "-"}</strong>
+                    <small>{organizationContactLabel(farmerOrganization)}</small>
+                    {farmerPhone ? (
+                      <a href={`tel:${farmerPhone.replace(/\s+/g, "")}`}><Phone size={16} /> {farmerPhone}</a>
+                    ) : (
+                      <small>{t("driver.noContactPhone")}</small>
+                    )}
+                  </div>
+                  <div className="driver-contact-card">
+                    <span>{t("driver.contractorContact")}</span>
+                    <strong>{contractorOrganization?.name ?? job?.contractor ?? "-"}</strong>
+                    <small>{organizationContactLabel(contractorOrganization)}</small>
+                    {contractorPhone ? (
+                      <a href={`tel:${contractorPhone.replace(/\s+/g, "")}`}><Phone size={16} /> {contractorPhone}</a>
+                    ) : (
+                      <small>{t("driver.noContactPhone")}</small>
+                    )}
+                  </div>
                 </div>
                 <div className={`driver-current-status ${subtask.status === "Problem" ? "problem" : subtask.status === "erledigt" ? "done" : subtask.status === "pausiert" ? "paused" : subtask.status === "in Arbeit" ? "active" : ""}`}>
                   <span>{t("driver.currentStatus")}</span>
@@ -928,6 +1033,38 @@ export function DriverView({
                   )}
                 </div>
                 {trackingNotice && noticeSubtaskId === subtask.id && <p className="driver-slot-note">{trackingNotice}</p>}
+                <div className="driver-travel-box">
+                  <div>
+                    <Route size={18} />
+                    <strong>{t("driver.travelTitle")}</strong>
+                    {travelDraft.startedAt && <small>{t("driver.travelStartedAt", { time: new Date(travelDraft.startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) })}</small>}
+                  </div>
+                  <div className="driver-travel-fields">
+                    <label>
+                      <span>{t("driver.travelKm")}</span>
+                      <input inputMode="decimal" placeholder="0,0" value={travelDraft.km} onChange={(event) => updateTravelDraft(subtask.id, { km: event.target.value })} />
+                    </label>
+                    <label>
+                      <span>{t("driver.travelMinutes")}</span>
+                      <input inputMode="numeric" placeholder={travelDraft.startedAt ? t("driver.travelAutoTime") : "0"} value={travelDraft.minutes} onChange={(event) => updateTravelDraft(subtask.id, { minutes: event.target.value })} />
+                    </label>
+                  </div>
+                  <div className="tracking-actions">
+                    <button className="secondary-action wide" onClick={() => startTravel(subtask)} type="button">
+                      <Clock3 size={18} /> {travelDraft.startedAt ? t("driver.travelRestart") : t("driver.travelStart")}
+                    </button>
+                    <button className="driver-main-button" onClick={() => saveTravel(subtask)} type="button">
+                      <Check size={18} /> {t("driver.travelSave")}
+                    </button>
+                  </div>
+                  {(subtask.travelEvents?.length ?? 0) > 0 && (
+                    <div className="driver-travel-log">
+                      {subtask.travelEvents?.slice(-3).reverse().map((event) => (
+                        <small key={event.id}>{event.km.toLocaleString("de-DE", { minimumFractionDigits: 1, maximumFractionDigits: 1 })} km · {formatTravelMinutes(event.minutes)} · {new Date(event.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}</small>
+                      ))}
+                    </div>
+                  )}
+                </div>
                 {field && openSubtaskId === subtask.id && (
                   <div className="driver-map-section">
                     <DriverFieldMap field={field} status={subtask.status} />

@@ -123,6 +123,7 @@ type DispatchAssignmentOverride = Pick<
   | "driverPhotoName"
   | "driverPhotos"
   | "statusEvents"
+  | "travelEvents"
   | "completedAt"
   | "updatedAt"
   | "statusChangedAt"
@@ -597,13 +598,32 @@ function organizationPayload(organization: Organization) {
     name: organization.name,
     organization_type: organization.kind,
     address: formatOrganizationAddress(organization),
+    phone: organization.phone ?? null,
+    mobile: organization.mobile ?? null,
+    email: organization.email ?? null,
+    website: organization.website ?? null,
+    vat_id: organization.vatId ?? null,
+    notes: organization.notes ?? null,
+    contacts: organization.contacts ?? [],
     archived_at: organization.archivedAt ?? null,
   };
 }
 
-function organizationPayloadWithoutArchive(organization: Organization) {
-  const { archived_at: _archivedAt, ...payload } = organizationPayload(organization);
+function organizationPayloadCompatible(organization: Organization) {
+  const payload: Record<string, unknown> = { ...organizationPayload(organization) };
+  delete payload.phone;
+  delete payload.mobile;
+  delete payload.email;
+  delete payload.website;
+  delete payload.vat_id;
+  delete payload.notes;
+  delete payload.contacts;
+  delete payload.archived_at;
   return payload;
+}
+
+function isOrganizationPayloadColumnError(message: string) {
+  return ["archived_at", "phone", "mobile", "email", "website", "vat_id", "notes", "contacts"].some((column) => message.includes(column));
 }
 
 function workModeToDatabase(mode: WorkMode) {
@@ -1259,6 +1279,7 @@ export function App() {
       || "driverPhotoName" in patch
       || "driverPhotos" in patch
       || "statusEvents" in timedPatch
+      || "travelEvents" in patch
       || "completedAt" in patch;
     const shouldSync = "activeDriverIds" in patch
       || "activeAssignments" in patch
@@ -1310,6 +1331,7 @@ export function App() {
             driverPhotoName: nextSubtaskForPersistence.driverPhotoName,
             driverPhotos: nextSubtaskForPersistence.driverPhotos,
             statusEvents: nextSubtaskForPersistence.statusEvents,
+            travelEvents: nextSubtaskForPersistence.travelEvents,
             completedAt: nextSubtaskForPersistence.completedAt,
             updatedAt: nextSubtaskForPersistence.updatedAt,
             statusChangedAt: nextSubtaskForPersistence.statusChangedAt,
@@ -1328,7 +1350,8 @@ export function App() {
         });
       }
     }
-    const reportEvents = [reopenEvent, workEvent].filter((event): event is NonNullable<typeof event> => Boolean(event));
+    const explicitReportEvents = (patch.statusEvents ?? []).filter((event) => !(currentSubtask?.statusEvents ?? []).some((existing) => existing.id === event.id));
+    const reportEvents = [...explicitReportEvents, reopenEvent, workEvent].filter((event): event is NonNullable<typeof event> => Boolean(event));
     if (reportEvents.length > 0 && isSupabaseConfigured && supabase) {
       void supabase.from("task_reports").insert(reportEvents.map((event) => ({
         id: event.id,
@@ -1742,8 +1765,8 @@ export function App() {
       const syncErrors: string[] = [];
       for (const organization of organizationRecords) {
         let { error } = await supabase.from("organizations").upsert(organizationPayload(organization));
-        if (error && error.message.includes("archived_at")) {
-          const retry = await supabase.from("organizations").upsert(organizationPayloadWithoutArchive(organization));
+        if (error && isOrganizationPayloadColumnError(error.message)) {
+          const retry = await supabase.from("organizations").upsert(organizationPayloadCompatible(organization));
           error = retry.error;
         }
         if (error) syncErrors.push(`${organization.name}: ${error.message}`);
@@ -2527,8 +2550,8 @@ export function App() {
     });
     if (isSupabaseConfigured && supabase) {
       let { error } = await supabase.from("organizations").upsert(organizationPayload(organization));
-      if (error && error.message.includes("archived_at")) {
-        const retry = await supabase.from("organizations").upsert(organizationPayloadWithoutArchive(organization));
+      if (error && isOrganizationPayloadColumnError(error.message)) {
+        const retry = await supabase.from("organizations").upsert(organizationPayloadCompatible(organization));
         error = retry.error;
       }
       if (error) console.error("Organisation konnte nicht in Supabase gespeichert werden", error);
@@ -2548,8 +2571,8 @@ export function App() {
     }
     if (nextOrganization && isSupabaseConfigured && supabase) {
       let { error } = await supabase.from("organizations").update(organizationPayload(nextOrganization)).eq("id", id);
-      if (error && error.message.includes("archived_at")) {
-        const retry = await supabase.from("organizations").update(organizationPayloadWithoutArchive(nextOrganization)).eq("id", id);
+      if (error && isOrganizationPayloadColumnError(error.message)) {
+        const retry = await supabase.from("organizations").update(organizationPayloadCompatible(nextOrganization)).eq("id", id);
         error = retry.error;
       }
       if (error) console.error("Organisation konnte nicht in Supabase aktualisiert werden", error);
