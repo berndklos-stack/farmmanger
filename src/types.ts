@@ -158,6 +158,8 @@ export type Driver = {
   mobile?: string;
   licenseClasses?: string[];
   maxDailyHours?: number;
+  annualVacationDays?: number;
+  vacationUsedDays?: number;
   resourceType?: string;
   operationType?: string;
   archivedAt?: string;

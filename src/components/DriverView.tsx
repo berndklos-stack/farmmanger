@@ -1,8 +1,10 @@
-import { Camera, Check, ChevronLeft, Clock3, Cog, Crosshair, Flag, LogOut, MapPinned, Pause, Phone, Play, Plus, Radio, RadioTower, Repeat, Route, Trash2, TriangleAlert } from "lucide-react";
+import { CalendarDays, Camera, Check, ChevronLeft, Clock3, Cog, Crosshair, Flag, LogOut, MapPinned, Pause, Phone, Play, Plus, Radio, RadioTower, Repeat, Route, Trash2, TriangleAlert, UserRound } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { claimJobTask } from "../services/tasks";
+import { APP_RELEASE_LABEL } from "../lib/appVersion";
+import { loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest, writeVacationRequests } from "../lib/vacationRequests";
 import type { DriverLocation, Job, Organization, Subtask } from "../types";
 import { DriverFieldMap } from "./DriverFieldMap";
 import { DriverTaskGroupMap } from "./DriverTaskGroupMap";
@@ -37,9 +39,23 @@ type TravelDraft = {
   km: string;
   minutes: string;
 };
-
+type DriverTimeEntryKind = "work" | "interruption" | "pause";
+type DriverTimeEntry = {
+  id: string;
+  driverId: string;
+  driverName: string;
+  kind: DriverTimeEntryKind;
+  reason?: string;
+  note?: string;
+  subtaskId?: string;
+  jobNumber?: string;
+  startedAt: string;
+  endedAt?: string;
+  minutes?: number;
+};
 const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
+const driverTimeEntriesStorageKey = "farm-manager.driverTimeEntries";
 const automaticDriverLocationIntervalMs = 5 * 60 * 1000;
 
 function appendEquipmentLog(entry: Record<string, unknown>) {
@@ -95,6 +111,36 @@ function formatTravelMinutes(minutes: number) {
   if (hours > 0 && rest > 0) return `${hours} h ${rest} min`;
   if (hours > 0) return `${hours} h`;
   return `${rest} min`;
+}
+
+function readStoredArray<T>(key: string): T[] {
+  try {
+    const raw = window.localStorage.getItem(key);
+    return raw ? JSON.parse(raw) as T[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function writeStoredArray<T>(key: string, value: T[]) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(value));
+  } catch {
+    // Lokaler Tablet-Puffer darf die Fahreransicht nicht blockieren.
+  }
+}
+
+function dateInputValue(offsetDays = 0) {
+  const date = new Date();
+  date.setDate(date.getDate() + offsetDays);
+  return date.toISOString().slice(0, 10);
+}
+
+function inclusiveVacationDays(from: string, to: string) {
+  const start = new Date(`${from}T00:00:00`);
+  const end = new Date(`${to}T00:00:00`);
+  if (Number.isNaN(start.getTime()) || Number.isNaN(end.getTime()) || end < start) return 0;
+  return Math.floor((end.getTime() - start.getTime()) / 86400000) + 1;
 }
 
 export function DriverView({
@@ -224,6 +270,7 @@ export function DriverView({
     return Array.from(groups.values()).sort((a, b) => b.subtasks.length - a.subtasks.length);
   }, [accessibleSubtasks, fields, jobs]);
   const [openSubtaskId, setOpenSubtaskId] = useState("");
+  const [mapSubtaskId, setMapSubtaskId] = useState("");
   const [openTaskGroupId, setOpenTaskGroupId] = useState("");
   const [trackingSubtaskId, setTrackingSubtaskId] = useState("");
   const [trackingNotice, setTrackingNotice] = useState("");
@@ -244,6 +291,13 @@ export function DriverView({
   const [equipmentNotice, setEquipmentNotice] = useState("");
   const [feedbackDrafts, setFeedbackDrafts] = useState<Record<string, DriverFeedbackDraft>>({});
   const [travelDrafts, setTravelDrafts] = useState<Record<string, TravelDraft>>({});
+  const [timeEntries, setTimeEntries] = useState<DriverTimeEntry[]>(() => readStoredArray<DriverTimeEntry>(driverTimeEntriesStorageKey));
+  const [timeReason, setTimeReason] = useState("repair");
+  const [timeNote, setTimeNote] = useState("");
+  const [timeActionKind, setTimeActionKind] = useState<DriverTimeEntryKind | null>(null);
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>(() => readVacationRequests());
+  const [vacationDraft, setVacationDraft] = useState(() => ({ from: dateInputValue(7), to: dateInputValue(7), note: "" }));
+  const [isPersonalPageOpen, setIsPersonalPageOpen] = useState(false);
   const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
@@ -298,14 +352,24 @@ export function DriverView({
     return () => window.clearInterval(interval);
   }, [driver?.id, driver?.profileId, subtasks, useTestLocation]);
   useEffect(() => {
+    return subscribeVacationRequests(() => setVacationRequests(readVacationRequests()));
+  }, []);
+
+  useEffect(() => {
+    void loadVacationRequests().then(setVacationRequests);
+  }, []);
+
+  useEffect(() => {
     if (openTaskGroupId && !driverTaskGroups.some((group) => group.id === openTaskGroupId)) {
       setOpenTaskGroupId("");
       setOpenSubtaskId("");
+      setMapSubtaskId("");
     }
   }, [driverTaskGroups, openTaskGroupId]);
   useEffect(() => {
     if (openSubtaskId && !accessibleSubtasks.some((subtask) => subtask.id === openSubtaskId)) {
       setOpenSubtaskId("");
+      setMapSubtaskId("");
     }
   }, [accessibleSubtasks, openSubtaskId]);
   if (!driver) {
@@ -336,6 +400,30 @@ export function DriverView({
   const completionDraft = completionSubtask ? feedbackDrafts[completionSubtask.id] ?? draftFromSubtask(completionSubtask) : draftFromSubtask();
   const pendingFieldClaim = accessibleSubtasks.find((subtask) => subtask.id === pendingFieldClaimId);
   const pendingFieldClaimField = pendingFieldClaim ? fields.find((field) => field.id === pendingFieldClaim.fieldId) : undefined;
+  const activeTimeEntry = timeEntries.find((entry) => entry.driverId === activeDriver.id && !entry.endedAt);
+  const driverTimeEntries = timeEntries.filter((entry) => entry.driverId === activeDriver.id);
+  const currentMonthKey = new Date().toISOString().slice(0, 7);
+  const currentMonthEntries = driverTimeEntries.filter((entry) => entry.startedAt.slice(0, 7) === currentMonthKey);
+  const closedMonthEntries = currentMonthEntries.filter((entry) => entry.minutes);
+  const monthlyWorkMinutes = closedMonthEntries.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const monthlyInterruptionMinutes = closedMonthEntries.filter((entry) => entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const ownVacationRequests = vacationRequests.filter((request) => request.driverId === activeDriver.id);
+  const requestedVacationDays = ownVacationRequests.filter((request) => request.status !== "rejected").reduce((sum, request) => sum + request.days, 0);
+  const vacationAllowance = activeDriver.annualVacationDays ?? 30;
+  const vacationUsed = activeDriver.vacationUsedDays ?? 0;
+  const vacationRemaining = Math.max(0, vacationAllowance - vacationUsed - requestedVacationDays);
+  const monthlyTimeSummary = useMemo(() => {
+    const summaries = new Map<string, { month: string; workMinutes: number; interruptionMinutes: number; entries: number }>();
+    driverTimeEntries.filter((entry) => entry.endedAt && entry.minutes).forEach((entry) => {
+      const month = entry.startedAt.slice(0, 7);
+      const summary = summaries.get(month) ?? { month, workMinutes: 0, interruptionMinutes: 0, entries: 0 };
+      if (entry.kind === "work" || entry.kind === "interruption") summary.workMinutes += entry.minutes ?? 0;
+      if (entry.kind === "interruption") summary.interruptionMinutes += entry.minutes ?? 0;
+      summary.entries += 1;
+      summaries.set(month, summary);
+    });
+    return Array.from(summaries.values()).sort((a, b) => b.month.localeCompare(a.month));
+  }, [driverTimeEntries]);
   function resourceAssignmentLabel(resourceId: string, kind: "vehicle" | "implement") {
     const assignedSubtask = subtasks.find((subtask) => (
       subtask.status !== "erledigt"
@@ -370,18 +458,45 @@ export function DriverView({
     return task?.progressMetric[0] ?? "Fläche";
   }
 
-  function organizationPhone(organization?: Organization) {
-    return organization?.contacts?.find((contact) => contact.mobile || contact.phone || contact.sms)?.mobile
-      ?? organization?.contacts?.find((contact) => contact.phone || contact.mobile || contact.sms)?.phone
-      ?? organization?.mobile
-      ?? organization?.phone
-      ?? "";
+  function organizationEmergencyContacts(organization?: Organization) {
+    const contactRows = organization?.contacts?.filter((contact) => contact.mobile || contact.phone || contact.sms) ?? [];
+    const preferredRows = contactRows.filter((contact) => {
+      const haystack = [contact.name, contact.role, contact.notes].filter(Boolean).join(" ").toLowerCase();
+      return ["notfall", "emergency", "rückfrage", "rueckfrage", "ansprech", "einsatz", "dispo"].some((keyword) => haystack.includes(keyword));
+    });
+    const rows = preferredRows.length > 0 ? preferredRows : contactRows;
+    const seenPhones = new Set<string>();
+    const contacts = rows.map((contact) => {
+      const phone = contact.mobile || contact.phone || contact.sms || "";
+      return {
+        id: contact.id,
+        label: [contact.name, contact.role].filter(Boolean).join(" · ") || organization?.name || t("driver.noContactData"),
+        phone,
+      };
+    }).filter((contact) => {
+      const normalized = contact.phone.replace(/[^\d+]/g, "");
+      if (!normalized || seenPhones.has(normalized)) return false;
+      seenPhones.add(normalized);
+      return true;
+    });
+    if (contacts.length > 0) return contacts;
+    const fallbackPhone = organization?.mobile || organization?.phone || "";
+    return fallbackPhone ? [{ id: `${organization?.id ?? "organization"}-fallback`, label: organization?.name ?? t("driver.noContactData"), phone: fallbackPhone }] : [];
   }
 
-  function organizationContactLabel(organization?: Organization) {
-    const contact = organization?.contacts?.find((item) => item.mobile || item.phone || item.sms || item.email);
-    if (!contact) return organization?.name ?? t("driver.noContactData");
-    return [contact.name, contact.role].filter(Boolean).join(" · ");
+  function renderEmergencyContacts(organization?: Organization) {
+    const contacts = organizationEmergencyContacts(organization);
+    if (contacts.length === 0) return <small>{t("driver.noContactPhone")}</small>;
+    return (
+      <div className="driver-contact-links">
+        {contacts.map((contact) => (
+          <a href={`tel:${contact.phone.replace(/[^\d+]/g, "")}`} key={contact.id}>
+            <Phone size={16} />
+            <span>{contact.label}: {contact.phone}</span>
+          </a>
+        ))}
+      </div>
+    );
   }
 
   function updateTravelDraft(subtaskId: string, patch: Partial<TravelDraft>) {
@@ -431,6 +546,128 @@ export function DriverView({
     updateTravelDraft(subtask.id, { startedAt: undefined, km: "", minutes: "" });
     setEquipmentNotice(t("driver.travelSaved"));
     sendTravelLocationFromSubtask(subtask, true);
+  }
+
+  function persistTimeEntries(next: DriverTimeEntry[]) {
+    setTimeEntries(next);
+    writeStoredArray(driverTimeEntriesStorageKey, next);
+  }
+
+  function newTimeEntry(kind: DriverTimeEntryKind, startedAt = new Date().toISOString()): DriverTimeEntry {
+    const job = selectedSubtask ? jobs.find((item) => item.id === selectedSubtask.jobId) : undefined;
+    return {
+      id: crypto.randomUUID(),
+      driverId: activeDriver.id,
+      driverName: activeDriver.name,
+      kind,
+      reason: kind === "interruption" || kind === "pause" ? timeReason : undefined,
+      note: timeNote.trim() || undefined,
+      subtaskId: selectedSubtask?.id,
+      jobNumber: job?.jobNumber,
+      startedAt,
+    };
+  }
+
+  function startTimeEntry(kind: DriverTimeEntryKind) {
+    if (activeTimeEntry) return;
+    persistTimeEntries([newTimeEntry(kind), ...timeEntries]);
+    setTimeActionKind(null);
+    setTimeNote("");
+    setEquipmentNotice(t(kind === "work" ? "driver.timeStarted" : kind === "pause" ? "driver.pauseStarted" : "driver.interruptionStarted"));
+  }
+
+  function closeActiveTimeEntry(endedAt: string) {
+    if (!activeTimeEntry) return timeEntries;
+    const minutes = Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(activeTimeEntry.startedAt).getTime()) / 60000));
+    return timeEntries.map((entry) => entry.id === activeTimeEntry.id ? { ...entry, endedAt, minutes } : entry);
+  }
+
+  function appendInterruptionEvent(entry: DriverTimeEntry, endedAt: string) {
+    if (entry.kind !== "interruption" || !entry.subtaskId) return;
+    const minutes = Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(entry.startedAt).getTime()) / 60000));
+    const message = t("driver.interruptionEventMessage", {
+      reason: t(`driver.interruptionReasons.${entry.reason ?? "other"}`),
+      time: formatTravelMinutes(minutes),
+      note: entry.note ?? "",
+    });
+    const subtask = subtasks.find((item) => item.id === entry.subtaskId);
+    if (subtask) {
+      onUpdateSubtask(subtask.id, {
+        statusEvents: [...(subtask.statusEvents ?? []), { id: crypto.randomUUID(), message, createdAt: endedAt }],
+      });
+    }
+  }
+
+  function requestTimeChange(kind: DriverTimeEntryKind) {
+    if (kind === "pause") setTimeReason("lunch");
+    if (kind === "interruption") setTimeReason("repair");
+    setTimeActionKind(kind);
+  }
+
+  function confirmTimeChange() {
+    if (!timeActionKind) return;
+    const endedAt = new Date().toISOString();
+    const closedEntries = closeActiveTimeEntry(endedAt);
+    if (activeTimeEntry) appendInterruptionEvent(activeTimeEntry, endedAt);
+    persistTimeEntries([newTimeEntry(timeActionKind, endedAt), ...closedEntries]);
+    setEquipmentNotice(t(timeActionKind === "pause" ? "driver.pauseStarted" : timeActionKind === "interruption" ? "driver.interruptionStarted" : "driver.timeStarted"));
+    setTimeActionKind(null);
+    setTimeNote("");
+  }
+
+  function resumeWork() {
+    const endedAt = new Date().toISOString();
+    const closedEntries = closeActiveTimeEntry(endedAt);
+    if (activeTimeEntry) appendInterruptionEvent(activeTimeEntry, endedAt);
+    persistTimeEntries([newTimeEntry("work", endedAt), ...closedEntries]);
+    setTimeActionKind(null);
+    setTimeNote("");
+    setEquipmentNotice(t("driver.timeResumed"));
+  }
+
+  function stopTimeEntry() {
+    if (!activeTimeEntry) return;
+    const endedAt = new Date().toISOString();
+    const next = closeActiveTimeEntry(endedAt);
+    appendInterruptionEvent(activeTimeEntry, endedAt);
+    persistTimeEntries(next);
+    setTimeActionKind(null);
+    setTimeNote("");
+    setEquipmentNotice(t("driver.timeSaved"));
+  }
+
+  function persistVacationRequests(next: VacationRequest[]) {
+    setVacationRequests(next);
+    void writeVacationRequests(next).then(setVacationRequests);
+  }
+
+  function submitVacationRequest() {
+    const days = inclusiveVacationDays(vacationDraft.from, vacationDraft.to);
+    if (days <= 0) {
+      setEquipmentNotice(t("driver.vacationInvalid"));
+      return;
+    }
+    const request: VacationRequest = {
+      id: crypto.randomUUID(),
+      driverId: activeDriver.id,
+      driverName: activeDriver.name,
+      from: vacationDraft.from,
+      to: vacationDraft.to,
+      days,
+      note: vacationDraft.note.trim() || undefined,
+      status: "requested",
+      createdAt: new Date().toISOString(),
+      history: [{
+        id: crypto.randomUUID(),
+        action: "submitted",
+        actorName: activeDriver.name,
+        reason: vacationDraft.note.trim() || undefined,
+        createdAt: new Date().toISOString(),
+      }],
+    };
+    persistVacationRequests([request, ...vacationRequests]);
+    setVacationDraft({ from: dateInputValue(7), to: dateInputValue(7), note: "" });
+    setEquipmentNotice(t("driver.vacationSubmitted"));
   }
 
   function feedbackValueConfig(task?: Job["tasks"][number], subtask?: Subtask) {
@@ -541,8 +778,15 @@ export function DriverView({
     setPendingFieldClaimId(subtask.id);
   }
 
-  async function confirmFieldClaim() {
-    const subtask = pendingFieldClaim;
+  function openDriverSubtask(subtask: Subtask) {
+    const group = driverTaskGroups.find((item) => item.subtasks.some((groupSubtask) => groupSubtask.id === subtask.id));
+    if (group) setOpenTaskGroupId(group.id);
+    setPendingFieldClaimId("");
+    setOpenSubtaskId(subtask.id);
+  }
+
+  async function confirmFieldClaim(subtaskToClaim?: Subtask) {
+    const subtask = subtaskToClaim ?? pendingFieldClaim;
     if (!subtask) return;
     setPendingFieldClaimId("");
     await claim(subtask);
@@ -555,6 +799,10 @@ export function DriverView({
       activeImplementIds: Array.from(new Set([...(subtask.activeImplementIds ?? []), ...selectedImplementIds])),
       status: subtask.status === "offen" ? "reserviert" : subtask.status,
     });
+  }
+
+  function openDriverMap(subtask: Subtask) {
+    setMapSubtaskId(subtask.id);
   }
 
   function toggleYardVehicle(vehicleId: string) {
@@ -800,6 +1048,7 @@ export function DriverView({
     setNoticeSubtaskId("");
     sendTravelLocationFromSubtask({ ...subtask, ...patch }, true);
     setOpenSubtaskId("");
+    setMapSubtaskId("");
   }
 
   function updateStatusAndSendLocation(subtask: Subtask, patch: Partial<Subtask>) {
@@ -832,7 +1081,9 @@ export function DriverView({
           <div>
             <p className="eyebrow">{t("driver.view")}</p>
             <h2>{driver.name}</h2>
+            <span className="driver-selected-resources">{[driver.resourceType ?? t("masterData.personnel"), driver.operationType].filter(Boolean).join(" · ")}</span>
             <span className="driver-selected-resources">{selectedYardLabel}</span>
+            <span className="driver-version-label">Farm-Manager {APP_RELEASE_LABEL}</span>
             {equipmentNotice && <small className="driver-equipment-notice">{equipmentNotice}</small>}
           </div>
           <div className="driver-header-actions">
@@ -847,6 +1098,10 @@ export function DriverView({
               <Repeat size={20} />
               <span>{t("driver.driverHandover")}</span>
             </button>
+            <button className="driver-yard-open secondary-driver-action" onClick={() => setIsPersonalPageOpen(true)} type="button">
+              <UserRound size={20} />
+              <span>{t("driver.personalData")}</span>
+            </button>
             <button className="driver-yard-open secondary-driver-action" onClick={() => setIsEndShiftOpen(true)} type="button">
               <LogOut size={20} />
               <span>{t("driver.endShift")}</span>
@@ -855,6 +1110,133 @@ export function DriverView({
         </div>
 
         <div className="driver-scroll-content">
+        {isPersonalPageOpen ? (
+          <article className="driver-personal-page">
+            <div className="driver-card-head">
+              <div>
+                <button className="secondary-action compact-action" onClick={() => setIsPersonalPageOpen(false)} type="button">
+                  <ChevronLeft size={16} /> {t("driver.backToOverview")}
+                </button>
+                <p className="eyebrow">{t("driver.personalData")}</p>
+                <strong>{activeDriver.name}</strong>
+                <span>{t("driver.personalPageHint")}</span>
+              </div>
+              <UserRound size={22} />
+            </div>
+            <div className="driver-personal-grid">
+              <section className="driver-time-card">
+                <div className="driver-time-card-head">
+                  <div>
+                    <strong>{t("driver.employeeData")}</strong>
+                    <small>{driverOrganization?.name ?? t("masterData.noOrganizationAssigned")}</small>
+                  </div>
+                  <UserRound size={18} />
+                </div>
+                <div className="driver-personal-facts">
+                  <span>{t("masterData.mobile")}: <b>{activeDriver.mobile || "-"}</b></span>
+                  <span>{t("masterData.email")}: <b>{activeDriver.email || "-"}</b></span>
+                  <span>{t("masterData.role")}: <b>{activeDriver.resourceType ?? t("masterData.personnel")}</b></span>
+                  <span>{t("masterData.operationType")}: <b>{activeDriver.operationType || "-"}</b></span>
+                  <span>{t("masterData.licenseClasses")}: <b>{activeDriver.licenseClasses?.join(", ") || "-"}</b></span>
+                  <span>{t("masterData.maxDailyHours")}: <b>{activeDriver.maxDailyHours ?? 8}</b></span>
+                </div>
+              </section>
+
+              <section className="driver-time-card">
+                <div className="driver-time-card-head">
+                  <div>
+                    <strong>{t("driver.vacation")}</strong>
+                    <small>{t("driver.vacationRemaining", { remaining: vacationRemaining, total: vacationAllowance })}</small>
+                  </div>
+                  <Flag size={18} />
+                </div>
+                <div className="driver-time-summary">
+                  <span>{t("driver.vacationUsed")}: <b>{vacationUsed}</b></span>
+                  <span>{t("driver.vacationRequested")}: <b>{requestedVacationDays}</b></span>
+                </div>
+                <div className="driver-vacation-form">
+                  <label><span>{t("driver.vacationFrom")}</span><input value={vacationDraft.from} onChange={(event) => setVacationDraft((current) => ({ ...current, from: event.target.value }))} type="date" /></label>
+                  <label><span>{t("driver.vacationTo")}</span><input value={vacationDraft.to} onChange={(event) => setVacationDraft((current) => ({ ...current, to: event.target.value }))} type="date" /></label>
+                  <input placeholder={t("driver.vacationNotePlaceholder")} value={vacationDraft.note} onChange={(event) => setVacationDraft((current) => ({ ...current, note: event.target.value }))} />
+                  <button className="secondary-action wide" onClick={submitVacationRequest} type="button"><Plus size={18} /> {t("driver.submitVacation")}</button>
+                </div>
+              </section>
+            </div>
+
+            <section className="driver-time-card">
+              <div className="driver-time-card-head">
+                <div>
+                  <strong>{t("driver.timeByMonth")}</strong>
+                  <small>{t("driver.timeByMonthHint")}</small>
+                </div>
+                <CalendarDays size={18} />
+              </div>
+              {monthlyTimeSummary.length > 0 ? (
+                <div className="driver-month-list">
+                  {monthlyTimeSummary.map((summary) => (
+                    <div className="driver-month-row" key={summary.month}>
+                      <strong>{new Date(`${summary.month}-01T00:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</strong>
+                      <span>{t("driver.monthWork")}: <b>{formatTravelMinutes(summary.workMinutes)}</b></span>
+                      <span>{t("driver.monthInterruptions")}: <b>{formatTravelMinutes(summary.interruptionMinutes)}</b></span>
+                      <small>{summary.entries} {t("driver.timeEntries")}</small>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="driver-slot-note">{t("driver.noTimeHistory")}</p>
+              )}
+            </section>
+
+            <section className="driver-time-card">
+              <div className="driver-time-card-head">
+                <div>
+                  <strong>{t("driver.timeEntries")}</strong>
+                  <small>{driverTimeEntries.length} {t("driver.timeEntries")}</small>
+                </div>
+                <Clock3 size={18} />
+              </div>
+              {driverTimeEntries.length > 0 ? (
+                <div className="driver-time-entry-list">
+                  {driverTimeEntries.slice(0, 30).map((entry) => (
+                    <div className={`driver-time-entry-row ${entry.kind}`} key={entry.id}>
+                      <strong>{t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
+                      <span>{new Date(entry.startedAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                      <span>{entry.minutes ? formatTravelMinutes(entry.minutes) : t("driver.running")}</span>
+                      {entry.reason && <small>{t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}</small>}
+                      {entry.jobNumber && <small>{entry.jobNumber}</small>}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <p className="driver-slot-note">{t("driver.noTimeHistory")}</p>
+              )}
+            </section>
+
+            <section className="driver-time-card">
+              <div className="driver-time-card-head">
+                <div>
+                  <strong>{t("driver.vacationRequests")}</strong>
+                  <small>{ownVacationRequests.length} {t("driver.requests")}</small>
+                </div>
+                <Flag size={18} />
+              </div>
+              {ownVacationRequests.length > 0 ? (
+                <div className="driver-time-log">
+                  {ownVacationRequests.map((request) => (
+                    <small key={request.id}>
+                      {request.from}-{request.to} · {request.days} {t("driver.days")} · {t(`driver.vacationStatus.${request.status}`)}{request.note ? ` · ${request.note}` : ""}
+                      {request.decidedAt ? ` · ${t("vacationApproval.decidedAt", { time: new Date(request.decidedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}` : ""}
+                      {request.decisionReason ? ` · ${t("vacationApproval.reason")}: ${request.decisionReason}` : ""}
+                    </small>
+                  ))}
+                </div>
+              ) : (
+                <p className="driver-slot-note">{t("driver.noVacationRequests")}</p>
+              )}
+            </section>
+          </article>
+        ) : (
+        <>
         <div className="driver-overview">
           <div className="driver-overview-head">
             <div>
@@ -865,6 +1247,81 @@ export function DriverView({
               <Repeat size={18} />
               <span>{isLoading ? t("driver.refreshing") : t("liveLocation.refresh")}</span>
             </button>
+          </div>
+          <div className="driver-time-grid">
+            <section className="driver-time-card driver-time-card-compact">
+              <div className="driver-time-card-head">
+                <div>
+                  <strong>{t("driver.timeTracking")}</strong>
+                  <small>{activeTimeEntry ? t(activeTimeEntry.kind === "work" ? "driver.timeRunning" : activeTimeEntry.kind === "pause" ? "driver.pauseRunning" : "driver.interruptionRunning", { since: new Date(activeTimeEntry.startedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" }) }) : t("driver.timeReady")}</small>
+                </div>
+                <Clock3 size={18} />
+              </div>
+              <div className={`driver-time-status ${activeTimeEntry?.kind ?? "idle"}`}>
+                <span>{t("driver.currentTimeStatus")}</span>
+                <strong>{t(activeTimeEntry ? `driver.timeStatus.${activeTimeEntry.kind}` : "driver.timeStatus.idle")}</strong>
+              </div>
+              <div className="driver-time-summary">
+                <span>{t("driver.monthWork")}: <b>{formatTravelMinutes(monthlyWorkMinutes)}</b></span>
+                <span>{t("driver.monthInterruptions")}: <b>{formatTravelMinutes(monthlyInterruptionMinutes)}</b></span>
+              </div>
+              {timeActionKind && (
+                <div className="driver-time-form driver-time-reason-form">
+                  <label>
+                    <span>{t(timeActionKind === "pause" ? "driver.selectPauseReason" : "driver.selectInterruptionReason")}</span>
+                    <select value={timeReason} onChange={(event) => setTimeReason(event.target.value)}>
+                      {timeActionKind === "pause" ? (
+                        <>
+                          <option value="lunch">{t("driver.pauseReasons.lunch")}</option>
+                          <option value="break">{t("driver.pauseReasons.break")}</option>
+                          <option value="private">{t("driver.pauseReasons.private")}</option>
+                          <option value="other">{t("driver.pauseReasons.other")}</option>
+                        </>
+                      ) : (
+                        <>
+                          <option value="repair">{t("driver.interruptionReasons.repair")}</option>
+                          <option value="maintenance">{t("driver.interruptionReasons.maintenance")}</option>
+                          <option value="waiting">{t("driver.interruptionReasons.waiting")}</option>
+                          <option value="warehouse">{t("driver.interruptionReasons.warehouse")}</option>
+                          <option value="other">{t("driver.interruptionReasons.other")}</option>
+                        </>
+                      )}
+                    </select>
+                  </label>
+                  <input placeholder={t("driver.timeNotePlaceholder")} value={timeNote} onChange={(event) => setTimeNote(event.target.value)} />
+                  <button className="driver-main-button" onClick={confirmTimeChange} type="button">
+                    <Check size={18} /> {t(timeActionKind === "pause" ? "driver.confirmPause" : "driver.confirmInterruption")}
+                  </button>
+                  <button className="secondary-action wide" onClick={() => setTimeActionKind(null)} type="button">
+                    {t("actions.cancel")}
+                  </button>
+                </div>
+              )}
+              <div className="tracking-actions">
+                {!activeTimeEntry ? (
+                  <button className="driver-main-button" onClick={() => startTimeEntry("work")} type="button"><Play size={18} /> {t("driver.startWorkTime")}</button>
+                ) : activeTimeEntry.kind === "work" ? (
+                  <>
+                    <button className="secondary-action wide" onClick={() => requestTimeChange("pause")} type="button"><Pause size={18} /> {t("driver.startPause")}</button>
+                    <button className="secondary-action wide" onClick={() => requestTimeChange("interruption")} type="button"><TriangleAlert size={18} /> {t("driver.startInterruption")}</button>
+                    <button className="driver-main-button" onClick={stopTimeEntry} type="button"><Check size={18} /> {t("driver.endWorkTime")}</button>
+                  </>
+                ) : (
+                  <button className="driver-main-button" onClick={resumeWork} type="button"><Play size={18} /> {t("driver.resumeWork")}</button>
+                )}
+              </div>
+              {closedMonthEntries.length > 0 && (
+                <div className="driver-time-log">
+                  {closedMonthEntries.slice(0, 4).map((entry) => (
+                    <small key={entry.id}>
+                      {t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")} · {formatTravelMinutes(entry.minutes ?? 0)}
+                      {entry.reason ? ` · ${t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}` : ""}
+                      {entry.jobNumber ? ` · ${entry.jobNumber}` : ""}
+                    </small>
+                  ))}
+                </div>
+              )}
+            </section>
           </div>
           {accessibleSubtasks.length === 0 && <p className="driver-slot-note">{t("driver.noVisibleJobs")}</p>}
           {driverTaskGroups.length > 0 && (
@@ -877,6 +1334,7 @@ export function DriverView({
 	                  onClick={() => {
 	                    setOpenTaskGroupId(group.id);
 	                    setOpenSubtaskId("");
+	                    setMapSubtaskId("");
 	                  }}
                   type="button"
                 >
@@ -906,7 +1364,7 @@ export function DriverView({
                     <button
                       className={subtask.id === selectedSubtask?.id ? "active" : ""}
                       key={subtask.id}
-                      onClick={() => selectFieldForClaim(subtask)}
+                      onClick={() => openDriverSubtask(subtask)}
                       type="button"
                     >
                       <span>{t("driver.routeStop", { index: routeIndex + 1 })} · {job?.jobNumber ?? subtask.jobId}</span>
@@ -928,9 +1386,7 @@ export function DriverView({
             const estimatedHours = subtask.estimatedHours ?? task?.estimatedHours ?? job?.estimatedHours ?? 0;
             return (
 	              <button className={subtask.id === selectedSubtask?.id ? "driver-overview-card active" : "driver-overview-card"} key={subtask.id} onClick={() => {
-	                const group = driverTaskGroups.find((item) => item.subtasks.some((groupSubtask) => groupSubtask.id === subtask.id));
-	                if (group) setOpenTaskGroupId(group.id);
-		                selectFieldForClaim(subtask);
+		                openDriverSubtask(subtask);
 	              }} type="button">
                 <div>
                   <div className="driver-job-meta-row">
@@ -959,8 +1415,6 @@ export function DriverView({
               const job = jobs.find((item) => item.id === subtask.jobId);
               const farmerOrganization = organizations.find((organization) => organization.id === job?.farmerOrganizationId);
               const contractorOrganization = organizations.find((organization) => organization.id === job?.contractorOrganizationId);
-              const farmerPhone = organizationPhone(farmerOrganization);
-              const contractorPhone = organizationPhone(contractorOrganization);
               const travelDraft = travelDrafts[subtask.id] ?? { km: "", minutes: "" };
               const activeCount = subtask.activeDriverIds.length;
               const maxWorkers = task?.maxVehicles ?? 1;
@@ -973,7 +1427,7 @@ export function DriverView({
                 <>
                 <div className="driver-card-head">
                   <div>
-                    <button className="secondary-action compact-action" onClick={() => setOpenSubtaskId("")} type="button">
+                    <button className="secondary-action compact-action" onClick={() => { setOpenSubtaskId(""); setMapSubtaskId(""); }} type="button">
                       <ChevronLeft size={16} /> {t("driver.backToOverview")}
                     </button>
                     <div className="driver-job-meta-row">
@@ -990,23 +1444,11 @@ export function DriverView({
                 <div className="driver-contact-grid">
                   <div className="driver-contact-card">
                     <span>{t("driver.customerContact")}</span>
-                    <strong>{farmerOrganization?.name ?? job?.customer ?? "-"}</strong>
-                    <small>{organizationContactLabel(farmerOrganization)}</small>
-                    {farmerPhone ? (
-                      <a href={`tel:${farmerPhone.replace(/\s+/g, "")}`}><Phone size={16} /> {farmerPhone}</a>
-                    ) : (
-                      <small>{t("driver.noContactPhone")}</small>
-                    )}
+                    {renderEmergencyContacts(farmerOrganization)}
                   </div>
                   <div className="driver-contact-card">
                     <span>{t("driver.contractorContact")}</span>
-                    <strong>{contractorOrganization?.name ?? job?.contractor ?? "-"}</strong>
-                    <small>{organizationContactLabel(contractorOrganization)}</small>
-                    {contractorPhone ? (
-                      <a href={`tel:${contractorPhone.replace(/\s+/g, "")}`}><Phone size={16} /> {contractorPhone}</a>
-                    ) : (
-                      <small>{t("driver.noContactPhone")}</small>
-                    )}
+                    {renderEmergencyContacts(contractorOrganization)}
                   </div>
                 </div>
                 <div className={`driver-current-status ${subtask.status === "Problem" ? "problem" : subtask.status === "erledigt" ? "done" : subtask.status === "pausiert" ? "paused" : subtask.status === "in Arbeit" ? "active" : ""}`}>
@@ -1015,7 +1457,7 @@ export function DriverView({
                 </div>
                 <ProgressBar value={subtask.progress} />
                 <p>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</p>
-                <button className="secondary-action wide" onClick={() => setOpenSubtaskId(subtask.id)} type="button">
+                <button className="secondary-action wide" onClick={() => openDriverMap(subtask)} type="button">
                   <MapPinned size={18} /> {t("actions.openMapRoute")}
                 </button>
                 <div className="tracking-actions">
@@ -1065,7 +1507,7 @@ export function DriverView({
                     </div>
                   )}
                 </div>
-                {field && openSubtaskId === subtask.id && (
+                {field && mapSubtaskId === subtask.id && (
                   <div className="driver-map-section">
                     <DriverFieldMap field={field} status={subtask.status} />
                     <NewHazardForm
@@ -1076,7 +1518,7 @@ export function DriverView({
                   </div>
                 )}
 	                {canJoin && (
-	                  <button className="driver-main-button" onClick={() => { void confirmFieldClaim(); }} type="button">
+	                  <button className="driver-main-button" onClick={() => { void confirmFieldClaim(subtask); }} type="button">
 	                    {task?.mode === "Einzelmodus" ? <Check size={22} /> : <Plus size={22} />}
 	                    {t("driver.claimField")}
 	                  </button>
@@ -1128,6 +1570,8 @@ export function DriverView({
             })()}
 	          </article>
 	        )}
+        </>
+        )}
         </div>
         {isMachineYardOpen && (
           <div className="modal-backdrop" role="presentation">

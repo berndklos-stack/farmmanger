@@ -78,6 +78,7 @@ function resolveBrandText(value?: string | null) {
 const contractorOrganizationId = "22222222-2222-4222-8222-222222222222";
 const farmerOrganizationId = "11111111-1111-4111-8111-111111111111";
 const klosContractorOrganizationId = "55555555-5555-4555-8555-555555555555";
+const organizationMetaMarker = "__farm-manager_organization_meta:";
 const dispatchAssignmentsStorageKey = "farm-manager.dispatchAssignments";
 const fieldReleaseMarker = "__farm-manager_released_contractors:";
 const localFieldsStorageKey = "farm-manager.localFields";
@@ -449,7 +450,41 @@ function mergeBaseOrganizations(loadedOrganizations: Organization[], baseOrganiz
 
 function formatOrganizationAddress(organization: Organization) {
   const cityLine = [organization.postalCode, organization.city].filter(Boolean).join(" ");
-  return [organization.street, cityLine, organization.country].filter(Boolean).join(", ") || organization.address || "";
+  return [organization.street, cityLine, organization.country].filter(Boolean).join(", ") || cleanOrganizationAddress(organization.address) || "";
+}
+
+function cleanOrganizationAddress(address?: string) {
+  return (address ?? "")
+    .split("\n")
+    .filter((line) => !line.startsWith(organizationMetaMarker))
+    .join("\n")
+    .trim();
+}
+
+function organizationMetaLine(organization: Organization) {
+  const meta = {
+    phone: organization.phone ?? "",
+    mobile: organization.mobile ?? "",
+    email: organization.email ?? "",
+    website: organization.website ?? "",
+    vatId: organization.vatId ?? "",
+    notes: organization.notes ?? "",
+    contacts: organization.contacts ?? [],
+  };
+  const hasMeta = Boolean(
+    meta.phone
+    || meta.mobile
+    || meta.email
+    || meta.website
+    || meta.vatId
+    || meta.notes
+    || meta.contacts.length,
+  );
+  return hasMeta ? `${organizationMetaMarker}${encodeURIComponent(JSON.stringify(meta))}` : "";
+}
+
+function organizationAddressWithMeta(organization: Organization) {
+  return [formatOrganizationAddress(organization), organizationMetaLine(organization)].filter(Boolean).join("\n");
 }
 
 function loadLocalTaskTemplates() {
@@ -597,7 +632,7 @@ function organizationPayload(organization: Organization) {
     id: organization.id,
     name: organization.name,
     organization_type: organization.kind,
-    address: formatOrganizationAddress(organization),
+    address: organizationAddressWithMeta(organization),
     phone: organization.phone ?? null,
     mobile: organization.mobile ?? null,
     email: organization.email ?? null,

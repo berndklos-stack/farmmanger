@@ -1,8 +1,10 @@
 import { AlertTriangle, CheckCircle2, ClipboardList, MapPinned, Navigation, Route } from "lucide-react";
 import type { ElementType } from "react";
+import { useEffect, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { formatArea } from "../i18n/format";
+import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Job, Subtask } from "../types";
 import { formatCoordinates } from "../utils/geo";
 import { FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
@@ -40,6 +42,11 @@ function readEquipmentProblemRows() {
 export function Dashboard({ jobs, subtasks, onOpenFields, onOpenJobs }: Props) {
   const { t, i18n } = useTranslation();
   const { fields } = useAppData();
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>(() => readVacationRequests());
+  useEffect(() => subscribeVacationRequests(() => setVacationRequests(readVacationRequests())), []);
+  useEffect(() => {
+    void loadVacationRequests().then(setVacationRequests);
+  }, []);
   const totalArea = fields.reduce((sum, field) => sum + field.areaHa, 0);
   const jobRows = jobs.map((job) => {
     const related = subtasks.filter((subtask) => subtask.jobId === job.id);
@@ -53,7 +60,14 @@ export function Dashboard({ jobs, subtasks, onOpenFields, onOpenJobs }: Props) {
   const doneJobs = jobRows.filter((row) => row.completed).length;
   const problems = subtasks.filter((subtask) => subtask.status === "Problem");
   const machineProblems = readEquipmentProblemRows();
+  const openVacationRequests = vacationRequests.filter((request) => request.status === "requested");
   const hazardCount = fields.reduce((sum, field) => sum + field.hazards.length, 0);
+
+  function handleVacationDecision(request: VacationRequest, status: "approved" | "rejected") {
+    const reason = window.prompt(t(status === "approved" ? "vacationApproval.approveReasonPrompt" : "vacationApproval.rejectReasonPrompt"), "");
+    if (reason === null) return;
+    void decideVacationRequest(request.id, status, t("vacationApproval.disposition"), reason.trim()).then(setVacationRequests);
+  }
 
   return (
     <section className="view-stack">
@@ -119,9 +133,26 @@ export function Dashboard({ jobs, subtasks, onOpenFields, onOpenJobs }: Props) {
         <div className="panel">
           <div className="section-heading">
             <h2>{t("dashboard.alertsProblems")}</h2>
-            <span>{problems.length + machineProblems.length} {t("dashboard.open")}</span>
+            <span>{problems.length + machineProblems.length + openVacationRequests.length} {t("dashboard.open")}</span>
           </div>
           <div className="alert-list">
+            {openVacationRequests.map((request) => (
+              <div className="alert-item vacation-alert-item" key={request.id}>
+                <AlertTriangle size={19} />
+                <div>
+                  <strong>{t("vacationApproval.requestTitle")} · {request.driverName}</strong>
+                  <span>{request.from}-{request.to} · {request.days} {t("driver.days")}{request.note ? ` · ${request.note}` : ""}</span>
+                  <small>{t("vacationApproval.submittedAt", { time: new Date(request.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}</small>
+                  {request.history.slice(0, 2).map((entry) => (
+                    <small key={entry.id}>{t(`vacationApproval.history.${entry.action}`)} · {entry.actorName} · {new Date(entry.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.reason ? ` · ${entry.reason}` : ""}</small>
+                  ))}
+                </div>
+                <div className="vacation-decision-actions">
+                  <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
+                  <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
+                </div>
+              </div>
+            ))}
             {machineProblems.map((problem) => (
               <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
                 <AlertTriangle size={19} />

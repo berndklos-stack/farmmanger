@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
+import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Driver, DriverLocation, FieldMapPattern, Implement, Job, Organization, ProgressMetric, Subtask, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 import { LiveLocationMap } from "./LiveLocationMap";
@@ -265,6 +266,7 @@ export function ContractorView({
   const [standardVehicleChoice, setStandardVehicleChoice] = useState<{ driverId: string; subtaskId: string } | null>(null);
   const [moveResourceConfirm, setMoveResourceConfirm] = useState<{ jobId: string; targetOffsetDays: number } | null>(null);
   const [resourceHistoryVersion, setResourceHistoryVersion] = useState(0);
+  const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>(() => readVacationRequests());
   const [workTimeOverride, setWorkTimeOverride] = useState<{
     driverId: string;
     subtaskId: string;
@@ -277,7 +279,8 @@ export function ContractorView({
   const machineProblems = readJsonArray<DriverEquipmentLogEntry>(equipmentLogStorageKey)
     .filter((row) => row.machineProblem || row.placement === "defect")
     .slice(0, 12);
-  const problemCount = problems.length + machineProblems.length;
+  const openVacationRequests = vacationRequests.filter((request) => request.status === "requested");
+  const problemCount = problems.length + machineProblems.length + openVacationRequests.length;
   const resourceOrganizationId = currentRole === "contractor_admin" || currentRole === "farmer_admin" ? authProfile?.organizationId : undefined;
   const canControlResource = <T extends { organizationId?: string }>(resource?: T) => currentRole === "support_admin" || !resourceOrganizationId || resource?.organizationId === resourceOrganizationId;
   const organizationResourceFilter = <T extends { organizationId?: string }>(resource: T) => !resourceOrganizationId || resource.organizationId === resourceOrganizationId;
@@ -367,6 +370,8 @@ export function ContractorView({
     mobile: "",
     licenseClasses: "",
     maxDailyHours: 8,
+    annualVacationDays: 30,
+    vacationUsedDays: 0,
     resourceType: "",
     operationType: "",
   });
@@ -578,6 +583,8 @@ export function ContractorView({
       mobile: driver.mobile ?? "",
       licenseClasses: driver.licenseClasses?.join(", ") ?? "",
       maxDailyHours: driver.maxDailyHours ?? 8,
+      annualVacationDays: driver.annualVacationDays ?? 30,
+      vacationUsedDays: driver.vacationUsedDays ?? 0,
       resourceType: driver.resourceType ?? t("masterData.personnel"),
       operationType: driver.operationType ?? "",
     };
@@ -605,6 +612,14 @@ export function ContractorView({
   }
 
   useEffect(() => {
+    return subscribeVacationRequests(() => setVacationRequests(readVacationRequests()));
+  }, []);
+
+  useEffect(() => {
+    void loadVacationRequests().then(setVacationRequests);
+  }, []);
+
+  useEffect(() => {
     if (!selectedDriver) return;
     setDriverForm(driverToForm(selectedDriver));
   }, [
@@ -618,6 +633,8 @@ export function ContractorView({
     selectedDriver?.mobile,
     selectedDriver?.licenseClasses,
     selectedDriver?.maxDailyHours,
+    selectedDriver?.annualVacationDays,
+    selectedDriver?.vacationUsedDays,
     selectedDriver?.resourceType,
     selectedDriver?.operationType,
     t,
@@ -761,6 +778,12 @@ export function ContractorView({
     setResourceHistoryVersion((current) => current + 1);
   }
 
+  function handleVacationDecision(request: VacationRequest, status: "approved" | "rejected") {
+    const reason = window.prompt(t(status === "approved" ? "vacationApproval.approveReasonPrompt" : "vacationApproval.rejectReasonPrompt"), "");
+    if (reason === null) return;
+    void decideVacationRequest(request.id, status, authProfile?.fullName ?? t("vacationApproval.disposition"), reason.trim()).then(setVacationRequests);
+  }
+
   function activeResourceHistory() {
     const resourceId = activeMasterGroup === "personnel"
       ? selectedDriver?.id
@@ -866,6 +889,8 @@ export function ContractorView({
       mobile: "",
       licenseClasses: "",
       maxDailyHours: 8,
+      annualVacationDays: 30,
+      vacationUsedDays: 0,
       resourceType: t("masterData.personnel"),
       operationType: "",
     });
@@ -2563,6 +2588,23 @@ export function ContractorView({
               </button>
               {isProblemsOpen && problemCount > 0 && (
                 <div className="dispatch-problems-list">
+                  {openVacationRequests.map((request) => (
+                    <div className="alert-item vacation-alert-item" key={request.id}>
+                      <CalendarDays size={19} />
+                      <div>
+                        <strong>{t("vacationApproval.requestTitle")} · {request.driverName}</strong>
+                        <span>{request.from}-{request.to} · {request.days} {t("driver.days")}{request.note ? ` · ${request.note}` : ""}</span>
+                        <small>{t("vacationApproval.submittedAt", { time: new Date(request.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}</small>
+                        {request.history.slice(0, 2).map((entry) => (
+                          <small key={entry.id}>{t(`vacationApproval.history.${entry.action}`)} · {entry.actorName} · {new Date(entry.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.reason ? ` · ${entry.reason}` : ""}</small>
+                        ))}
+                      </div>
+                      <div className="vacation-decision-actions">
+                        <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
+                        <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
+                      </div>
+                    </div>
+                  ))}
                   {machineProblems.map((problem) => (
                     <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
                       <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
@@ -2597,55 +2639,36 @@ export function ContractorView({
             </span>
           </div>
 
-          <div className="resource-master-layout resource-master-layout-single">
-            <div className="resource-editor-block">
-              <div className="section-heading">
-                <div>
-                  <h2>
-                    {activeMasterGroup === "personnel" && t("masterData.personnel")}
-                    {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
-                    {activeMasterGroup === "implements" && t("contractor.implementResources")}
-                  </h2>
-                  <span className="resource-category-pill">
-                    {activeMasterGroup === "personnel" && t("masterData.personnel")}
-                    {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
-                    {activeMasterGroup === "implements" && t("contractor.implementResources")}
-                  </span>
-                </div>
-                <div className="modal-actions">
-                  <div className="segmented-control archive-toggle category-archive-toggle">
-                    <button className={!showArchivedMasterData ? "active" : ""} onClick={() => setCategoryArchiveView(activeMasterGroup, false)} type="button">
-                      {t("archive.active")} · {activeMasterGroup === "personnel" && drivers.length}{activeMasterGroup === "vehicles" && vehicles.length}{activeMasterGroup === "implements" && implementsList.length}
-                    </button>
-                    <button className={showArchivedMasterData ? "active" : ""} onClick={() => setCategoryArchiveView(activeMasterGroup, true)} type="button">
-                      {t("archive.archived")} · {activeMasterGroup === "personnel" && archivedDrivers.length}{activeMasterGroup === "vehicles" && archivedVehicles.length}{activeMasterGroup === "implements" && archivedImplements.length}
-                    </button>
-                  </div>
-                  {canManageResources && !showArchivedMasterData && (
-                    <button className="primary-action" onClick={() => { setCreatingResourceGroup(null); setIsResourceModalOpen(true); }} type="button">
-                      <Save size={16} /> {t("masterData.editSelected")}
-                    </button>
-                  )}
-                  {canManageResources && !showArchivedMasterData && activeMasterGroup === "personnel" && (
-                    <button className="secondary-action" onClick={createDriver} type="button"><Plus size={16} /> {t("masterData.newDriver")}</button>
-                  )}
-                  {canManageResources && !showArchivedMasterData && activeMasterGroup === "vehicles" && (
-                    <button className="secondary-action" onClick={createVehicle} type="button"><Plus size={16} /> {t("masterData.newVehicle")}</button>
-                  )}
-                  {canManageResources && !showArchivedMasterData && activeMasterGroup === "implements" && (
-                    <button className="secondary-action" onClick={createImplement} type="button"><Plus size={16} /> {t("masterData.newImplement")}</button>
-                  )}
-                </div>
-              </div>
-              {!permissions.canEditDrivers && <p className="permission-note">{t("permissions.driversReadOnly")}</p>}
-              <p className="resource-editor-summary">
-                {activeMasterGroup === "personnel" && selectedDriver && `${selectedDriver.name} · ${selectedDriver.mobile || selectedDriver.vehicle}`}
-                {activeMasterGroup === "vehicles" && selectedVehicle && `${selectedVehicle.name} · ${selectedVehicle.resourceType ?? selectedVehicle.type}`}
-                {activeMasterGroup === "implements" && selectedImplement && `${selectedImplement.name} · ${selectedImplement.resourceType ?? selectedImplement.type}`}
-              </p>
+          <div className="resource-master-toolbar">
+            <div className="segmented-control archive-toggle category-archive-toggle">
+              <button className={!showArchivedMasterData ? "active" : ""} onClick={() => setCategoryArchiveView(activeMasterGroup, false)} type="button">
+                {t("archive.active")} · {activeMasterGroup === "personnel" && drivers.length}{activeMasterGroup === "vehicles" && vehicles.length}{activeMasterGroup === "implements" && implementsList.length}
+              </button>
+              <button className={showArchivedMasterData ? "active" : ""} onClick={() => setCategoryArchiveView(activeMasterGroup, true)} type="button">
+                {t("archive.archived")} · {activeMasterGroup === "personnel" && archivedDrivers.length}{activeMasterGroup === "vehicles" && archivedVehicles.length}{activeMasterGroup === "implements" && archivedImplements.length}
+              </button>
             </div>
+            <div className="modal-actions">
+              {canManageResources && !showArchivedMasterData && (
+                <button className="primary-action" onClick={() => { setCreatingResourceGroup(null); setIsResourceModalOpen(true); }} type="button">
+                  <Save size={16} /> {t("masterData.editSelected")}
+                </button>
+              )}
+              {canManageResources && !showArchivedMasterData && activeMasterGroup === "personnel" && (
+                <button className="secondary-action" onClick={createDriver} type="button"><Plus size={16} /> {t("masterData.newDriver")}</button>
+              )}
+              {canManageResources && !showArchivedMasterData && activeMasterGroup === "vehicles" && (
+                <button className="secondary-action" onClick={createVehicle} type="button"><Plus size={16} /> {t("masterData.newVehicle")}</button>
+              )}
+              {canManageResources && !showArchivedMasterData && activeMasterGroup === "implements" && (
+                <button className="secondary-action" onClick={createImplement} type="button"><Plus size={16} /> {t("masterData.newImplement")}</button>
+              )}
+            </div>
+          </div>
+          {!permissions.canEditDrivers && <p className="permission-note">{t("permissions.driversReadOnly")}</p>}
 
-            <div className="resource-list-panel">
+          <div className="resource-master-layout resource-master-layout-single">
+            <div className="resource-list-panel resource-list-panel-full">
               {activeMasterGroup === "personnel" && masterDrivers.map((driver) => (
                 (() => {
                   const standardVehicle = allVehicles.find((vehicle) => vehicle.name === driver.vehicle);
@@ -2789,6 +2812,8 @@ export function ContractorView({
                       <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-profile-grid">
                         <label>{t("masterData.licenseClasses")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.licenseClasses} onChange={(event) => setDriverForm((current) => ({ ...current, licenseClasses: event.target.value }))} /></label>
                         <label>{t("masterData.maxDailyHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1} max={16} step={0.5} value={driverForm.maxDailyHours} onChange={(event) => setDriverForm((current) => ({ ...current, maxDailyHours: Number(event.target.value) }))} type="number" /></label>
+                        <label>{t("masterData.annualVacationDays")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={0} max={60} step={0.5} value={driverForm.annualVacationDays} onChange={(event) => setDriverForm((current) => ({ ...current, annualVacationDays: Number(event.target.value) }))} type="number" /></label>
+                        <label>{t("masterData.vacationUsedDays")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={0} max={60} step={0.5} value={driverForm.vacationUsedDays} onChange={(event) => setDriverForm((current) => ({ ...current, vacationUsedDays: Number(event.target.value) }))} type="number" /></label>
                         <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.resourceType} onChange={(event) => setDriverForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
                         <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.operationType} onChange={(event) => setDriverForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
                       </div>

@@ -24,6 +24,7 @@ type RefreshDataOptions = {
 
 const offlineDataCacheKey = "farm-manager.offlineDataCache";
 const fieldReleaseMarker = "__farm-manager_released_contractors:";
+const organizationMetaMarker = "__farm-manager_organization_meta:";
 
 type CachedDataState = Omit<DataState, "isLoading" | "error" | "refreshData">;
 
@@ -50,6 +51,20 @@ function parseFieldNotes(notes?: string | null) {
     releasedContractorIds,
     restrictedZones: lines.filter((line) => line.trim() && !line.startsWith(fieldReleaseMarker)),
   };
+}
+
+function parseOrganizationAddress(address?: string | null) {
+  const lines = (address ?? "").split("\n");
+  const metaLine = lines.find((line) => line.startsWith(organizationMetaMarker));
+  const cleanAddress = lines.filter((line) => line.trim() && !line.startsWith(organizationMetaMarker)).join("\n").trim();
+  if (!metaLine) return { cleanAddress };
+
+  try {
+    const parsed = JSON.parse(decodeURIComponent(metaLine.slice(organizationMetaMarker.length))) as Partial<Organization>;
+    return { cleanAddress, meta: parsed };
+  } catch {
+    return { cleanAddress };
+  }
 }
 
 type FieldRow = {
@@ -182,6 +197,8 @@ type DriverRow = {
   mobile?: string | null;
   license_classes?: string[] | string | null;
   max_daily_hours?: number | null;
+  annual_vacation_days?: number | null;
+  vacation_used_days?: number | null;
   resource_type?: string | null;
   operation_type?: string | null;
 };
@@ -198,6 +215,8 @@ type PersonnelResourceRow = {
   mobile: string | null;
   license_classes: string[] | string | null;
   max_daily_hours: number | null;
+  annual_vacation_days?: number | null;
+  vacation_used_days?: number | null;
   resource_type: string | null;
   operation_type: string | null;
   archived_at?: string | null;
@@ -333,6 +352,7 @@ function mapFields(fieldRows: FieldRow[], boundaryRows: BoundaryRow[], hazardRow
 
 function mapOrganizations(organizationRows: OrganizationRow[]): Organization[] {
   return organizationRows.map((row) => {
+    const parsedAddress = parseOrganizationAddress(row.address);
     const contacts = Array.isArray(row.contacts)
       ? row.contacts
       : typeof row.contacts === "string"
@@ -344,18 +364,18 @@ function mapOrganizations(organizationRows: OrganizationRow[]): Organization[] {
               return [];
             }
           })()
-        : [];
+        : parsedAddress.meta?.contacts ?? [];
     return {
       id: row.id,
       name: row.name,
       kind: row.organization_type,
-      address: row.address ?? "",
-      phone: row.phone ?? undefined,
-      mobile: row.mobile ?? undefined,
-      email: row.email ?? undefined,
-      website: row.website ?? undefined,
-      vatId: row.vat_id ?? undefined,
-      notes: row.notes ?? undefined,
+      address: parsedAddress.cleanAddress,
+      phone: row.phone ?? parsedAddress.meta?.phone ?? undefined,
+      mobile: row.mobile ?? parsedAddress.meta?.mobile ?? undefined,
+      email: row.email ?? parsedAddress.meta?.email ?? undefined,
+      website: row.website ?? parsedAddress.meta?.website ?? undefined,
+      vatId: row.vat_id ?? parsedAddress.meta?.vatId ?? undefined,
+      notes: row.notes ?? parsedAddress.meta?.notes ?? undefined,
       contacts,
       archivedAt: row.archived_at ?? undefined,
     };
@@ -545,6 +565,8 @@ function mapDrivers(driverRows: DriverRow[]): Driver[] {
       jobVisibility: driver.job_visibility ?? "assigned_only",
       mobile: driver.mobile ?? "",
       maxDailyHours: driver.max_daily_hours ?? 8,
+      annualVacationDays: driver.annual_vacation_days ?? 30,
+      vacationUsedDays: driver.vacation_used_days ?? 0,
       licenseClasses: Array.isArray(driver.license_classes)
         ? driver.license_classes
         : typeof driver.license_classes === "string"
@@ -571,6 +593,8 @@ function mapPersonnelResources(personnelRows: PersonnelResourceRow[], profileRow
     jobVisibility: person.job_visibility ?? profile?.job_visibility ?? "assigned_only",
     mobile: person.mobile ?? "",
     maxDailyHours: person.max_daily_hours ?? 8,
+    annualVacationDays: person.annual_vacation_days ?? 30,
+    vacationUsedDays: person.vacation_used_days ?? 0,
     licenseClasses: Array.isArray(person.license_classes)
       ? person.license_classes
       : typeof person.license_classes === "string"
