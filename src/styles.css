@@ -7797,6 +7797,147 @@ select {
   border-radius: 11px;
 }
 
+.compact-driver-head {
+  align-items: stretch;
+  display: grid;
+  gap: 8px;
+  grid-template-columns: auto minmax(360px, 1fr) minmax(430px, .95fr);
+}
+
+.compact-driver-head .compact-action {
+  align-self: start;
+  min-height: 40px;
+}
+
+.driver-job-summary {
+  align-content: start;
+  display: grid;
+  gap: 5px;
+  min-width: 0;
+}
+
+.driver-job-title-line {
+  align-items: baseline;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  min-width: 0;
+}
+
+.driver-card-head .driver-job-title-line strong {
+  color: #173124;
+  font-size: clamp(1.05rem, 1.55vw, 1.32rem);
+  margin: 0;
+}
+
+.driver-card-head .driver-job-title-line span {
+  color: #617268;
+  display: inline;
+  margin: 0;
+  white-space: nowrap;
+}
+
+.driver-head-contacts {
+  display: grid;
+  gap: 6px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  min-width: 0;
+}
+
+.compact-contact-card {
+  gap: 4px;
+  min-height: 0;
+  padding: 8px 10px;
+}
+
+.compact-contact-card > span {
+  font-size: .68rem;
+  line-height: 1.1;
+}
+
+.compact-contact-card .driver-contact-links {
+  gap: 3px;
+}
+
+.compact-contact-card .driver-contact-links a {
+  align-items: center;
+  gap: 5px;
+  min-width: 0;
+}
+
+.compact-contact-card .driver-contact-links svg {
+  flex: 0 0 auto;
+  width: 14px;
+  height: 14px;
+}
+
+.compact-contact-card .driver-contact-links span {
+  font-size: .78rem;
+  line-height: 1.12;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.driver-work-status-row {
+  align-items: center;
+  background: #f8fbf8;
+  border: 1px solid #dbe6dc;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(150px, .45fr) minmax(180px, .75fr) minmax(240px, 1fr);
+  min-height: 44px;
+  padding: 7px 10px;
+}
+
+.driver-work-status-row .driver-current-status {
+  background: transparent;
+  border: 0;
+  min-height: 0;
+  padding: 0;
+}
+
+.driver-work-status-row .driver-current-status strong {
+  font-size: .98rem;
+}
+
+.driver-work-status-row small {
+  color: #617268;
+  font-weight: 850;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+@media (max-width: 1100px) {
+  .compact-driver-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .driver-head-contacts {
+    grid-column: 1 / -1;
+  }
+
+  .driver-work-status-row {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 720px) {
+  .compact-driver-head {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-head-contacts {
+    grid-template-columns: 1fr;
+  }
+
+  .driver-job-title-line span {
+    white-space: normal;
+  }
+}
+
 .driver-inputs {
   grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 8px;

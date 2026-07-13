@@ -1628,37 +1628,41 @@ export function DriverView({
               const estimatedHours = subtask.estimatedHours ?? task?.estimatedHours ?? jobs.find((job) => job.id === subtask.jobId)?.estimatedHours ?? 0;
               return (
                 <>
-                <div className="driver-card-head">
-                  <div>
-                    <button className="secondary-action compact-action" onClick={() => { setOpenSubtaskId(""); setMapSubtaskId(""); }} type="button">
-                      <ChevronLeft size={16} /> {t("driver.backToOverview")}
-                    </button>
+                <div className="driver-card-head compact-driver-head">
+                  <button className="secondary-action compact-action" onClick={() => { setOpenSubtaskId(""); setMapSubtaskId(""); }} type="button">
+                    <ChevronLeft size={16} /> {t("driver.backToOverview")}
+                  </button>
+                  <div className="driver-job-summary">
                     <div className="driver-job-meta-row">
                       <small>{t("jobs.jobNumberShort")}: {job?.jobNumber ?? subtask.jobId}</small>
                       <small>{job?.customer ?? "-"}</small>
                       <small>{job?.timeWindow || t("createJob.noTimeWindow")}</small>
                     </div>
-                    <strong>{task?.name}</strong>
-                    <span><FieldName id={subtask.fieldId} /></span>
-                    <span>{t("driver.estimatedTime", { time: formatDriverHours(estimatedHours) })}</span>
+                    <div className="driver-job-title-line">
+                      <strong>{task?.name}</strong>
+                      <span><FieldName id={subtask.fieldId} /></span>
+                      <span>{t("driver.estimatedTime", { time: formatDriverHours(estimatedHours) })}</span>
+                    </div>
+                  </div>
+                  <div className="driver-head-contacts">
+                    <div className="driver-contact-card compact-contact-card">
+                      <span>{t("driver.customerContact")}</span>
+                      {renderEmergencyContacts(farmerOrganization)}
+                    </div>
+                    <div className="driver-contact-card compact-contact-card">
+                      <span>{t("driver.contractorContact")}</span>
+                      {renderEmergencyContacts(contractorOrganization)}
+                    </div>
                   </div>
                 </div>
-                <div className="driver-contact-grid">
-                  <div className="driver-contact-card">
-                    <span>{t("driver.customerContact")}</span>
-                    {renderEmergencyContacts(farmerOrganization)}
+                <div className="driver-work-status-row">
+                  <div className={`driver-current-status ${subtask.status === "Problem" ? "problem" : subtask.status === "erledigt" ? "done" : subtask.status === "pausiert" ? "paused" : subtask.status === "in Arbeit" ? "active" : ""}`}>
+                    <span>{t("driver.currentStatus")}</span>
+                    <strong>{t(`status.${subtask.status}`)}</strong>
                   </div>
-                  <div className="driver-contact-card">
-                    <span>{t("driver.contractorContact")}</span>
-                    {renderEmergencyContacts(contractorOrganization)}
-                  </div>
+                  <ProgressBar value={subtask.progress} />
+                  <small>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</small>
                 </div>
-                <div className={`driver-current-status ${subtask.status === "Problem" ? "problem" : subtask.status === "erledigt" ? "done" : subtask.status === "pausiert" ? "paused" : subtask.status === "in Arbeit" ? "active" : ""}`}>
-                  <span>{t("driver.currentStatus")}</span>
-                  <strong>{t(`status.${subtask.status}`)}</strong>
-                </div>
-                <ProgressBar value={subtask.progress} />
-                <p>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</p>
                 <button className="driver-main-button wide" onClick={() => openDriverMap(subtask)} type="button">
                   <MapPinned size={18} /> {mapSubtaskId === subtask.id ? t("driver.hideMapRoute") : t("actions.openMapRoute")}
                 </button>
