@@ -269,6 +269,7 @@ export function DriverView({
   const [isPersonalPageOpen, setIsPersonalPageOpen] = useState(false);
   const [selectedTimeMonth, setSelectedTimeMonth] = useState("");
   const [selectedTimeDay, setSelectedTimeDay] = useState("");
+  const [isTodayTimeDialogOpen, setIsTodayTimeDialogOpen] = useState(false);
   const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
@@ -1586,11 +1587,44 @@ export function DriverView({
                     <span>{t("driver.pause")}: <b>{formatTravelMinutes(todayPauseMinutes)}</b></span>
                     <span>{t("driver.interruption")}: <b>{formatTravelMinutes(todayInterruptionMinutes)}</b></span>
                   </div>
-                  <small className="driver-today-empty">{todayTimeEntries.length} {t("driver.timeEntries")}</small>
+                  <button className="driver-today-entry-button" onClick={() => setIsTodayTimeDialogOpen(true)} type="button">
+                    {todayTimeEntries.length} {t("driver.timeEntries")}
+                  </button>
                 </div>
               </div>
             </section>
           </div>
+          {isTodayTimeDialogOpen && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="driver-dialog-modal driver-day-dialog" role="dialog" aria-modal="true" aria-labelledby="driver-today-report-title">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="driver-today-report-title">{t("driver.todayEntriesTitle")}</h2>
+                    <p>{t("driver.workTime")}: {formatTravelMinutes(todayWorkMinutes)} · {t("driver.pause")}: {formatTravelMinutes(todayPauseMinutes)} · {t("driver.interruption")}: {formatTravelMinutes(todayInterruptionMinutes)}</p>
+                  </div>
+                  <button className="secondary-action icon-action" onClick={() => setIsTodayTimeDialogOpen(false)} type="button">
+                    <X size={18} />
+                  </button>
+                </div>
+                {todayTimeEntries.length > 0 ? (
+                  <div className="driver-time-entry-list">
+                    {todayTimeEntries.map((entry) => (
+                      <div className={`driver-time-entry-row ${entry.kind}`} key={entry.id}>
+                        <strong>{timeEntryTitle(entry)}</strong>
+                        <span>{new Date(entry.startedAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                        <span>{entry.minutes ? formatTravelMinutes(entry.minutes) : t("driver.running")}</span>
+                        {entry.reason && <small>{timeEntryReason(entry)}</small>}
+                        {entry.jobNumber && <small>{entry.jobNumber}</small>}
+                        {entry.note && <small>{entry.note}</small>}
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="driver-slot-note">{t("driver.noTimeEntriesForDay")}</p>
+                )}
+              </div>
+            </div>
+          )}
           {accessibleSubtasks.length === 0 && <p className="driver-slot-note">{t("driver.noVisibleJobs")}</p>}
           {driverTaskGroups.length > 0 && (
             <div className="driver-task-group-list">

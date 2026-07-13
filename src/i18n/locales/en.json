@@ -829,6 +829,7 @@
     "monthInterruptions": "Interruptions",
     "todayOverview": "Today",
     "todayNoEntries": "No time entries today yet.",
+    "todayEntriesTitle": "Today's time entries",
     "monthReport": "Monthly report",
     "dayReport": "Daily report",
     "monthDayOverview": "Daily overview with totals",

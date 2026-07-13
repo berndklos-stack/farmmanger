@@ -829,6 +829,7 @@
     "monthInterruptions": "Avbrott",
     "todayOverview": "Idag",
     "todayNoEntries": "Inga tidsregistreringar idag ännu.",
+    "todayEntriesTitle": "Dagens tidsregistreringar",
     "monthReport": "Månadsrapport",
     "dayReport": "Dagsrapport",
     "monthDayOverview": "Dagsöversikt med summor",

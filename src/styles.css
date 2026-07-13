@@ -5899,6 +5899,22 @@ select {
   font-weight: 850;
 }
 
+.driver-today-entry-button {
+  background: #fff;
+  border: 1px solid #cbdcc4;
+  border-radius: 8px;
+  color: #285526;
+  font-weight: 900;
+  min-height: 34px;
+  padding: 6px 9px;
+  text-align: center;
+}
+
+.driver-today-entry-button:hover {
+  border-color: #2f6b3e;
+  background: #edf6e8;
+}
+
 .driver-time-status {
   align-items: center;
   border: 1px solid #dbe6dc;
