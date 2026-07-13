@@ -1,11 +1,11 @@
-import { AlertTriangle, Check, Copy, ExternalLink, MapPin, Navigation, Pencil, Route, Undo2, X } from "lucide-react";
+import { AlertTriangle, Check, Copy, MapPin, Navigation, Pencil, Route, Undo2, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { CircleMarker, MapContainer, Marker, Polygon, Polyline, Popup, Tooltip, useMap, useMapEvents } from "react-leaflet";
 import { divIcon } from "leaflet";
 import type { LeafletMouseEvent } from "leaflet";
-import type { Field, FieldAccessPoint, FieldHazard, FieldHazardType, FieldMapStyle, GeoPoint, Status } from "../types";
-import { appleMapsUrl, formatCoordinates, googleMapsUrl, hittaMapsUrl, lantmaterietMapsUrl, openStreetMapUrl } from "../utils/geo";
+import type { Field, FieldAccessPoint, FieldHazard, FieldHazardType, FieldMapStyle, GeoPoint } from "../types";
+import { formatCoordinates } from "../utils/geo";
 import { MapBaseLayers } from "./MapBaseLayers";
 
 type FieldWorkMapStatus = FieldMapStyle & {
@@ -21,11 +21,9 @@ type Props = {
   field: Field;
   contextFields?: Field[];
   fieldMapStatuses?: Record<string, FieldWorkMapStatus | undefined>;
-  statuses?: Status[];
   compact?: boolean;
   editable?: boolean;
   defaultMapLayer?: "map" | "imagery";
-  showActions?: boolean;
   onBoundaryChange?: (boundary: GeoPoint[]) => void;
   onAccessPointChange?: (accessPoint: FieldAccessPoint) => void;
   onHazardAdd?: (hazard: FieldHazard) => void;
@@ -37,11 +35,9 @@ export function FieldMap({
   field,
   contextFields = [],
   fieldMapStatuses = {},
-  statuses = [],
   compact = false,
   editable = false,
   defaultMapLayer,
-  showActions = true,
   onBoundaryChange,
   onAccessPointChange,
   onHazardAdd,
@@ -62,8 +58,6 @@ export function FieldMap({
     [field.boundary],
   );
   const draftPositions = draftBoundary.map((point) => [point.lat, point.lng] as [number, number]);
-  const googleUrl = googleMapsUrl(access);
-  const appleUrl = appleMapsUrl(access);
   const selectedMapStatus = fieldMapStatuses[field.id];
   const getFieldPathOptions = (targetField: Field, isMainField: boolean) => {
     const mapStatus = fieldMapStatuses[targetField.id];
@@ -210,18 +204,6 @@ export function FieldMap({
 
   return (
     <div className={compact ? "field-map-card compact" : "field-map-card"}>
-      <div className="map-meta-bar">
-        <div>
-          <strong>{field.name}</strong>
-          <span>{field.areaHa} ha · {field.crop}</span>
-        </div>
-        {statuses.length > 0 && (
-          <div className="map-status-list">
-            {statuses.map((status) => <span key={status}>{status}</span>)}
-          </div>
-        )}
-      </div>
-
       <MapContainer
         center={[field.center.lat, field.center.lng]}
         className="leaflet-map"
@@ -340,7 +322,12 @@ export function FieldMap({
         {selectedMapStatus && <span><span className="map-style-swatch" style={{ backgroundColor: selectedMapStatus.color }} /> {selectedMapStatus.label}</span>}
         <span><Navigation size={16} /> {t("fields.accessMarker")}</span>
         <span><MapPin size={16} /> {t("fields.hazardMarker")}</span>
-        <span><MapPin size={16} /> {t("fields.accessCoordinate", { coords: formatCoordinates(access) })}</span>
+        <span className="access-coordinate-line">
+          <MapPin size={16} /> {t("fields.accessCoordinate", { coords: formatCoordinates(access) })}
+          <button aria-label={t("actions.copyCoordinates")} className="coordinate-copy-button" onClick={copyCoordinates} title={t("actions.copyCoordinates")} type="button">
+            <Copy size={15} />
+          </button>
+        </span>
         {editable && editMode === "boundary" && <span><Pencil size={16} /> {t("fields.drawingMode", { count: draftBoundary.length })}</span>}
         {editable && editMode === "access" && <span><Navigation size={16} /> {t("mapEdit.accessMode")}</span>}
         {editable && editMode === "hazard" && <span><AlertTriangle size={16} /> {t("mapEdit.hazardMode")}</span>}
@@ -412,29 +399,6 @@ export function FieldMap({
           </label>
           <button className="primary-action" disabled={!draftHazardPoint} onClick={commitHazard} type="button">
             <Check size={18} /> {t("mapEdit.saveHazard")}
-          </button>
-        </div>
-      )}
-
-      {showActions && (
-        <div className="map-actions">
-          <a className="primary-action" href={googleUrl} rel="noreferrer" target="_blank">
-            <Navigation size={18} /> {t("actions.googleMaps")}
-          </a>
-          <a className="secondary-action" href={appleUrl} rel="noreferrer" target="_blank">
-            <ExternalLink size={18} /> {t("actions.appleMaps")}
-          </a>
-          <a className="secondary-action" href={openStreetMapUrl(access)} rel="noreferrer" target="_blank">
-            <MapPin size={18} /> {t("actions.openStreetMap")}
-          </a>
-          <a className="secondary-action" href={hittaMapsUrl(access)} rel="noreferrer" target="_blank">
-            <MapPin size={18} /> {t("actions.hittaMaps")}
-          </a>
-          <a className="secondary-action" href={lantmaterietMapsUrl(access)} rel="noreferrer" target="_blank">
-            <MapPin size={18} /> {t("actions.lantmaterietMaps")}
-          </a>
-          <button className="secondary-action" onClick={copyCoordinates} type="button">
-            <Copy size={18} /> {t("actions.copyCoordinates")}
           </button>
         </div>
       )}

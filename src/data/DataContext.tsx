@@ -1,7 +1,7 @@
 import { createContext, useContext } from "react";
 import type { ReactNode } from "react";
 import { contractor, drivers, farmer, fields, implementsList, jobTypes, organizations, taskTemplates, vehicles } from "./mockData";
-import type { AuthProfile, Driver, Field, Implement, JobType, Organization, TaskTemplate, UserRole, Vehicle } from "../types";
+import type { AuthProfile, Driver, ExternalContact, Field, Implement, JobType, Organization, OrganizationRelationship, TaskTemplate, UserRole, Vehicle } from "../types";
 
 export type PermissionSet = {
   canEditFields: boolean;
@@ -17,6 +17,8 @@ type DataContextValue = {
   vehicles: Vehicle[];
   implementsList: Implement[];
   organizations: Organization[];
+  organizationRelationships: OrganizationRelationship[];
+  externalContacts: ExternalContact[];
   jobTypes: JobType[];
   taskTemplates: TaskTemplate[];
   addField: (field: Field) => void;
@@ -44,6 +46,11 @@ type DataContextValue = {
   updateOrganization: (id: string, patch: Partial<Organization>) => void;
   archiveOrganization: (id: string) => void;
   deleteOrganization: (id: string) => void;
+  addOrganizationRelationship: (relationship: OrganizationRelationship) => void;
+  updateOrganizationRelationship: (id: string, patch: Partial<OrganizationRelationship>) => void;
+  deleteOrganizationRelationship: (id: string) => void;
+  addExternalContact: (contact: ExternalContact) => void;
+  updateExternalContact: (id: string, patch: Partial<ExternalContact>) => void;
   archiveJob: (id: string) => void;
   restoreJob: (id: string) => void;
   deleteJob: (id: string) => void;
@@ -77,6 +84,8 @@ const defaultValue: DataContextValue = {
   vehicles,
   implementsList,
   organizations,
+  organizationRelationships: [],
+  externalContacts: [],
   jobTypes,
   taskTemplates,
   addField: () => undefined,
@@ -104,6 +113,11 @@ const defaultValue: DataContextValue = {
   updateOrganization: () => undefined,
   archiveOrganization: () => undefined,
   deleteOrganization: () => undefined,
+  addOrganizationRelationship: () => undefined,
+  updateOrganizationRelationship: () => undefined,
+  deleteOrganizationRelationship: () => undefined,
+  addExternalContact: () => undefined,
+  updateExternalContact: () => undefined,
   archiveJob: () => undefined,
   restoreJob: () => undefined,
   deleteJob: () => undefined,

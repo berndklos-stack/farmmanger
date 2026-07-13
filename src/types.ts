@@ -16,8 +16,27 @@ export type UserRole =
   | "advisor"
   | "support_admin";
 
-export type OrganizationKind = "farmer" | "contractor";
+export type PersonnelEmployeeType = "field" | "administration" | "workshop" | "warehouse";
+
+export type PersonnelAppPermissionKey =
+  | "canEditFields"
+  | "canCreateJobs"
+  | "canEditDrivers"
+  | "canAssignDrivers";
+
+export type PersonnelAppAccess = {
+  role: UserRole;
+  allowedViews: ViewKey[];
+  permissions: Partial<Record<PersonnelAppPermissionKey, boolean>>;
+};
+
+export type JobCompletionStatus = "review" | "checked" | "billable" | "invoiced";
+
+export type OrganizationKind = "farmer" | "contractor" | "advisor" | "supplier" | "other";
 export type DriverJobVisibility = "contractor_all" | "organization_internal" | "organization_all" | "assigned_only";
+export type OrganizationRelationshipStatus = "invited" | "active" | "paused" | "ended" | "blocked";
+export type ExternalContactType = "customer" | "contractor" | "supplier" | "other";
+export type ExternalContactStatus = "external" | "invited" | "linked" | "archived";
 
 export type AuthProfile = {
   id: string;
@@ -27,6 +46,8 @@ export type AuthProfile = {
   organizationId?: string;
   vehicleName?: string;
   jobVisibility?: DriverJobVisibility;
+  allowedViews?: ViewKey[];
+  appPermissions?: Partial<Record<PersonnelAppPermissionKey, boolean>>;
 };
 
 export type OrganizationContact = {
@@ -44,6 +65,7 @@ export type Organization = {
   id: string;
   name: string;
   kind: OrganizationKind;
+  organizationNumber?: string;
   address?: string;
   street?: string;
   country?: string;
@@ -54,9 +76,46 @@ export type Organization = {
   email?: string;
   website?: string;
   vatId?: string;
+  logoUrl?: string;
+  defaultLanguage?: string;
+  billingDetails?: string;
+  customerNumber?: string;
+  supplierCategory?: string;
   notes?: string;
   contacts?: OrganizationContact[];
   archivedAt?: string;
+};
+
+export type OrganizationRelationship = {
+  id: string;
+  farmerOrganizationId: string;
+  contractorOrganizationId: string;
+  status: OrganizationRelationshipStatus;
+  invitedBy?: string;
+  acceptedBy?: string;
+  invitationEmail?: string;
+  invitationMessage?: string;
+  createdAt?: string;
+  acceptedAt?: string;
+  endedAt?: string;
+  notes?: string;
+};
+
+export type ExternalContact = {
+  id: string;
+  organizationId: string;
+  contactType: ExternalContactType;
+  companyName: string;
+  contactPerson?: string;
+  email?: string;
+  phone?: string;
+  address?: string;
+  organizationNumber?: string;
+  linkedOrganizationId?: string;
+  status: ExternalContactStatus;
+  notes?: string;
+  createdAt?: string;
+  updatedAt?: string;
 };
 
 export type Status =
@@ -160,6 +219,10 @@ export type Driver = {
   maxDailyHours?: number;
   annualVacationDays?: number;
   vacationUsedDays?: number;
+  employeeType?: PersonnelEmployeeType;
+  appRole?: UserRole;
+  allowedViews?: ViewKey[];
+  appPermissions?: Partial<Record<PersonnelAppPermissionKey, boolean>>;
   resourceType?: string;
   operationType?: string;
   archivedAt?: string;
@@ -224,6 +287,11 @@ export type Vehicle = {
   name: string;
   type: string;
   licensePlate?: string;
+  manufacturer?: string;
+  model?: string;
+  constructionYear?: number;
+  operatingHours?: number;
+  defaultDriverId?: string;
   resourceType?: string;
   operationType?: string;
   status: "frei" | "zugewiesen" | "wartung";
@@ -235,6 +303,8 @@ export type Implement = {
   organizationId?: string;
   name: string;
   type: string;
+  manufacturer?: string;
+  workingWidth?: number;
   resourceType?: string;
   operationType?: string;
   status: "frei" | "zugewiesen" | "wartung";
@@ -279,6 +349,11 @@ export type TaskTemplate = {
   requiredImplements?: number;
   resourceHint?: string;
   unit?: string;
+  billingUnit?: "ha" | "hour" | "trip" | "quantity" | "flat";
+  standardPrice?: number;
+  standardPriceCurrency?: string;
+  standardPriceValidFrom?: string;
+  standardPriceValidTo?: string;
   mapStyle?: FieldMapStyle;
   archivedAt?: string;
 };
@@ -342,6 +417,11 @@ export type Job = {
   timeWindow: string;
   priority?: string;
   notes: string;
+  completionStatus?: JobCompletionStatus;
+  completionStatusChangedAt?: string;
+  completionStatusChangedBy?: string;
+  invoiceNumber?: string;
+  invoiceDate?: string;
   archivedAt?: string;
 };
 

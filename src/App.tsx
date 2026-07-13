@@ -31,7 +31,7 @@ import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJob
 import { useFarmManagerData } from "./hooks/useFarmManagerData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { APP_RELEASE_LABEL } from "./lib/appVersion";
-import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, Field, Implement, Job, JobType, Organization, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
+import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, ExternalContact, Field, Implement, Job, JobType, Organization, OrganizationRelationship, PersonnelAppAccess, PersonnelEmployeeType, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
 
 const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: BarChart3 },
@@ -72,7 +72,8 @@ function resolveAuthEmail(email: string) {
 }
 
 function resolveBrandText(value?: string | null) {
-  return (value ?? "").replace(/Schlag\s*Link|SchlagLink|schlaglink/gi, "Farm-Manager");
+  const legacyBrand = [atob("U2NobGFn"), "\\s*", atob("TGluaw==")].join("");
+  return (value ?? "").replace(new RegExp(`${legacyBrand}|${atob("c2NobGFnbGluaw==")}`, "gi"), "Farm-Manager");
 }
 
 const contractorOrganizationId = "22222222-2222-4222-8222-222222222222";
@@ -87,6 +88,8 @@ const localDriversStorageKey = "farm-manager.localDrivers";
 const localVehiclesStorageKey = "farm-manager.localVehicles";
 const localOrganizationsStorageKey = "farm-manager.localOrganizations";
 const deletedOrganizationsStorageKey = "farm-manager.deletedOrganizations";
+const localOrganizationRelationshipsStorageKey = "farm-manager.organizationRelationships";
+const localExternalContactsStorageKey = "farm-manager.externalContacts";
 const driverLocationsStorageKey = "farm-manager.driverLocations";
 const localTaskTemplatesStorageKey = "farm-manager.localTaskTemplates";
 const localJobTypesStorageKey = "farm-manager.localJobTypes";
@@ -130,6 +133,42 @@ type DispatchAssignmentOverride = Pick<
   | "statusChangedAt"
 >;
 
+type OrganizationRelationshipRow = {
+  id: string;
+  farmer_organization_id: string;
+  contractor_organization_id: string;
+  status: OrganizationRelationship["status"];
+  invited_by?: string | null;
+  accepted_by?: string | null;
+  invitation_email?: string | null;
+  invitation_message?: string | null;
+  created_at?: string | null;
+  accepted_at?: string | null;
+  ended_at?: string | null;
+  notes?: string | null;
+};
+
+type ExternalContactRow = {
+  id: string;
+  organization_id: string;
+  contact_type?: ExternalContact["contactType"] | null;
+  contact_kind?: ExternalContact["contactType"] | null;
+  company_name: string;
+  contact_person?: string | null;
+  contact_name?: string | null;
+  email?: string | null;
+  phone?: string | null;
+  address?: string | null;
+  organization_number?: string | null;
+  linked_organization_id?: string | null;
+  status?: ExternalContact["status"] | null;
+  active?: boolean | null;
+  notes?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
+  archived_at?: string | null;
+};
+
 type ProfileRow = {
   id: string;
   full_name: string | null;
@@ -139,6 +178,31 @@ type ProfileRow = {
   vehicle_name?: string | null;
   job_visibility?: Driver["jobVisibility"] | null;
 };
+
+const personnelAccessMarker = "FM_PERSONNEL_ACCESS:";
+
+function stripMarkerBlock(value: string | undefined | null, marker: string) {
+  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+}
+
+function parseMarkerJson<T>(value: string | undefined | null, marker: string, fallback: T): T {
+  const line = (value ?? "").split("\n").find((item) => item.startsWith(marker));
+  if (!line) return fallback;
+  try {
+    return JSON.parse(line.slice(marker.length)) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function withMarkerJson(value: string | undefined | null, marker: string, data: unknown) {
+  const base = stripMarkerBlock(value, marker);
+  return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
+}
+
+function personnelAccessFromOperationType(value: string | undefined | null) {
+  return parseMarkerJson<Partial<PersonnelAppAccess> & { employeeType?: PersonnelEmployeeType }>(value, personnelAccessMarker, {});
+}
 
 type DriverAuthSyncResult = {
   personnelResourceId?: string | null;
@@ -433,6 +497,32 @@ function saveDeletedOrganizationIds(ids: string[]) {
   window.localStorage.setItem(deletedOrganizationsStorageKey, JSON.stringify(ids));
 }
 
+function loadLocalOrganizationRelationships() {
+  try {
+    const raw = window.localStorage.getItem(localOrganizationRelationshipsStorageKey);
+    return raw ? JSON.parse(raw) as OrganizationRelationship[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalOrganizationRelationships(relationships: OrganizationRelationship[]) {
+  window.localStorage.setItem(localOrganizationRelationshipsStorageKey, JSON.stringify(relationships));
+}
+
+function loadLocalExternalContacts() {
+  try {
+    const raw = window.localStorage.getItem(localExternalContactsStorageKey);
+    return raw ? JSON.parse(raw) as ExternalContact[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveLocalExternalContacts(contacts: ExternalContact[]) {
+  window.localStorage.setItem(localExternalContactsStorageKey, JSON.stringify(contacts));
+}
+
 function mergeLocalOrganizations(loadedOrganizations: Organization[], localOrganizations: Record<string, Organization>, deletedOrganizationIds: string[]) {
   const deleted = new Set(deletedOrganizationIds);
   const merged = new globalThis.Map<string, Organization>();
@@ -463,20 +553,32 @@ function cleanOrganizationAddress(address?: string) {
 
 function organizationMetaLine(organization: Organization) {
   const meta = {
+    organizationNumber: organization.organizationNumber ?? "",
     phone: organization.phone ?? "",
     mobile: organization.mobile ?? "",
     email: organization.email ?? "",
     website: organization.website ?? "",
     vatId: organization.vatId ?? "",
+    logoUrl: organization.logoUrl ?? "",
+    defaultLanguage: organization.defaultLanguage ?? "",
+    billingDetails: organization.billingDetails ?? "",
+    customerNumber: organization.customerNumber ?? "",
+    supplierCategory: organization.supplierCategory ?? "",
     notes: organization.notes ?? "",
     contacts: organization.contacts ?? [],
   };
   const hasMeta = Boolean(
-    meta.phone
+    meta.organizationNumber
+    || meta.phone
     || meta.mobile
     || meta.email
     || meta.website
     || meta.vatId
+    || meta.logoUrl
+    || meta.defaultLanguage
+    || meta.billingDetails
+    || meta.customerNumber
+    || meta.supplierCategory
     || meta.notes
     || meta.contacts.length,
   );
@@ -633,11 +735,17 @@ function organizationPayload(organization: Organization) {
     name: organization.name,
     organization_type: organization.kind,
     address: organizationAddressWithMeta(organization),
+    organization_number: organization.organizationNumber ?? null,
     phone: organization.phone ?? null,
     mobile: organization.mobile ?? null,
     email: organization.email ?? null,
     website: organization.website ?? null,
     vat_id: organization.vatId ?? null,
+    logo_url: organization.logoUrl ?? null,
+    default_language: organization.defaultLanguage ?? null,
+    billing_details: organization.billingDetails ?? null,
+    customer_number: organization.customerNumber ?? null,
+    supplier_category: organization.supplierCategory ?? null,
     notes: organization.notes ?? null,
     contacts: organization.contacts ?? [],
     archived_at: organization.archivedAt ?? null,
@@ -646,11 +754,17 @@ function organizationPayload(organization: Organization) {
 
 function organizationPayloadCompatible(organization: Organization) {
   const payload: Record<string, unknown> = { ...organizationPayload(organization) };
+  delete payload.organization_number;
   delete payload.phone;
   delete payload.mobile;
   delete payload.email;
   delete payload.website;
   delete payload.vat_id;
+  delete payload.logo_url;
+  delete payload.default_language;
+  delete payload.billing_details;
+  delete payload.customer_number;
+  delete payload.supplier_category;
   delete payload.notes;
   delete payload.contacts;
   delete payload.archived_at;
@@ -658,7 +772,82 @@ function organizationPayloadCompatible(organization: Organization) {
 }
 
 function isOrganizationPayloadColumnError(message: string) {
-  return ["archived_at", "phone", "mobile", "email", "website", "vat_id", "notes", "contacts"].some((column) => message.includes(column));
+  return ["archived_at", "organization_number", "phone", "mobile", "email", "website", "vat_id", "logo_url", "default_language", "billing_details", "customer_number", "supplier_category", "notes", "contacts"].some((column) => message.includes(column));
+}
+
+function relationshipFromRow(row: OrganizationRelationshipRow): OrganizationRelationship {
+  return {
+    id: row.id,
+    farmerOrganizationId: row.farmer_organization_id,
+    contractorOrganizationId: row.contractor_organization_id,
+    status: row.status,
+    invitedBy: row.invited_by ?? undefined,
+    acceptedBy: row.accepted_by ?? undefined,
+    invitationEmail: row.invitation_email ?? undefined,
+    invitationMessage: row.invitation_message ?? undefined,
+    createdAt: row.created_at ?? undefined,
+    acceptedAt: row.accepted_at ?? undefined,
+    endedAt: row.ended_at ?? undefined,
+    notes: row.notes ?? undefined,
+  };
+}
+
+function relationshipPayload(relationship: OrganizationRelationship) {
+  return {
+    id: relationship.id,
+    farmer_organization_id: relationship.farmerOrganizationId,
+    contractor_organization_id: relationship.contractorOrganizationId,
+    status: relationship.status,
+    invited_by: relationship.invitedBy ?? null,
+    accepted_by: relationship.acceptedBy ?? null,
+    invitation_email: relationship.invitationEmail ?? null,
+    invitation_message: relationship.invitationMessage ?? null,
+    created_at: relationship.createdAt ?? new Date().toISOString(),
+    accepted_at: relationship.acceptedAt ?? null,
+    ended_at: relationship.endedAt ?? null,
+    notes: relationship.notes ?? null,
+  };
+}
+
+function externalContactFromRow(row: ExternalContactRow): ExternalContact {
+  return {
+    id: row.id,
+    organizationId: row.organization_id,
+    contactType: row.contact_type ?? row.contact_kind ?? "customer",
+    companyName: row.company_name,
+    contactPerson: row.contact_person ?? row.contact_name ?? undefined,
+    email: row.email ?? undefined,
+    phone: row.phone ?? undefined,
+    address: row.address ?? undefined,
+    organizationNumber: row.organization_number ?? undefined,
+    linkedOrganizationId: row.linked_organization_id ?? undefined,
+    status: row.status ?? (row.archived_at || row.active === false ? "archived" : row.linked_organization_id ? "linked" : "external"),
+    notes: row.notes ?? undefined,
+    createdAt: row.created_at ?? undefined,
+    updatedAt: row.updated_at ?? undefined,
+  };
+}
+
+function externalContactPayload(contact: ExternalContact) {
+  return {
+    id: contact.id,
+    organization_id: contact.organizationId,
+    contact_type: contact.contactType,
+    contact_kind: contact.contactType,
+    company_name: contact.companyName,
+    contact_person: contact.contactPerson ?? null,
+    contact_name: contact.contactPerson ?? null,
+    email: contact.email ?? null,
+    phone: contact.phone ?? null,
+    address: contact.address ?? null,
+    organization_number: contact.organizationNumber ?? null,
+    linked_organization_id: contact.linkedOrganizationId ?? null,
+    status: contact.status,
+    active: contact.status !== "archived",
+    notes: contact.notes ?? null,
+    updated_at: new Date().toISOString(),
+    archived_at: contact.status === "archived" ? new Date().toISOString() : null,
+  };
 }
 
 function workModeToDatabase(mode: WorkMode) {
@@ -768,6 +957,22 @@ function cloneJobTypeForOrganization(jobType: JobType, organizationId: string): 
   };
 }
 
+function BrandMark({ logoUrl, size = 24 }: { logoUrl?: string; size?: number }) {
+  if (logoUrl) {
+    return (
+      <div className="brand-mark has-logo">
+        <img alt="" src={logoUrl} />
+      </div>
+    );
+  }
+
+  return (
+    <div className="brand-mark">
+      <Tractor size={size} />
+    </div>
+  );
+}
+
 export function App() {
   const { t } = useTranslation();
   const appMode = getAppModeFromPath();
@@ -786,6 +991,8 @@ export function App() {
   const [organizationRecords, setOrganizationRecords] = useState<Organization[]>(mockOrganizations);
   const [localOrganizations, setLocalOrganizations] = useState<Record<string, Organization>>(() => loadLocalOrganizations());
   const [deletedOrganizationIds, setDeletedOrganizationIds] = useState<string[]>(() => loadDeletedOrganizationIds());
+  const [organizationRelationshipRecords, setOrganizationRelationshipRecords] = useState<OrganizationRelationship[]>(() => loadLocalOrganizationRelationships());
+  const [externalContactRecords, setExternalContactRecords] = useState<ExternalContact[]>(() => loadLocalExternalContacts());
   const [jobTypeRecords, setJobTypeRecords] = useState<JobType[]>(mockJobTypes);
   const [localJobTypes, setLocalJobTypes] = useState<Record<string, JobType>>(() => loadLocalJobTypes());
   const [taskTemplateRecords, setTaskTemplateRecords] = useState<TaskTemplate[]>(mockTaskTemplates);
@@ -810,11 +1017,21 @@ export function App() {
   const [pendingDriverSync, setPendingDriverSync] = useState<Record<string, Subtask>>(() => loadPendingDriverSync());
   const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [showArchivedJobs, setShowArchivedJobs] = useState(false);
+  const [jobStatusFilter, setJobStatusFilter] = useState<Status | "all">("all");
   const [isCreateJobModalOpen, setIsCreateJobModalOpen] = useState(false);
   const [jobTemplateDraft, setJobTemplateDraft] = useState<Job | null>(null);
   const [dispatchEditJobId, setDispatchEditJobId] = useState("");
   const [masterDataFocus, setMasterDataFocus] = useState<MasterDataFocus | null>(null);
   const loginLocationSentForDriverRef = useRef<string | null>(null);
+  const currentOrganization = authProfile?.organizationId
+    ? organizationRecords.find((organization) => organization.id === authProfile.organizationId)
+    : undefined;
+  const currentOrganizationLogoUrl = currentOrganization?.logoUrl;
+
+  function openMainView(view: ViewKey) {
+    if (view === "masterData") setMasterDataFocus(null);
+    setActiveView(view);
+  }
 
   async function loadAuthProfile(session: Session | null) {
     if (!session || !supabase) {
@@ -832,7 +1049,27 @@ export function App() {
       return;
     }
     const profile = profileFromRow(data as ProfileRow);
-    if (!roleAllowedInAppMode(profile.role, appMode)) {
+    let { data: personnelRow } = await supabase
+      .from("personnel_resources")
+      .select("operation_type")
+      .eq("profile_id", profile.id)
+      .maybeSingle();
+    if (!personnelRow && profile.email) {
+      const { data: emailPersonnelRow } = await supabase
+        .from("personnel_resources")
+        .select("operation_type")
+        .ilike("email", profile.email)
+        .maybeSingle();
+      personnelRow = emailPersonnelRow;
+    }
+    const personnelAccess = personnelAccessFromOperationType((personnelRow as { operation_type?: string | null } | null)?.operation_type);
+    const profileWithAccess: AuthProfile = {
+      ...profile,
+      role: personnelAccess.role ?? profile.role,
+      allowedViews: personnelAccess.allowedViews?.length ? personnelAccess.allowedViews : undefined,
+      appPermissions: personnelAccess.permissions,
+    };
+    if (!roleAllowedInAppMode(profileWithAccess.role, appMode)) {
       setAuthProfile(null);
       setAuthSession(null);
       setCurrentRoleState(appMode === "driver" ? "driver" : "farmer_admin");
@@ -842,12 +1079,12 @@ export function App() {
       await supabase.auth.signOut();
       return;
     }
-    setAuthProfile(profile);
-    setCurrentRoleState(profile.role);
-    window.localStorage.setItem("farm-manager.role", profile.role);
+    setAuthProfile(profileWithAccess);
+    setCurrentRoleState(profileWithAccess.role);
+    window.localStorage.setItem("farm-manager.role", profileWithAccess.role);
     setAuthError("");
-    if (profile.role === "driver") setActiveView("driver");
-    if (profile.role !== "driver" && appMode !== "driver") setActiveView("dashboard");
+    if (profileWithAccess.role === "driver") setActiveView("driver");
+    if (profileWithAccess.role !== "driver" && appMode !== "driver") setActiveView(profileWithAccess.allowedViews?.[0] ?? "dashboard");
   }
 
   useEffect(() => {
@@ -879,7 +1116,7 @@ export function App() {
     setDriverRecords(mergeLocalDrivers(loadedData.drivers, localDrivers));
     setVehicleRecords(mergeLocalVehicles(loadedData.vehicles, localVehicles));
     setImplementRecords(loadedData.implementsList);
-    setOrganizationRecords(mergeLocalOrganizations(mergeBaseOrganizations(loadedData.organizations, mockOrganizations), localOrganizations, deletedOrganizationIds));
+    setOrganizationRecords(mergeLocalOrganizations(loadedData.isDemoMode ? mergeBaseOrganizations(loadedData.organizations, mockOrganizations) : loadedData.organizations, localOrganizations, deletedOrganizationIds));
     setTaskTemplateRecords(mergeLocalTaskTemplates(loadedData.taskTemplates, localTaskTemplates));
     setJobTypeRecords(mergeLocalJobTypes(jobTypeRecords.length > 0 ? jobTypeRecords : mockJobTypes, localJobTypes));
     setJobs(mergeLocalJobs(loadedData.jobs, localJobs, localArchivedJobs));
@@ -887,6 +1124,53 @@ export function App() {
     setSelectedFieldId((current) => current || loadedData.fields[0]?.id || "");
     setSelectedJobId((current) => current || loadedData.jobs[0]?.id || "");
   }, [deletedFieldIds, deletedOrganizationIds, dispatchAssignmentOverrides, loadedData.drivers, loadedData.fields, loadedData.implementsList, loadedData.jobs, loadedData.organizations, loadedData.subtasks, loadedData.taskTemplates, loadedData.vehicles, localArchivedJobs, localDrivers, localFields, localJobs, localJobTypes, localOrganizations, localSubtasks, localTaskTemplates, localVehicles]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || !authProfile?.organizationId) {
+      setOrganizationRelationshipRecords(loadLocalOrganizationRelationships());
+      setExternalContactRecords(loadLocalExternalContacts());
+      return;
+    }
+
+    const client = supabase;
+    const organizationId = authProfile.organizationId;
+    let cancelled = false;
+    async function loadCollaborationData() {
+      const [relationshipsResult, externalContactsResult] = await Promise.all([
+        client
+          .from("organization_relationships")
+          .select("*")
+          .or(`farmer_organization_id.eq.${organizationId},contractor_organization_id.eq.${organizationId}`),
+        client
+          .from("external_contacts")
+          .select("*")
+          .eq("organization_id", organizationId),
+      ]);
+      if (cancelled) return;
+
+      const localRelationships = loadLocalOrganizationRelationships();
+      const localContacts = loadLocalExternalContacts();
+      const relationships = relationshipsResult.error
+        ? localRelationships
+        : [
+            ...(relationshipsResult.data ?? []).map((row) => relationshipFromRow(row as OrganizationRelationshipRow)),
+            ...localRelationships,
+          ];
+      const contacts = externalContactsResult.error
+        ? localContacts
+        : [
+            ...(externalContactsResult.data ?? []).map((row) => externalContactFromRow(row as ExternalContactRow)),
+            ...localContacts,
+          ];
+      setOrganizationRelationshipRecords(Array.from(new globalThis.Map(relationships.map((relationship) => [relationship.id, relationship])).values()));
+      setExternalContactRecords(Array.from(new globalThis.Map(contacts.map((contact) => [contact.id, contact])).values()));
+    }
+
+    void loadCollaborationData();
+    return () => {
+      cancelled = true;
+    };
+  }, [authProfile?.organizationId]);
 
   useEffect(() => {
     function updateOnlineState() {
@@ -1022,13 +1306,17 @@ export function App() {
   const visibleNavItems = useMemo(() => {
     if (appMode === "driver") return navItems.filter((item) => item.key === "driver");
     if (appMode === "admin" && currentRole === "driver") return [];
+    if (authProfile?.allowedViews?.length && currentRole !== "support_admin") {
+      const allowed = new Set(authProfile.allowedViews);
+      return navItems.filter((item) => allowed.has(item.key));
+    }
     if (currentRole === "driver") return navItems.filter((item) => item.key === "driver");
     if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
     if (currentRole === "contractor_admin") return navItems.filter((item) => ["dashboard", "fields", "contractor", "masterData", "jobs", "report"].includes(item.key));
     if (currentRole === "farmer_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
     if (currentRole === "farmer_employee") return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
     return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
-  }, [appMode, currentRole]);
+  }, [appMode, authProfile?.allowedViews, currentRole]);
 
   useEffect(() => {
     if (visibleNavItems.some((item) => item.key === activeView)) return;
@@ -1745,10 +2033,29 @@ export function App() {
       planned_end: parseTimeWindowDate(job.timeWindow, 17),
       priority: job.priority ?? "normal",
       status: "open",
+      completion_status: job.completionStatus ?? null,
+      completion_status_changed_at: job.completionStatusChangedAt ?? null,
+      completion_status_changed_by: job.completionStatusChangedBy ?? null,
+      invoice_number: job.invoiceNumber ?? null,
+      invoice_date: job.invoiceDate ?? null,
     };
     let { error: jobError } = await supabase.from("jobs").upsert(jobPayload, { onConflict: "id" });
-    if (jobError && (jobError.message.includes("job_number") || jobError.message.includes("jobs_job_number"))) {
-      const { job_number: _jobNumber, ...legacyJobPayload } = jobPayload;
+    if (jobError && (
+      jobError.message.includes("job_number")
+      || jobError.message.includes("jobs_job_number")
+      || jobError.message.includes("completion_status")
+      || jobError.message.includes("invoice_number")
+      || jobError.message.includes("invoice_date")
+    )) {
+      const {
+        job_number: _jobNumber,
+        completion_status: _completionStatus,
+        completion_status_changed_at: _completionStatusChangedAt,
+        completion_status_changed_by: _completionStatusChangedBy,
+        invoice_number: _invoiceNumber,
+        invoice_date: _invoiceDate,
+        ...legacyJobPayload
+      } = jobPayload;
       const retry = await supabase.from("jobs").upsert(legacyJobPayload, { onConflict: "id" });
       jobError = retry.error;
     }
@@ -1924,12 +2231,38 @@ export function App() {
         payload.planned_end = parseTimeWindowDate(patch.timeWindow, 17);
       }
       if (patch.priority !== undefined) payload.priority = patch.priority;
-      const { error } = await supabase.from("jobs").update(payload).eq("id", id);
+      if (patch.completionStatus !== undefined) payload.completion_status = patch.completionStatus;
+      if (patch.completionStatusChangedAt !== undefined) payload.completion_status_changed_at = patch.completionStatusChangedAt;
+      if (patch.completionStatusChangedBy !== undefined) payload.completion_status_changed_by = patch.completionStatusChangedBy;
+      if (patch.invoiceNumber !== undefined) payload.invoice_number = patch.invoiceNumber || null;
+      if (patch.invoiceDate !== undefined) payload.invoice_date = patch.invoiceDate || null;
+      let { error } = await supabase.from("jobs").update(payload).eq("id", id);
+      if (error && (
+        error.message.includes("completion_status")
+        || error.message.includes("invoice_number")
+        || error.message.includes("invoice_date")
+      )) {
+        const {
+          completion_status: _completionStatus,
+          completion_status_changed_at: _completionStatusChangedAt,
+          completion_status_changed_by: _completionStatusChangedBy,
+          invoice_number: _invoiceNumber,
+          invoice_date: _invoiceDate,
+          ...legacyPayload
+        } = payload;
+        const retry = await supabase.from("jobs").update(legacyPayload).eq("id", id);
+        error = retry.error;
+      }
       if (error) console.error("Auftrag konnte nicht in Supabase aktualisiert werden", error);
     }
   }
 
   async function archiveJob(id: string) {
+    const currentJob = jobs.find((job) => job.id === id);
+    if (currentJob && (currentJob.completionStatus !== "invoiced" || !currentJob.invoiceNumber?.trim())) {
+      window.alert(t("report.archiveRequiresInvoice"));
+      return;
+    }
     const archivedAt = new Date().toISOString();
     if (dispatchEditJobId === id) setDispatchEditJobId("");
     releaseJobResources(id);
@@ -2009,12 +2342,12 @@ export function App() {
   async function syncFieldBoundary(field: Field) {
     if (!isSupabaseConfigured || !supabase) return;
     const { error: deleteError } = await supabase.from("field_boundaries").delete().eq("field_id", field.id);
-    if (deleteError) console.error("Feldgrenze konnte nicht ersetzt werden", deleteError);
+    if (deleteError) console.error("Flächengrenze konnte nicht ersetzt werden", deleteError);
     const { error } = await supabase.from("field_boundaries").insert({
       field_id: field.id,
       points_json: field.boundary,
     });
-    if (error) console.error("Feldgrenze konnte nicht in Supabase gespeichert werden", error);
+    if (error) console.error("Flächengrenze konnte nicht in Supabase gespeichert werden", error);
   }
 
   async function syncFieldHazards(field: Field) {
@@ -2243,6 +2576,12 @@ export function App() {
   }
 
   function driverPayload(driver: Driver) {
+    const operationType = withMarkerJson(driver.operationType, personnelAccessMarker, {
+      employeeType: driver.employeeType ?? "field",
+      role: driver.appRole ?? "driver",
+      allowedViews: driver.allowedViews ?? ["driver"],
+      permissions: driver.appPermissions ?? {},
+    });
     return {
       id: supabaseDriverId(driver),
       organization_id: driver.organizationId ?? contractorOrganizationId,
@@ -2254,10 +2593,24 @@ export function App() {
       mobile: driver.mobile ?? "",
       license_classes: driver.licenseClasses ?? [],
       max_daily_hours: driver.maxDailyHours ?? 8,
+      annual_vacation_days: driver.annualVacationDays ?? 30,
+      vacation_used_days: driver.vacationUsedDays ?? 0,
       resource_type: driver.resourceType ?? "Personal",
-      operation_type: driver.operationType ?? "",
+      operation_type: operationType,
       archived_at: driver.archivedAt ?? null,
     };
+  }
+
+  function driverPayloadCompatible(driver: Driver) {
+    const payload: Record<string, unknown> = { ...driverPayload(driver) };
+    delete payload.annual_vacation_days;
+    delete payload.vacation_used_days;
+    delete payload.archived_at;
+    return payload;
+  }
+
+  function isDriverPayloadColumnError(message: string) {
+    return ["annual_vacation_days", "vacation_used_days", "archived_at"].some((column) => message.includes(column));
   }
 
   function applyDriverProfileId(driverId: string, profileId: string) {
@@ -2287,8 +2640,14 @@ export function App() {
         mobile: driver.mobile ?? "",
         licenseClasses: driver.licenseClasses ?? [],
         maxDailyHours: driver.maxDailyHours ?? 8,
+        annualVacationDays: driver.annualVacationDays ?? 30,
+        vacationUsedDays: driver.vacationUsedDays ?? 0,
         resourceType: driver.resourceType ?? "Personal",
         operationType: driver.operationType ?? "",
+        employeeType: driver.employeeType ?? "field",
+        appRole: driver.appRole ?? "driver",
+        allowedViews: driver.allowedViews ?? ["driver"],
+        appPermissions: driver.appPermissions ?? {},
         archivedAt: driver.archivedAt ?? null,
       },
     });
@@ -2312,7 +2671,11 @@ export function App() {
 
   async function saveDriverToSupabase(driver: Driver, errorLabel: string) {
     if (!isSupabaseConfigured || !supabase) return;
-    const { error } = await supabase.from("personnel_resources").upsert(driverPayload(driver), { onConflict: "id" });
+    let { error } = await supabase.from("personnel_resources").upsert(driverPayload(driver), { onConflict: "id" });
+    if (error && isDriverPayloadColumnError(error.message)) {
+      const retry = await supabase.from("personnel_resources").upsert(driverPayloadCompatible(driver), { onConflict: "id" });
+      error = retry.error;
+    }
     if (error) {
       console.error(errorLabel, error);
       return;
@@ -2321,34 +2684,64 @@ export function App() {
     if (authSyncResult?.profileId) applyDriverProfileId(driver.id, authSyncResult.profileId);
   }
 
-  function vehiclePayload(vehicle: Vehicle) {
-    return {
-      id: supabaseVehicleId(vehicle),
-      organization_id: vehicle.organizationId ?? contractorOrganizationId,
-      name: vehicle.name,
-      vehicle_type: vehicle.type,
-      license_plate: vehicle.licensePlate ?? "",
-      resource_type: vehicle.resourceType ?? vehicle.type,
-      operation_type: vehicle.operationType ?? "",
-      status: vehicle.status,
-      archived_at: vehicle.archivedAt ?? null,
-    };
-  }
+function vehiclePayload(vehicle: Vehicle) {
+  return {
+    id: supabaseVehicleId(vehicle),
+    organization_id: vehicle.organizationId ?? contractorOrganizationId,
+    name: vehicle.name,
+    vehicle_type: vehicle.type,
+    license_plate: vehicle.licensePlate ?? "",
+    manufacturer: vehicle.manufacturer ?? "",
+    model: vehicle.model ?? "",
+    construction_year: vehicle.constructionYear ?? null,
+    operating_hours: vehicle.operatingHours ?? null,
+    default_driver_id: vehicle.defaultDriverId || null,
+    resource_type: vehicle.resourceType ?? vehicle.type,
+    operation_type: vehicle.operationType ?? "",
+    status: vehicle.status,
+    archived_at: vehicle.archivedAt ?? null,
+  };
+}
 
-  function implementPayload(implement: Implement) {
-    return {
-      id: supabaseImplementId(implement),
-      organization_id: implement.organizationId ?? contractorOrganizationId,
-      name: implement.name,
-      implement_type: implement.type,
-      resource_type: implement.resourceType ?? implement.type,
-      operation_type: implement.operationType ?? "",
-      status: implement.status,
-      archived_at: implement.archivedAt ?? null,
-    };
-  }
+function vehiclePayloadCompatible(vehicle: Vehicle) {
+  const payload: Record<string, unknown> = { ...vehiclePayload(vehicle) };
+  delete payload.manufacturer;
+  delete payload.model;
+  delete payload.construction_year;
+  delete payload.operating_hours;
+  delete payload.default_driver_id;
+  delete payload.archived_at;
+  return payload;
+}
 
-  async function addDriver(driver: Driver) {
+function implementPayload(implement: Implement) {
+  return {
+    id: supabaseImplementId(implement),
+    organization_id: implement.organizationId ?? contractorOrganizationId,
+    name: implement.name,
+    implement_type: implement.type,
+    manufacturer: implement.manufacturer ?? "",
+    working_width: implement.workingWidth ?? null,
+    resource_type: implement.resourceType ?? implement.type,
+    operation_type: implement.operationType ?? "",
+    status: implement.status,
+    archived_at: implement.archivedAt ?? null,
+  };
+}
+
+function implementPayloadCompatible(implement: Implement) {
+  const payload: Record<string, unknown> = { ...implementPayload(implement) };
+  delete payload.manufacturer;
+  delete payload.working_width;
+  delete payload.archived_at;
+  return payload;
+}
+
+function isResourcePayloadColumnError(message: string) {
+  return ["manufacturer", "model", "construction_year", "operating_hours", "default_driver_id", "working_width", "archived_at"].some((column) => message.includes(column));
+}
+
+async function addDriver(driver: Driver) {
     setDriverRecords((current) => [driver, ...current]);
     setLocalDrivers((current) => {
       const next = { ...current, [driver.id]: driver };
@@ -2431,7 +2824,11 @@ export function App() {
       return next;
     });
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").upsert(vehiclePayload(vehicle));
+      let { error } = await supabase.from("vehicles").upsert(vehiclePayload(vehicle));
+      if (error && isResourcePayloadColumnError(error.message)) {
+        const retry = await supabase.from("vehicles").upsert(vehiclePayloadCompatible(vehicle));
+        error = retry.error;
+      }
       if (error) console.error("Fahrzeug konnte nicht in Supabase gespeichert werden", error);
     }
   }
@@ -2448,7 +2845,11 @@ export function App() {
       });
     }
     if (nextVehicle && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("vehicles").update(vehiclePayload(nextVehicle)).eq("id", supabaseVehicleId(nextVehicle));
+      let { error } = await supabase.from("vehicles").update(vehiclePayload(nextVehicle)).eq("id", supabaseVehicleId(nextVehicle));
+      if (error && isResourcePayloadColumnError(error.message)) {
+        const retry = await supabase.from("vehicles").update(vehiclePayloadCompatible(nextVehicle)).eq("id", supabaseVehicleId(nextVehicle));
+        error = retry.error;
+      }
       if (error) console.error("Fahrzeug konnte nicht in Supabase aktualisiert werden", error);
     }
   }
@@ -2505,7 +2906,11 @@ export function App() {
   async function addImplement(implement: Implement) {
     setImplementRecords((current) => [implement, ...current]);
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").upsert(implementPayload(implement));
+      let { error } = await supabase.from("implements").upsert(implementPayload(implement));
+      if (error && isResourcePayloadColumnError(error.message)) {
+        const retry = await supabase.from("implements").upsert(implementPayloadCompatible(implement));
+        error = retry.error;
+      }
       if (error) console.error("Anbaugerät konnte nicht in Supabase gespeichert werden", error);
     }
   }
@@ -2515,7 +2920,11 @@ export function App() {
     const nextImplement = currentImplement ? { ...currentImplement, ...patch } : undefined;
     setImplementRecords((current) => current.map((implement) => (implement.id === id ? { ...implement, ...patch } : implement)));
     if (nextImplement && isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("implements").update(implementPayload(nextImplement)).eq("id", supabaseImplementId(nextImplement));
+      let { error } = await supabase.from("implements").update(implementPayload(nextImplement)).eq("id", supabaseImplementId(nextImplement));
+      if (error && isResourcePayloadColumnError(error.message)) {
+        const retry = await supabase.from("implements").update(implementPayloadCompatible(nextImplement)).eq("id", supabaseImplementId(nextImplement));
+        error = retry.error;
+      }
       if (error) console.error("Anbaugerät konnte nicht in Supabase aktualisiert werden", error);
     }
   }
@@ -2648,6 +3057,110 @@ export function App() {
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.from("organizations").delete().eq("id", id);
       if (error) console.error("Organisation konnte nicht endgültig gelöscht werden", error);
+    }
+  }
+
+  async function addOrganizationRelationship(relationship: OrganizationRelationship) {
+    setOrganizationRelationshipRecords((current) => {
+      const next = [relationship, ...current.filter((item) => item.id !== relationship.id)];
+      saveLocalOrganizationRelationships(next);
+      return next;
+    });
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from("organization_relationships").upsert(relationshipPayload(relationship));
+      if (error) console.error("Zusammenarbeit konnte nicht in Supabase gespeichert werden", error);
+    }
+  }
+
+  async function updateOrganizationRelationship(id: string, patch: Partial<OrganizationRelationship>) {
+    let nextRelationship: OrganizationRelationship | undefined;
+    setOrganizationRelationshipRecords((current) => {
+      const next = current.map((relationship) => {
+        if (relationship.id !== id) return relationship;
+        nextRelationship = { ...relationship, ...patch };
+        return nextRelationship;
+      });
+      saveLocalOrganizationRelationships(next);
+      return next;
+    });
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from("organization_relationships").update({
+        status: patch.status,
+        accepted_by: patch.acceptedBy,
+        accepted_at: patch.acceptedAt,
+        ended_at: patch.endedAt,
+        notes: patch.notes,
+      }).eq("id", id);
+      if (error && nextRelationship) {
+        const retry = await supabase.from("organization_relationships").upsert(relationshipPayload(nextRelationship));
+        if (retry.error) console.error("Zusammenarbeit konnte nicht in Supabase aktualisiert werden", retry.error);
+      }
+    }
+  }
+
+  async function deleteOrganizationRelationship(id: string) {
+    let deletedRelationship: OrganizationRelationship | undefined;
+    setOrganizationRelationshipRecords((current) => {
+      deletedRelationship = current.find((relationship) => relationship.id === id);
+      const next = current.filter((relationship) => relationship.id !== id);
+      saveLocalOrganizationRelationships(next);
+      return next;
+    });
+    if (isSupabaseConfigured && supabase) {
+      const { error } = await supabase.from("organization_relationships").delete().eq("id", id);
+      if (error && deletedRelationship) {
+        const endedAt = new Date().toISOString();
+        await supabase.from("organization_relationships").update({
+          status: "ended",
+          ended_at: endedAt,
+          notes: "FM_DELETED_INVITATION",
+        }).eq("id", id);
+      }
+    }
+  }
+
+  async function addExternalContact(contact: ExternalContact) {
+    setExternalContactRecords((current) => {
+      const next = [contact, ...current.filter((item) => item.id !== contact.id)];
+      saveLocalExternalContacts(next);
+      return next;
+    });
+    if (isSupabaseConfigured && supabase) {
+      let { error } = await supabase.from("external_contacts").upsert(externalContactPayload(contact));
+      if (error && (error.message.includes("contact_type") || error.message.includes("contact_person") || error.message.includes("status") || error.message.includes("organization_number"))) {
+        const compatible = externalContactPayload(contact) as Record<string, unknown>;
+        delete compatible.contact_type;
+        delete compatible.contact_person;
+        delete compatible.status;
+        delete compatible.organization_number;
+        error = (await supabase.from("external_contacts").upsert(compatible)).error;
+      }
+      if (error) console.error("Externer Kontakt konnte nicht in Supabase gespeichert werden", error);
+    }
+  }
+
+  async function updateExternalContact(id: string, patch: Partial<ExternalContact>) {
+    let nextContact: ExternalContact | undefined;
+    setExternalContactRecords((current) => {
+      const next = current.map((contact) => {
+        if (contact.id !== id) return contact;
+        nextContact = { ...contact, ...patch, updatedAt: new Date().toISOString() };
+        return nextContact;
+      });
+      saveLocalExternalContacts(next);
+      return next;
+    });
+    if (nextContact && isSupabaseConfigured && supabase) {
+      let { error } = await supabase.from("external_contacts").update(externalContactPayload(nextContact)).eq("id", id);
+      if (error && (error.message.includes("contact_type") || error.message.includes("contact_person") || error.message.includes("status") || error.message.includes("organization_number"))) {
+        const compatible = externalContactPayload(nextContact) as Record<string, unknown>;
+        delete compatible.contact_type;
+        delete compatible.contact_person;
+        delete compatible.status;
+        delete compatible.organization_number;
+        error = (await supabase.from("external_contacts").update(compatible).eq("id", id)).error;
+      }
+      if (error) console.error("Externer Kontakt konnte nicht in Supabase aktualisiert werden", error);
     }
   }
 
@@ -2789,18 +3302,21 @@ export function App() {
       && !driver.archivedAt
     ));
     function signInDriverFromPersonnel(driver: Driver) {
+      const appRole = driver.appRole ?? "driver";
       setAuthProfile({
         id: driver.profileId ?? driver.id,
         fullName: driver.name,
         email: driver.email ?? normalizedEmail,
-        role: "driver",
+        role: appRole,
         organizationId: driver.organizationId,
         vehicleName: driver.vehicle,
         jobVisibility: driver.jobVisibility,
+        allowedViews: driver.allowedViews,
+        appPermissions: driver.appPermissions,
       });
-      setCurrentRoleState("driver");
-      window.localStorage.setItem("farm-manager.role", "driver");
-      setActiveView("driver");
+      setCurrentRoleState(appRole);
+      window.localStorage.setItem("farm-manager.role", appRole);
+      setActiveView(appRole === "driver" ? "driver" : driver.allowedViews?.[0] ?? "dashboard");
       setAuthError("");
       setAuthLoading(false);
     }
@@ -2810,7 +3326,7 @@ export function App() {
       return;
     }
     if (!supabase) {
-      if (matchingDriver && roleAllowedInAppMode("driver", appMode)) {
+      if (matchingDriver && roleAllowedInAppMode(matchingDriver.appRole ?? "driver", appMode)) {
         signInDriverFromPersonnel(matchingDriver);
         return;
       }
@@ -2848,7 +3364,11 @@ export function App() {
             vehicle_name?: string | null;
             job_visibility?: Driver["jobVisibility"] | null;
             mobile?: string | null;
+            resource_type?: string | null;
+            operation_type?: string | null;
           };
+          const access = personnelAccessFromOperationType(row.operation_type);
+          const appRole = access.role ?? "driver";
           accessDriver = {
             id: row.id,
             organizationId: row.organization_id ?? undefined,
@@ -2858,15 +3378,21 @@ export function App() {
             vehicle: row.vehicle_name ?? "",
             jobVisibility: row.job_visibility ?? "assigned_only",
             mobile: row.mobile ?? "",
+            employeeType: access.employeeType ?? (appRole === "driver" ? "field" : "administration"),
+            appRole,
+            allowedViews: access.allowedViews,
+            appPermissions: access.permissions,
+            resourceType: row.resource_type ?? "Personal",
+            operationType: stripMarkerBlock(row.operation_type, personnelAccessMarker),
           };
         }
       }
-      if (accessDriver && roleAllowedInAppMode("driver", appMode)) {
+      if (accessDriver && roleAllowedInAppMode(accessDriver.appRole ?? "driver", appMode)) {
         signInDriverFromPersonnel(accessDriver);
         return;
       }
-      if (accessDriver && !roleAllowedInAppMode("driver", appMode)) {
-        setAuthError(t("auth.driverAppRequired"));
+      if (accessDriver && !roleAllowedInAppMode(accessDriver.appRole ?? "driver", appMode)) {
+        setAuthError(t((accessDriver.appRole ?? "driver") === "driver" ? "auth.driverAppRequired" : "auth.adminAppRequired"));
         setAuthLoading(false);
         return;
       }
@@ -2934,12 +3460,20 @@ export function App() {
     await signOut({ releaseAssignments: false });
   }
 
-  const permissions = {
+  const basePermissions = {
     canEditFields: currentRole === "farmer_admin" || currentRole === "farmer_employee" || currentRole === "support_admin",
     canCreateJobs: currentRole === "farmer_admin" || currentRole === "farmer_employee" || currentRole === "contractor_admin" || currentRole === "support_admin",
     canEditDrivers: currentRole === "contractor_admin" || currentRole === "farmer_admin" || currentRole === "support_admin",
     canAssignDrivers: currentRole === "contractor_admin" || currentRole === "farmer_admin" || currentRole === "support_admin",
   };
+  const permissions = authProfile?.appPermissions && currentRole !== "support_admin"
+    ? {
+      canEditFields: Boolean(authProfile.appPermissions.canEditFields),
+      canCreateJobs: Boolean(authProfile.appPermissions.canCreateJobs),
+      canEditDrivers: Boolean(authProfile.appPermissions.canEditDrivers),
+      canAssignDrivers: Boolean(authProfile.appPermissions.canAssignDrivers),
+    }
+    : basePermissions;
 
   if ((appMode === "driver" && (!authProfile || authProfile.role !== "driver")) || (isSupabaseConfigured && !authSession && !authProfile)) {
     return <AuthLogin appMode={appMode} error={authError} isLoading={authLoading} onSignIn={signIn} />;
@@ -2951,9 +3485,7 @@ export function App() {
       <main className="auth-shell">
         <section className="auth-card">
           <div className="brand auth-brand">
-            <div className="brand-mark">
-              <Tractor size={24} />
-            </div>
+            <BrandMark logoUrl={currentOrganizationLogoUrl} size={24} />
             <div>
               <strong>Farm-Manager</strong>
               <span>{t("app.brandSubtitle")}</span>
@@ -2986,6 +3518,8 @@ export function App() {
         vehicles: vehicleRecords,
         implementsList: implementRecords,
         organizations: organizationRecords,
+        organizationRelationships: organizationRelationshipRecords,
+        externalContacts: externalContactRecords,
         jobTypes: visibleJobTypeRecords,
         taskTemplates: visibleTaskTemplateRecords,
         addField,
@@ -3013,6 +3547,11 @@ export function App() {
         updateOrganization,
         archiveOrganization,
         deleteOrganization,
+        addOrganizationRelationship,
+        updateOrganizationRelationship,
+        deleteOrganizationRelationship,
+        addExternalContact,
+        updateExternalContact,
         archiveJob,
         restoreJob,
         deleteJob,
@@ -3043,9 +3582,7 @@ export function App() {
       <main className="driver-app-only">
         <header className="driver-app-topbar">
           <div className="brand">
-            <div className="brand-mark">
-              <Tractor size={22} />
-            </div>
+            <BrandMark logoUrl={currentOrganizationLogoUrl} size={22} />
             <div>
               <strong>Farm-Manager</strong>
               <span>{t("nav.driver")}</span>
@@ -3067,9 +3604,7 @@ export function App() {
     <div className="app-shell">
       <aside className="sidebar">
         <div className="brand">
-          <div className="brand-mark">
-            <Tractor size={24} />
-          </div>
+          <BrandMark logoUrl={currentOrganizationLogoUrl} size={24} />
           <div>
             <strong>Farm-Manager</strong>
             <span>{t("app.brandSubtitle")}</span>
@@ -3093,7 +3628,7 @@ export function App() {
               <button
                 key={item.key}
                 className={activeView === item.key ? "nav-item active" : "nav-item"}
-                onClick={() => setActiveView(item.key)}
+                onClick={() => openMainView(item.key)}
                 type="button"
               >
                 <Icon size={19} />
@@ -3165,9 +3700,15 @@ export function App() {
         {activeView === "dashboard" && (
           <Dashboard
             jobs={activeJobs}
+            archivedJobs={archivedJobs}
             subtasks={activeSubtasks}
+            allSubtasks={subtasks}
             onOpenFields={() => setActiveView("fields")}
-            onOpenJobs={() => setActiveView("jobs")}
+            onOpenJobs={(showArchived = false, statusFilter = "all") => {
+              setShowArchivedJobs(showArchived);
+              setJobStatusFilter(statusFilter);
+              setActiveView("jobs");
+            }}
           />
         )}
         {activeView === "fields" && (
@@ -3188,7 +3729,6 @@ export function App() {
             {selectedJob && (
               <JobDetail
                 jobs={visibleJobs}
-                selectedJob={selectedJob}
                 subtasks={showArchivedJobs ? subtasks : activeSubtasks}
                 onUpdateJob={updateJob}
                 onUpdateSubtask={updateSubtask}
@@ -3201,6 +3741,7 @@ export function App() {
                 onCreateJob={() => setIsCreateJobModalOpen(true)}
                 showArchived={showArchivedJobs}
                 onShowArchivedChange={setShowArchivedJobs}
+                statusFilter={jobStatusFilter}
                 activeCount={activeJobs.length}
                 archivedCount={archivedJobs.length}
               />
@@ -3272,7 +3813,14 @@ export function App() {
             masterDataFocus={masterDataFocus}
           />
         )}
-        {activeView === "report" && <CompletionReport jobs={activeJobs} subtasks={activeSubtasks} />}
+        {activeView === "report" && (
+          <CompletionReport
+            jobs={[...activeJobs, ...archivedJobs]}
+            onArchiveJob={archiveJob}
+            onUpdateJob={updateJob}
+            subtasks={subtasks}
+          />
+        )}
         {dispatchEditJob && (
           <JobEditModal
             job={dispatchEditJob}

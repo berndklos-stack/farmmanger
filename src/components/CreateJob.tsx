@@ -33,7 +33,7 @@ export function CreateJob({
   onSaved?: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { authProfile, currentRole, fields, jobTypes, organizations, permissions, taskTemplates } = useAppData();
+  const { authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [selectedFarmerOrganizationId, setSelectedFarmerOrganizationId] = useState("");
   const [selectedContractorOrganizationId, setSelectedContractorOrganizationId] = useState("");
@@ -50,12 +50,42 @@ export function CreateJob({
   const [priority, setPriority] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
   const selectedJobType = jobTypes.find((jobType) => jobType.id === selectedJobTypeId);
+  const activeRelationshipPartnerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!authProfile?.organizationId) return ids;
+    organizationRelationships
+      .filter((relationship) => relationship.status === "active")
+      .forEach((relationship) => {
+        if (relationship.farmerOrganizationId === authProfile.organizationId) ids.add(relationship.contractorOrganizationId);
+        if (relationship.contractorOrganizationId === authProfile.organizationId) ids.add(relationship.farmerOrganizationId);
+      });
+    return ids;
+  }, [authProfile?.organizationId, organizationRelationships]);
   const farmerOrganizations = organizations.filter((organization) => (
     organization.kind === "farmer"
     && !organization.archivedAt
-    && (!(currentRole === "farmer_admin" || currentRole === "farmer_employee") || !authProfile?.organizationId || organization.id === authProfile.organizationId)
+    && (
+      !(currentRole === "farmer_admin" || currentRole === "farmer_employee")
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+    )
+    && (
+      currentRole !== "contractor_admin"
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+      || activeRelationshipPartnerIds.has(organization.id)
+    )
   ));
-  const contractorOrganizations = organizations.filter((organization) => !organization.archivedAt);
+  const contractorOrganizations = organizations.filter((organization) => (
+    !organization.archivedAt
+    && organization.kind === "contractor"
+    && (
+      currentRole !== "farmer_admin"
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+      || activeRelationshipPartnerIds.has(organization.id)
+    )
+  ));
   const selectedFarmerOrganization = farmerOrganizations.find((organization) => organization.id === selectedFarmerOrganizationId);
   const selectedContractorOrganization = contractorOrganizations.find((organization) => organization.id === selectedContractorOrganizationId);
   const selectedTaskOptions = selectedTasks

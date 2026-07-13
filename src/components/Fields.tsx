@@ -289,7 +289,6 @@ export function Fields({
   const selectedField = selected;
   const selectedFarmer = getFieldFarmer(selectedField.organizationId);
   const selectedSubtasks = subtasks.filter((subtask) => subtask.fieldId === selectedField.id && subtask.status !== "erledigt");
-  const statusList = Array.from(new Set(selectedSubtasks.map((subtask) => subtask.status)));
   const allSelectedFieldSubtasks = subtasks.filter((subtask) => subtask.fieldId === selectedField.id);
   const formatHistoryDateTime = (value?: string) => {
     if (!value) return t("report.notDocumented");
@@ -942,7 +941,6 @@ export function Fields({
           editable={permissions.canEditFields && !showArchivedFields}
           field={selected}
           fieldMapStatuses={fieldMapStatuses}
-          statuses={statusList}
           onBoundaryChange={updateSelectedBoundary}
           onAccessPointChange={updateAccessPoint}
           onHazardAdd={addHazard}
@@ -1335,7 +1333,6 @@ export function Fields({
               </div>
             </div>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setIsBulkReleaseOpen(false)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" disabled={bulkReleaseFieldIds.length === 0 || bulkReleaseContractorIds.length === 0} onClick={() => applyBulkRelease(true)} type="button">{t("fields.removeBulkRelease")}</button>
               <button className="primary-action" disabled={bulkReleaseFieldIds.length === 0 || bulkReleaseContractorIds.length === 0} onClick={() => applyBulkRelease(false)} type="button">{t("fields.applyBulkRelease")}</button>
             </div>
@@ -1351,7 +1348,6 @@ export function Fields({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: fieldDeleteTarget.name })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setFieldDeleteTarget(null)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={confirmDeleteField} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>

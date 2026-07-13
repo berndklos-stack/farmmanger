@@ -33,7 +33,6 @@ function getJobStatus(items: Subtask[]): Status {
 
 export function JobDetail({
   jobs,
-  selectedJob,
   subtasks,
   onUpdateJob,
   onUpdateSubtask,
@@ -46,11 +45,11 @@ export function JobDetail({
   onCreateJob,
   showArchived,
   onShowArchivedChange,
+  statusFilter,
   activeCount,
   archivedCount,
 }: {
   jobs: Job[];
-  selectedJob: Job;
   subtasks: Subtask[];
   onUpdateJob: (id: string, patch: Partial<Job>) => void;
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void;
@@ -63,6 +62,7 @@ export function JobDetail({
   onCreateJob: () => void;
   showArchived: boolean;
   onShowArchivedChange: (value: boolean) => void;
+  statusFilter?: Status | "all";
   activeCount: number;
   archivedCount: number;
 }) {
@@ -108,6 +108,11 @@ export function JobDetail({
     setSelectedJobIds([]);
   }, [showArchived]);
 
+  useEffect(() => {
+    if (!statusFilter) return;
+    setJobFilters((current) => ({ ...current, status: statusFilter }));
+  }, [statusFilter]);
+
   function openEditor(job: Job) {
     onSelectJob(job.id);
     setEditingJobId(job.id);
@@ -148,11 +153,8 @@ export function JobDetail({
   return (
     <section className="jobs-overview">
       <div className="panel">
-        <div className="section-heading">
-          <div>
-            <h2>{t("jobs.jobs")}</h2>
-            <p>{selectedJob.jobNumber ? `${t("jobs.jobNumberShort")}: ${selectedJob.jobNumber} · ` : ""}{t("jobs.fieldsTasks", { fields: selectedJob.fieldIds.length, tasks: selectedJob.tasks.length })}</p>
-          </div>
+        <div className="job-list-titlebar">
+          <strong>{t("jobs.jobList")}</strong>
           <div className="modal-actions">
             <div className="segmented-control archive-toggle compact-toggle">
               <button className={!showArchived ? "active" : ""} onClick={() => onShowArchivedChange(false)} type="button">
@@ -168,11 +170,6 @@ export function JobDetail({
               </button>
             )}
           </div>
-        </div>
-
-        <div className="job-list-header">
-          <strong>{t("jobs.jobList")}</strong>
-          <span>{jobs.length}</span>
         </div>
         <div className="job-bulk-toolbar">
           {!showArchived && (
@@ -236,7 +233,7 @@ export function JobDetail({
             <input aria-label={`${t("jobs.filterBy")} ${t("terms.notes")}`} value={jobFilters.notes} onChange={(event) => setJobFilters((current) => ({ ...current, notes: event.target.value }))} />
           </div>
           {filteredJobRows.map(({ job, progress, status, subtaskCount }) => (
-            <div className={job.id === selectedJob.id ? "job-table-row job-table-data active" : "job-table-row job-table-data"} key={job.id} onClick={() => openEditor(job)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") openEditor(job); }}>
+            <div className={job.id === editingJobId ? "job-table-row job-table-data active" : "job-table-row job-table-data"} key={job.id} onClick={() => openEditor(job)} role="button" tabIndex={0} onKeyDown={(event) => { if (event.key === "Enter" || event.key === " ") openEditor(job); }}>
               <label className="job-row-select" onClick={(event) => event.stopPropagation()}>
                 <input checked={selectedJobIds.includes(job.id)} aria-label={t("jobs.selectJob", { job: job.title })} onChange={() => toggleSelectedJob(job.id)} type="checkbox" />
               </label>
@@ -283,7 +280,6 @@ export function JobDetail({
             </div>
             <p>{t("jobs.confirmBulkDelete", { count: selectedJobs.length })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setConfirmBulkDeleteOpen(false)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={() => { deleteSelectedJobs(); setConfirmBulkDeleteOpen(false); }} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>

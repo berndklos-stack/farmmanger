@@ -20,8 +20,15 @@ type DriverAuthRequest = {
   maxDailyHours?: number;
   resourceType?: string;
   operationType?: string;
+  employeeType?: string;
+  appRole?: string;
+  allowedViews?: string[];
+  appPermissions?: Record<string, boolean>;
   archivedAt?: string | null;
 };
+
+const allowedPersonnelRoles = new Set(["driver", "farmer_employee", "contractor_admin", "advisor"]);
+const personnelAccessMarker = "FM_PERSONNEL_ACCESS:";
 
 function jsonResponse(body: unknown, status = 200) {
   return new Response(JSON.stringify(body), {
@@ -32,6 +39,15 @@ function jsonResponse(body: unknown, status = 200) {
 
 function cleanText(value: unknown) {
   return typeof value === "string" ? value.trim() : "";
+}
+
+function stripMarkerBlock(value: string | undefined, marker: string) {
+  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+}
+
+function withMarkerJson(value: string | undefined, marker: string, data: unknown) {
+  const base = stripMarkerBlock(value, marker);
+  return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
 }
 
 function formatSupabaseError(error: unknown) {
@@ -55,8 +71,8 @@ async function ensureExistingProfileCanBeUsed(admin: ReturnType<typeof createCli
     .limit(1);
   if (error) return `Profilpruefung fehlgeschlagen: ${formatSupabaseError(error)}`;
   const profile = data?.[0];
-  if (profile && profile.role !== "driver") {
-    return "Diese E-Mail wird bereits fuer einen Admin- oder Landwirt-Zugang verwendet. Bitte fuer den Fahrer eine eigene E-Mail-Adresse verwenden.";
+  if (profile && !allowedPersonnelRoles.has(profile.role)) {
+    return "Diese E-Mail wird bereits fuer einen geschuetzten Admin-Zugang verwendet. Bitte fuer das Personal eine eigene E-Mail-Adresse verwenden.";
   }
   return "";
 }
@@ -86,7 +102,7 @@ async function ensureEmailCanBeUsed(admin: ReturnType<typeof createClient>, emai
     return true;
   });
   if (!conflictingProfile) return "";
-  const roleLabel = conflictingProfile.role === "driver" ? "einen anderen Fahrer" : "einen Admin- oder Landwirt-Zugang";
+  const roleLabel = allowedPersonnelRoles.has(conflictingProfile.role) ? "einen anderen Mitarbeiter" : "einen Admin- oder Landwirt-Zugang";
   return `Diese E-Mail wird bereits fuer ${roleLabel} verwendet (${conflictingProfile.full_name ?? email}). Bitte eine eigene Fahrer-E-Mail verwenden.`;
 }
 
@@ -144,6 +160,13 @@ Deno.serve(async (req) => {
   const fullName = cleanText(body.fullName);
   const email = cleanText(body.email).toLowerCase();
   const password = cleanText(body.password);
+  const appRole = allowedPersonnelRoles.has(cleanText(body.appRole)) ? cleanText(body.appRole) : "driver";
+  const operationTypeWithAccess = withMarkerJson(cleanText(body.operationType), personnelAccessMarker, {
+    employeeType: cleanText(body.employeeType) || (appRole === "driver" ? "field" : "administration"),
+    role: appRole,
+    allowedViews: Array.isArray(body.allowedViews) && body.allowedViews.length > 0 ? body.allowedViews : [appRole === "driver" ? "driver" : "dashboard"],
+    permissions: body.appPermissions ?? {},
+  });
 
   if (!personnelResourceId || !fullName) {
     return jsonResponse({ error: "personnelResourceId und fullName sind erforderlich." }, 400);
@@ -176,9 +199,9 @@ Deno.serve(async (req) => {
       if (profileLookupError) {
         return jsonResponse({ error: `Profil konnte nicht gelesen werden: ${formatSupabaseError(profileLookupError)}` }, 400);
       }
-      const samePersonnelProfile = existingProfiles?.find((profile) => profile.id === personnelResourceId && profile.role === "driver");
+      const samePersonnelProfile = existingProfiles?.find((profile) => profile.id === personnelResourceId && allowedPersonnelRoles.has(profile.role));
       if (samePersonnelProfile) profileId = samePersonnelProfile.id;
-      const reusableDriverProfile = existingProfiles?.find((profile) => profile.role === "driver");
+      const reusableDriverProfile = existingProfiles?.find((profile) => allowedPersonnelRoles.has(profile.role));
       if (!profileId && reusableDriverProfile) profileId = reusableDriverProfile.id;
     }
 
@@ -232,7 +255,7 @@ Deno.serve(async (req) => {
       id: profileId,
       full_name: fullName,
       email,
-      role: "driver",
+      role: appRole,
       organization_id: body.organizationId || null,
       vehicle_name: body.vehicleName ?? "",
       job_visibility: body.jobVisibility ?? "assigned_only",
@@ -256,7 +279,7 @@ Deno.serve(async (req) => {
     license_classes: body.licenseClasses ?? [],
     max_daily_hours: body.maxDailyHours ?? 8,
     resource_type: body.resourceType ?? "Personal",
-    operation_type: body.operationType ?? "",
+    operation_type: operationTypeWithAccess,
     archived_at: body.archivedAt ?? null,
   }, { onConflict: "id" });
   if (personnelError) return jsonResponse({ error: `Personalstamm konnte nicht gespeichert werden: ${formatSupabaseError(personnelError)}` }, 400);

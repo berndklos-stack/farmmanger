@@ -20,7 +20,7 @@ Stand: 2026-07-07
 
 - Offline-Puffer nutzt LocalStorage und synchronisiert Teilauftraege erneut, hat aber noch keine serverseitige Konflikt-Tabelle.
 - Dispo-Overrides und lokale Notfallkopien werden in LocalStorage gehalten, damit die App offline bedienbar bleibt.
-- Schlaghistorie wird aus abgeschlossenen Teilauftraegen/Reports berechnet, aber noch nicht in einer dedizierten History-Tabelle materialisiert.
+- Flaechenhistorie wird aus abgeschlossenen Teilauftraegen/Reports berechnet, aber noch nicht in einer dedizierten History-Tabelle materialisiert.
 - Abschlussbericht ist in der App vorhanden und aggregiert Ist-Werte, aber noch kein revisionssicheres PDF/Archiv.
 - Foto- und Dokumentvorschauen nutzen signierte URLs; bestehende Alt-Datensaetze koennen noch alte Public-URLs enthalten.
 - Testhilfe ist als interne Checkliste eingebaut, erzeugt aber bewusst keine neuen Produktiv-Testdaten automatisch.

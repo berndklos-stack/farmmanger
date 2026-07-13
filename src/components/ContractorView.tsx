@@ -1,17 +1,34 @@
-import { Archive, Boxes, Building2, CalendarDays, CheckCircle, ChevronDown, ClipboardList, Eye, EyeOff, Factory, Mail, MessageSquare, Package, Plus, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
+import { Archive, Boxes, Building2, CalendarDays, Camera, CheckCircle, ChevronDown, ClipboardList, Clock, Eye, EyeOff, Factory, FileArchive, Mail, MessageSquare, Package, Plus, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
+import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, writeDriverTimeEntries } from "../lib/driverTimeEntries";
+import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
-import type { Driver, DriverLocation, FieldMapPattern, Implement, Job, Organization, ProgressMetric, Subtask, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
+import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 import { LiveLocationMap } from "./LiveLocationMap";
 
 type ContractorSection = "overview" | "masterOverview" | "masterData" | "organizations" | "products" | "taskTemplates" | "jobTypes" | "programSettings";
+type OrganizationDirectoryMode = "company" | "contacts" | "collaboration";
 type MasterResourceGroup = "personnel" | "vehicles" | "implements";
 type MasterDataFocus = { group: MasterResourceGroup; id: string } | { section: "programSettings" };
 type DragResourceKind = "driver" | "vehicle" | "implement";
+type BillingUnit = "ha" | "hour" | "trip" | "quantity" | "flat";
+type TaskBillingCondition = {
+  billingUnit: BillingUnit;
+  price?: number;
+  currency?: string;
+  validFrom?: string;
+  validTo?: string;
+};
+type CustomerConditionRow = TaskBillingCondition & {
+  id: string;
+  taskName: string;
+};
+const personnelViewOptions: ViewKey[] = ["dashboard", "fields", "jobs", "contractor", "masterData", "report", "driver"];
+const personnelPermissionOptions: PersonnelAppPermissionKey[] = ["canEditFields", "canCreateJobs", "canEditDrivers", "canAssignDrivers"];
 type DragResourcePayload = {
   kind: DragResourceKind;
   id: string;
@@ -78,6 +95,117 @@ type DispatchGroup = {
 
 const resourceHistoryStorageKey = "farm-manager.resourceHistory";
 const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
+const inactiveCollaborationsStorageKey = "farm-manager.inactiveCollaborations";
+const productInventoryStorageKey = "farm-manager.productInventory";
+const productMovementsStorageKey = "farm-manager.productMovements";
+const productCurrencyOptions = ["SEK", "EUR", "DKK", "NOK", "USD"];
+const taskBillingMarker = "FM_TASK_BILLING:";
+const customerConditionsMarker = "FM_CUSTOMER_CONDITIONS:";
+
+type ProductInventoryItem = {
+  id: string;
+  organizationId?: string;
+  name: string;
+  category: string;
+  unit: string;
+  supplierName?: string;
+  articleNumber?: string;
+  photoUrl?: string;
+  photoName?: string;
+  currency?: string;
+  purchasePrice?: number;
+  salesPrice?: number;
+  purchasePriceValidFrom?: string;
+  purchasePriceValidTo?: string;
+  salesPriceValidFrom?: string;
+  salesPriceValidTo?: string;
+  openingStock: number;
+  minimumStock?: number;
+  packageUnit?: string;
+  quantityPerPackage?: number;
+  notes?: string;
+  archivedAt?: string;
+};
+
+type ProductMovementDocument = {
+  id: string;
+  name: string;
+  kind: "photo" | "document";
+  url: string;
+  mimeType?: string;
+  sizeBytes?: number;
+  uploadedAt: string;
+};
+
+type ProductMovement = {
+  id: string;
+  productId: string;
+  type: "in" | "out";
+  quantity: number;
+  packageCount?: number;
+  packageQuantity?: number;
+  openedPackageCount?: number;
+  openedPackageQuantity?: number;
+  bookedAt: string;
+  createdAt?: string;
+  bookedById?: string;
+  bookedByName?: string;
+  jobId?: string;
+  jobLabel?: string;
+  currency?: string;
+  purchasePrice?: number;
+  salesPrice?: number;
+  note?: string;
+  correctionOfMovementId?: string;
+  documents: ProductMovementDocument[];
+};
+
+type ProductInventoryRow = {
+  id: string;
+  organization_id?: string | null;
+  name: string;
+  category?: string | null;
+  unit?: string | null;
+  supplier_name?: string | null;
+  article_number?: string | null;
+  photo_url?: string | null;
+  photo_name?: string | null;
+  currency?: string | null;
+  purchase_price?: number | null;
+  sales_price?: number | null;
+  purchase_price_valid_from?: string | null;
+  purchase_price_valid_to?: string | null;
+  sales_price_valid_from?: string | null;
+  sales_price_valid_to?: string | null;
+  opening_stock?: number | null;
+  minimum_stock?: number | null;
+  package_unit?: string | null;
+  quantity_per_package?: number | null;
+  notes?: string | null;
+  archived_at?: string | null;
+};
+
+type ProductMovementRow = {
+  id: string;
+  product_id: string;
+  movement_type: ProductMovement["type"];
+  quantity: number;
+  package_count?: number | null;
+  package_quantity?: number | null;
+  opened_package_count?: number | null;
+  opened_package_quantity?: number | null;
+  booked_at: string;
+  created_at?: string | null;
+  booked_by_id?: string | null;
+  booked_by_name?: string | null;
+  job_id?: string | null;
+  job_label?: string | null;
+  currency?: string | null;
+  purchase_price?: number | null;
+  note?: string | null;
+  correction_of_movement_id?: string | null;
+  documents?: ProductMovementDocument[] | null;
+};
 
 function readJsonArray<T>(key: string): T[] {
   try {
@@ -86,6 +214,151 @@ function readJsonArray<T>(key: string): T[] {
   } catch {
     return [];
   }
+}
+
+function readStringSet(key: string) {
+  return new Set(readJsonArray<string>(key));
+}
+
+function writeJsonArray<T>(key: string, values: T[]) {
+  try {
+    window.localStorage.setItem(key, JSON.stringify(values));
+  } catch (error) {
+    console.error(`Farm-Manager konnte ${key} nicht lokal speichern.`, error);
+  }
+}
+
+function mergeById<T extends { id: string }>(localRows: T[], remoteRows: T[]) {
+  const merged = new Map<string, T>();
+  remoteRows.forEach((row) => merged.set(row.id, row));
+  localRows.forEach((row) => {
+    if (!merged.has(row.id)) merged.set(row.id, row);
+  });
+  return Array.from(merged.values());
+}
+
+function productFromRow(row: ProductInventoryRow): ProductInventoryItem {
+  return {
+    id: row.id,
+    organizationId: row.organization_id ?? undefined,
+    name: row.name,
+    category: row.category ?? "",
+    unit: row.unit ?? "Stk",
+    supplierName: row.supplier_name ?? undefined,
+    articleNumber: row.article_number ?? undefined,
+    photoUrl: row.photo_url ?? undefined,
+    photoName: row.photo_name ?? undefined,
+    currency: row.currency ?? "SEK",
+    purchasePrice: row.purchase_price ?? undefined,
+    salesPrice: row.sales_price ?? undefined,
+    purchasePriceValidFrom: row.purchase_price_valid_from ?? undefined,
+    purchasePriceValidTo: row.purchase_price_valid_to ?? undefined,
+    salesPriceValidFrom: row.sales_price_valid_from ?? undefined,
+    salesPriceValidTo: row.sales_price_valid_to ?? undefined,
+    openingStock: row.opening_stock ?? 0,
+    minimumStock: row.minimum_stock ?? undefined,
+    packageUnit: row.package_unit ?? undefined,
+    quantityPerPackage: row.quantity_per_package ?? undefined,
+    notes: row.notes ?? undefined,
+    archivedAt: row.archived_at ?? undefined,
+  };
+}
+
+function productToRow(product: ProductInventoryItem): ProductInventoryRow {
+  return {
+    id: product.id,
+    organization_id: product.organizationId ?? null,
+    name: product.name,
+    category: product.category,
+    unit: product.unit,
+    supplier_name: product.supplierName ?? null,
+    article_number: product.articleNumber ?? null,
+    photo_url: product.photoUrl ?? null,
+    photo_name: product.photoName ?? null,
+    currency: product.currency ?? "SEK",
+    purchase_price: product.purchasePrice ?? null,
+    sales_price: product.salesPrice ?? null,
+    purchase_price_valid_from: product.purchasePriceValidFrom ?? null,
+    purchase_price_valid_to: product.purchasePriceValidTo ?? null,
+    sales_price_valid_from: product.salesPriceValidFrom ?? null,
+    sales_price_valid_to: product.salesPriceValidTo ?? null,
+    opening_stock: product.openingStock,
+    minimum_stock: product.minimumStock ?? null,
+    package_unit: product.packageUnit ?? null,
+    quantity_per_package: product.quantityPerPackage ?? null,
+    notes: product.notes ?? null,
+    archived_at: product.archivedAt ?? null,
+  };
+}
+
+function productMovementFromRow(row: ProductMovementRow): ProductMovement {
+  return {
+    id: row.id,
+    productId: row.product_id,
+    type: row.movement_type,
+    quantity: row.quantity,
+    packageCount: row.package_count ?? undefined,
+    packageQuantity: row.package_quantity ?? undefined,
+    openedPackageCount: row.opened_package_count ?? undefined,
+    openedPackageQuantity: row.opened_package_quantity ?? undefined,
+    bookedAt: row.booked_at,
+    createdAt: row.created_at ?? undefined,
+    bookedById: row.booked_by_id ?? undefined,
+    bookedByName: row.booked_by_name ?? undefined,
+    jobId: row.job_id ?? undefined,
+    jobLabel: row.job_label ?? undefined,
+    currency: row.currency ?? "SEK",
+    purchasePrice: row.purchase_price ?? undefined,
+    note: row.note ?? undefined,
+    correctionOfMovementId: row.correction_of_movement_id ?? undefined,
+    documents: row.documents ?? [],
+  };
+}
+
+function productMovementToRow(movement: ProductMovement): ProductMovementRow {
+  return {
+    id: movement.id,
+    product_id: movement.productId,
+    movement_type: movement.type,
+    quantity: movement.quantity,
+    package_count: movement.packageCount ?? null,
+    package_quantity: movement.packageQuantity ?? null,
+    opened_package_count: movement.openedPackageCount ?? null,
+    opened_package_quantity: movement.openedPackageQuantity ?? null,
+    booked_at: movement.bookedAt,
+    created_at: movement.createdAt ?? null,
+    booked_by_id: movement.bookedById ?? null,
+    booked_by_name: movement.bookedByName ?? null,
+    job_id: movement.jobId ?? null,
+    job_label: movement.jobLabel ?? null,
+    currency: movement.currency ?? "SEK",
+    purchase_price: movement.purchasePrice ?? null,
+    note: movement.note ?? null,
+    correction_of_movement_id: movement.correctionOfMovementId ?? null,
+    documents: movement.documents,
+  };
+}
+
+function createLocalId(prefix: string) {
+  return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function fileToDataDocument(file: File): Promise<ProductMovementDocument> {
+  return new Promise((resolve) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      resolve({
+        id: createLocalId("document"),
+        name: file.name || "Beleg",
+        kind: file.type.startsWith("image/") ? "photo" : "document",
+        url: String(reader.result ?? ""),
+        mimeType: file.type,
+        sizeBytes: file.size,
+        uploadedAt: new Date().toISOString(),
+      });
+    };
+    reader.readAsDataURL(file);
+  });
 }
 
 const calendarColumnCount = 5;
@@ -111,6 +384,13 @@ function distanceKm(a?: { lat: number; lng: number }, b?: { lat: number; lng: nu
 function formatOrganizationAddress(organization: Organization) {
   const cityLine = [organization.postalCode, organization.city].filter(Boolean).join(" ");
   return [organization.street, cityLine, organization.country].filter(Boolean).join(", ") || organization.address || "";
+}
+
+function formatDurationMinutes(minutes: number) {
+  if (minutes < 60) return `${minutes} min`;
+  const hours = Math.floor(minutes / 60);
+  const rest = minutes % 60;
+  return rest ? `${hours} h ${rest} min` : `${hours} h`;
 }
 
 function sortOpenBeforeDone(items: Subtask[]) {
@@ -209,12 +489,19 @@ export function ContractorView({
     fields,
     implementsList: allImplementsList,
     organizations,
+    organizationRelationships,
+    externalContacts,
     permissions,
     authProfile,
     currentRole,
     updateDriver,
     updateImplement,
     updateOrganization,
+    addOrganizationRelationship,
+    updateOrganizationRelationship,
+    deleteOrganizationRelationship,
+    addExternalContact,
+    updateExternalContact,
     addJobType,
     updateJobType,
     archiveJobType,
@@ -267,6 +554,63 @@ export function ContractorView({
   const [moveResourceConfirm, setMoveResourceConfirm] = useState<{ jobId: string; targetOffsetDays: number } | null>(null);
   const [resourceHistoryVersion, setResourceHistoryVersion] = useState(0);
   const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>(() => readVacationRequests());
+  const [driverTimeEntries, setDriverTimeEntries] = useState<DriverTimeEntry[]>(() => readDriverTimeEntries());
+  const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
+  const [payrollMonth, setPayrollMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [organizationDirectoryMode, setOrganizationDirectoryMode] = useState<OrganizationDirectoryMode>("company");
+  const [inactiveCollaborationIds, setInactiveCollaborationIds] = useState<Set<string>>(() => readStringSet(inactiveCollaborationsStorageKey));
+  const [collaborationInviteForm, setCollaborationInviteForm] = useState({
+    email: "",
+    organizationNumber: "",
+    companyName: "",
+    message: "",
+  });
+  const [organizationLoginPassword, setOrganizationLoginPassword] = useState("");
+  const [organizationLoginStatus, setOrganizationLoginStatus] = useState("");
+  const [showArchivedProducts, setShowArchivedProducts] = useState(false);
+  const [products, setProducts] = useState<ProductInventoryItem[]>(() => readJsonArray<ProductInventoryItem>(productInventoryStorageKey));
+  const [productMovements, setProductMovements] = useState<ProductMovement[]>(() => readJsonArray<ProductMovement>(productMovementsStorageKey));
+  const [selectedProductId, setSelectedProductId] = useState("");
+  const [isCreatingProduct, setIsCreatingProduct] = useState(false);
+  const [productForm, setProductForm] = useState({
+    name: "",
+    category: "",
+    unit: "Stk",
+    supplierName: "",
+    articleNumber: "",
+    photoUrl: "",
+    photoName: "",
+    currency: "SEK",
+    purchasePrice: "",
+    salesPrice: "",
+    purchasePriceValidFrom: "",
+    purchasePriceValidTo: "",
+    salesPriceValidFrom: "",
+    salesPriceValidTo: "",
+    openingStock: "0",
+    minimumStock: "",
+    packageUnit: "",
+    quantityPerPackage: "",
+    notes: "",
+  });
+  const [movementForm, setMovementForm] = useState({
+    type: "in" as ProductMovement["type"],
+    quantity: "",
+    deliveredTotal: "",
+    packageCount: "",
+    packageQuantity: "",
+    openedPackageCount: "",
+    openedPackageQuantity: "",
+    bookedAt: new Date().toISOString().slice(0, 10),
+    jobId: "",
+    purchasePrice: "",
+    note: "",
+    correctionOfMovementId: "",
+  });
+  const [movementDocuments, setMovementDocuments] = useState<ProductMovementDocument[]>([]);
+  const [selectedProductMovementId, setSelectedProductMovementId] = useState("");
+  const [isProductBookingModalOpen, setIsProductBookingModalOpen] = useState(false);
+  const [isProductMovementsModalOpen, setIsProductMovementsModalOpen] = useState(false);
   const [workTimeOverride, setWorkTimeOverride] = useState<{
     driverId: string;
     subtaskId: string;
@@ -274,14 +618,47 @@ export function ContractorView({
     added: number;
     max: number;
   } | null>(null);
-  const [isProblemsOpen, setIsProblemsOpen] = useState(false);
   const problems = subtasks.filter((subtask) => subtask.status === "Problem");
   const machineProblems = readJsonArray<DriverEquipmentLogEntry>(equipmentLogStorageKey)
     .filter((row) => row.machineProblem || row.placement === "defect")
     .slice(0, 12);
   const openVacationRequests = vacationRequests.filter((request) => request.status === "requested");
-  const problemCount = problems.length + machineProblems.length + openVacationRequests.length;
   const resourceOrganizationId = currentRole === "contractor_admin" || currentRole === "farmer_admin" ? authProfile?.organizationId : undefined;
+  const scopedProducts = useMemo(() => products.filter((product) => !resourceOrganizationId || product.organizationId === resourceOrganizationId), [products, resourceOrganizationId]);
+  const activeProducts = scopedProducts.filter((product) => !product.archivedAt);
+  const archivedProducts = scopedProducts.filter((product) => Boolean(product.archivedAt));
+  const visibleProducts = showArchivedProducts ? archivedProducts : activeProducts;
+  const selectedProduct = visibleProducts.find((product) => product.id === selectedProductId) ?? (isCreatingProduct ? undefined : visibleProducts[0]);
+  const canManageProducts = currentRole === "support_admin" || currentRole === "contractor_admin" || currentRole === "farmer_admin";
+  const supplierNameOptions = useMemo(() => Array.from(new Set([
+    ...organizations.filter((organization) => organization.kind === "supplier" && !organization.archivedAt).map((organization) => organization.name),
+    ...externalContacts.filter((contact) => contact.contactType === "supplier" && contact.status !== "archived").map((contact) => contact.companyName),
+  ].filter(Boolean))).sort((a, b) => a.localeCompare(b)), [externalContacts, organizations]);
+  const productStock = (productId: string) => {
+    const product = products.find((item) => item.id === productId);
+    const movementStock = productMovements
+      .filter((movement) => movement.productId === productId)
+      .reduce((sum, movement) => sum + (movement.type === "in" ? movement.quantity : -movement.quantity), 0);
+    return (product?.openingStock ?? 0) + movementStock;
+  };
+  const selectedProductMovements = selectedProduct ? productMovements
+    .filter((movement) => movement.productId === selectedProduct.id)
+    .sort((a, b) => b.bookedAt.localeCompare(a.bookedAt)) : [];
+  const selectedProductMovement = productMovements.find((movement) => movement.id === selectedProductMovementId);
+  const selectedProductMovementProduct = selectedProductMovement ? products.find((product) => product.id === selectedProductMovement.productId) : undefined;
+  const lowStockProducts = activeProducts
+    .map((product) => ({ product, stock: productStock(product.id) }))
+    .filter(({ product, stock }) => product.minimumStock !== undefined && stock <= product.minimumStock);
+  const inventoryValuesByCurrency = activeProducts.reduce<Record<string, number>>((acc, product) => {
+    const currency = product.currency || "SEK";
+    acc[currency] = (acc[currency] ?? 0) + productStock(product.id) * (product.purchasePrice ?? 0);
+    return acc;
+  }, {});
+  const inventoryValueLabel = Object.entries(inventoryValuesByCurrency)
+    .filter(([, value]) => value > 0)
+    .map(([currency, value]) => formatMoneyValue(value, currency))
+    .join(" · ") || formatMoneyValue(0, "SEK");
+  const problemCount = problems.length + machineProblems.length + openVacationRequests.length + lowStockProducts.length;
   const canControlResource = <T extends { organizationId?: string }>(resource?: T) => currentRole === "support_admin" || !resourceOrganizationId || resource?.organizationId === resourceOrganizationId;
   const organizationResourceFilter = <T extends { organizationId?: string }>(resource: T) => !resourceOrganizationId || resource.organizationId === resourceOrganizationId;
   const scopedDrivers = useMemo(() => allDrivers.filter(organizationResourceFilter), [allDrivers, resourceOrganizationId]);
@@ -316,15 +693,88 @@ export function ContractorView({
   const selectedDriver = (variant === "masterData" ? masterDrivers : drivers).find((driver) => driver.id === selectedDriverId) ?? (variant === "masterData" ? masterDrivers[0] : drivers[0]);
   const selectedVehicle = (variant === "masterData" ? masterVehicles : vehicles).find((vehicle) => vehicle.id === selectedVehicleId) ?? (variant === "masterData" ? masterVehicles[0] : vehicles[0]);
   const selectedImplement = (variant === "masterData" ? masterImplements : implementsList).find((implement) => implement.id === selectedImplementId) ?? (variant === "masterData" ? masterImplements[0] : implementsList[0]);
-  const canManageOrganizations = currentRole === "contractor_admin" || currentRole === "support_admin";
+  const canManageOrganizations = currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin";
+  const canCreateOrganizations = currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin";
   const canManageResources = permissions.canEditDrivers;
   const canManageOwnTemplates = currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin";
   const selectedJobType = visibleJobTypes.find((jobType) => jobType.id === selectedJobTypeId) ?? visibleJobTypes[0];
   const selectedTaskTemplate = visibleTaskTemplates.find((taskTemplate) => taskTemplate.id === selectedTaskTemplateId) ?? visibleTaskTemplates[0];
+  const selectedDriverTimeEntries = useMemo(() => (
+    selectedDriver ? driverTimeEntries.filter((entry) => entry.driverId === selectedDriver.id) : []
+  ), [driverTimeEntries, selectedDriver]);
+  const selectedDriverClosedTimeEntries = useMemo(() => (
+    selectedDriverTimeEntries.filter((entry) => entry.endedAt && entry.minutes)
+  ), [selectedDriverTimeEntries]);
+  const selectedDriverVacationRequests = useMemo(() => (
+    selectedDriver ? vacationRequests.filter((request) => request.driverId === selectedDriver.id) : []
+  ), [selectedDriver, vacationRequests]);
+  const selectedDriverOpenVacationRequests = useMemo(() => (
+    selectedDriverVacationRequests.filter((request) => request.status === "requested")
+  ), [selectedDriverVacationRequests]);
+  const selectedDriverVacationUsedDays = selectedDriver?.vacationUsedDays ?? 0;
+  const selectedDriverVacationAllowance = selectedDriver?.annualVacationDays ?? 30;
+  const selectedDriverVacationRequestedDays = selectedDriverVacationRequests
+    .filter((request) => request.status === "requested" || request.status === "approved")
+    .reduce((sum, request) => sum + request.days, 0);
+  const selectedDriverVacationRemaining = Math.max(0, selectedDriverVacationAllowance - selectedDriverVacationUsedDays - selectedDriverVacationRequestedDays);
+  const personnelTimeSummary = useMemo(() => masterDrivers.map((driver) => {
+    const entries = driverTimeEntries.filter((entry) => entry.driverId === driver.id && entry.endedAt && entry.minutes);
+    const requests = vacationRequests.filter((request) => request.driverId === driver.id);
+    return {
+      driverId: driver.id,
+      workMinutes: entries.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0),
+      pauseMinutes: entries.filter((entry) => entry.kind === "pause").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0),
+      openVacationRequests: requests.filter((request) => request.status === "requested").length,
+      vacationRemaining: Math.max(0, (driver.annualVacationDays ?? 30) - (driver.vacationUsedDays ?? 0) - requests.filter((request) => request.status === "requested" || request.status === "approved").reduce((sum, request) => sum + request.days, 0)),
+    };
+  }), [driverTimeEntries, masterDrivers, vacationRequests]);
+  const personnelOpenVacationRequestCount = personnelTimeSummary.reduce((sum, row) => sum + row.openVacationRequests, 0);
+  const personnelTotalWorkMinutes = personnelTimeSummary.reduce((sum, row) => sum + row.workMinutes, 0);
+  const personnelTotalPauseMinutes = personnelTimeSummary.reduce((sum, row) => sum + row.pauseMinutes, 0);
+  const payrollMonthOptions = useMemo(() => {
+    const months = new Set<string>([payrollMonth, new Date().toISOString().slice(0, 7)]);
+    driverTimeEntries.forEach((entry) => months.add(entry.startedAt.slice(0, 7)));
+    vacationRequests.forEach((request) => {
+      months.add(request.from.slice(0, 7));
+      months.add(request.to.slice(0, 7));
+    });
+    return Array.from(months).sort((a, b) => b.localeCompare(a));
+  }, [driverTimeEntries, payrollMonth, vacationRequests]);
+  const payrollSummaries = useMemo(() => masterDrivers.map((driver) => {
+    const monthEntries = driverTimeEntries
+      .filter((entry) => entry.driverId === driver.id && entry.startedAt.slice(0, 7) === payrollMonth)
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    const closed = monthEntries.filter((entry) => entry.endedAt && entry.minutes);
+    const requests = vacationRequests.filter((request) => (
+      request.driverId === driver.id
+      && (request.from.slice(0, 7) === payrollMonth || request.to.slice(0, 7) === payrollMonth)
+    ));
+    return {
+      driver,
+      entries: monthEntries,
+      vacationRequests: requests,
+      workMinutes: closed.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0),
+      pauseMinutes: closed.filter((entry) => entry.kind === "pause").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0),
+      interruptionMinutes: closed.filter((entry) => entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0),
+    };
+  }), [driverTimeEntries, masterDrivers, payrollMonth, vacationRequests]);
+  const payrollTotals = {
+    workMinutes: payrollSummaries.reduce((sum, row) => sum + row.workMinutes, 0),
+    pauseMinutes: payrollSummaries.reduce((sum, row) => sum + row.pauseMinutes, 0),
+    openVacationRequests: payrollSummaries.reduce((sum, row) => sum + row.vacationRequests.filter((request) => request.status === "requested").length, 0),
+  };
   const isSystemTaskTemplateSelected = Boolean(selectedTaskTemplate && (selectedTaskTemplate.isSystemTemplate || selectedTaskTemplate.templateOwnerType === "system" || !selectedTaskTemplate.organizationId));
   const isSystemJobTypeSelected = Boolean(selectedJobType && (selectedJobType.isSystemTemplate || selectedJobType.templateOwnerType === "system" || !selectedJobType.organizationId));
   const canEditSelectedTaskTemplate = canManageOwnTemplates && (currentRole === "support_admin" || !isSystemTaskTemplateSelected);
   const canEditSelectedJobType = canManageOwnTemplates && (currentRole === "support_admin" || !isSystemJobTypeSelected);
+  const taskTemplateOwnerLabel = (taskTemplate?: TaskTemplate) => {
+    if (!taskTemplate) return t("masterData.templateOwnerUnknown");
+    if (taskTemplate.isSystemTemplate || taskTemplate.templateOwnerType === "system" || !taskTemplate.organizationId) {
+      return t("masterData.templateOwnerSystem");
+    }
+    const owner = organizations.find((organization) => organization.id === taskTemplate.organizationId);
+    return owner?.name ?? t("masterData.templateOwnerUnknown");
+  };
   const dispatchCustomerOptions = useMemo(() => {
     const seen = new Set<string>();
     return jobs.flatMap((job) => {
@@ -372,6 +822,15 @@ export function ContractorView({
     maxDailyHours: 8,
     annualVacationDays: 30,
     vacationUsedDays: 0,
+    employeeType: "field" as PersonnelEmployeeType,
+    appRole: "driver" as UserRole,
+    allowedViews: ["driver"] as ViewKey[],
+    appPermissions: {
+      canEditFields: false,
+      canCreateJobs: false,
+      canEditDrivers: false,
+      canAssignDrivers: false,
+    } as Record<PersonnelAppPermissionKey, boolean>,
     resourceType: "",
     operationType: "",
   });
@@ -379,6 +838,11 @@ export function ContractorView({
     name: "",
     type: "",
     licensePlate: "",
+    manufacturer: "",
+    model: "",
+    constructionYear: "",
+    operatingHours: "",
+    defaultDriverId: "",
     resourceType: "",
     operationType: "",
     status: "frei" as Vehicle["status"],
@@ -386,6 +850,8 @@ export function ContractorView({
   const [implementForm, setImplementForm] = useState({
     name: "",
     type: "",
+    manufacturer: "",
+    workingWidth: "",
     resourceType: "",
     operationType: "",
     status: "frei" as Implement["status"],
@@ -409,28 +875,87 @@ export function ContractorView({
     requiredImplements: 0,
     resourceHint: "",
     unit: "",
+    billingUnit: "ha" as BillingUnit,
+    standardPrice: "",
+    standardPriceCurrency: "SEK",
+    standardPriceValidFrom: "",
+    standardPriceValidTo: "",
     mapStyleLabel: "",
     mapStyleColor: "#7fcf6b",
     mapStylePattern: "none" as FieldMapPattern,
   });
-  const accessibleOrganizations = useMemo(() => organizations.filter((organization) => {
-    if (currentRole === "farmer_admin" && authProfile?.organizationId) {
-      return organization.id === authProfile.organizationId || organization.kind === "contractor";
-    }
-    if (currentRole === "contractor_admin" && authProfile?.organizationId) {
-      return organization.id === authProfile.organizationId || organization.kind === "farmer";
-    }
-    return true;
-  }), [authProfile?.organizationId, currentRole, organizations]);
-  const activeOrganizations = useMemo(() => accessibleOrganizations.filter((organization) => !organization.archivedAt), [accessibleOrganizations]);
-  const archivedOrganizations = useMemo(() => accessibleOrganizations.filter((organization) => Boolean(organization.archivedAt)), [accessibleOrganizations]);
+  const ownOrganization = authProfile?.organizationId ? organizations.find((organization) => organization.id === authProfile.organizationId) : undefined;
+  const ownOrganizationRelationships = useMemo(() => (
+    authProfile?.organizationId
+      ? organizationRelationships.filter((relationship) => (
+          relationship.notes !== "FM_DELETED_INVITATION"
+          && (
+            relationship.farmerOrganizationId === authProfile.organizationId
+            || relationship.contractorOrganizationId === authProfile.organizationId
+          )
+        ))
+      : []
+  ), [authProfile?.organizationId, organizationRelationships]);
+  const activeRelationshipPartnerIds = useMemo(() => new Set(ownOrganizationRelationships
+    .filter((relationship) => relationship.status === "active")
+    .map((relationship) => relationship.farmerOrganizationId === authProfile?.organizationId ? relationship.contractorOrganizationId : relationship.farmerOrganizationId)
+  ), [authProfile?.organizationId, ownOrganizationRelationships]);
+  const legacyJobPartnerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!authProfile?.organizationId) return ids;
+    jobs.forEach((job) => {
+      if (job.farmerOrganizationId === authProfile.organizationId && job.contractorOrganizationId) ids.add(job.contractorOrganizationId);
+      if (job.contractorOrganizationId === authProfile.organizationId && job.farmerOrganizationId) ids.add(job.farmerOrganizationId);
+    });
+    return ids;
+  }, [authProfile?.organizationId, jobs]);
+  const collaborationOrganizationIds = useMemo(() => (
+    new Set([...activeRelationshipPartnerIds, ...legacyJobPartnerIds])
+  ), [activeRelationshipPartnerIds, legacyJobPartnerIds]);
+  const invitedRelationships = useMemo(() => ownOrganizationRelationships.filter((relationship) => relationship.status === "invited"), [ownOrganizationRelationships]);
+  const activeRelationships = useMemo(() => ownOrganizationRelationships.filter((relationship) => relationship.status === "active"), [ownOrganizationRelationships]);
+  const endedRelationships = useMemo(() => ownOrganizationRelationships.filter((relationship) => relationship.status === "ended" || relationship.status === "paused" || relationship.status === "blocked"), [ownOrganizationRelationships]);
+  const ownExternalContacts = useMemo(() => (
+    authProfile?.organizationId
+      ? externalContacts.filter((contact) => contact.organizationId === authProfile.organizationId && contact.status !== "archived")
+      : []
+  ), [authProfile?.organizationId, externalContacts]);
+  const openExternalInvites = useMemo(() => (
+    ownExternalContacts.filter((contact) => contact.status === "invited" && !contact.linkedOrganizationId)
+  ), [ownExternalContacts]);
+  const activeOrganizations = useMemo(() => organizations.filter((organization) => !organization.archivedAt), [organizations]);
+  const archivedOrganizations = useMemo(() => organizations.filter((organization) => Boolean(organization.archivedAt)), [organizations]);
   const visibleOrganizations = showArchivedOrganizations ? archivedOrganizations : activeOrganizations;
   const farmerOrganizations = useMemo(() => visibleOrganizations.filter((organization) => organization.kind === "farmer"), [visibleOrganizations]);
   const contractorOrganizations = useMemo(() => visibleOrganizations.filter((organization) => organization.kind === "contractor"), [visibleOrganizations]);
+  const partnerOrganizations = useMemo(() => visibleOrganizations.filter((organization) => !["farmer", "contractor"].includes(organization.kind)), [visibleOrganizations]);
+  const activeContactOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.id !== authProfile?.organizationId), [activeOrganizations, authProfile?.organizationId]);
+  const archivedContactOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.id !== authProfile?.organizationId), [archivedOrganizations, authProfile?.organizationId]);
+  const contactOrganizations = showArchivedOrganizations ? archivedContactOrganizations : activeContactOrganizations;
+  const collaborationOrganizations = useMemo(() => contactOrganizations.filter((organization) => collaborationOrganizationIds.has(organization.id)), [collaborationOrganizationIds, contactOrganizations]);
+  const directoryOrganizations = useMemo(() => {
+    if (organizationDirectoryMode === "company") return ownOrganization ? [ownOrganization] : [];
+    if (organizationDirectoryMode === "collaboration") return collaborationOrganizations;
+    return contactOrganizations;
+  }, [collaborationOrganizations, contactOrganizations, organizationDirectoryMode, ownOrganization, showArchivedOrganizations]);
+  const activeOrganizationDirectoryCount = useMemo(() => {
+    if (organizationDirectoryMode === "company") return ownOrganization && !ownOrganization.archivedAt ? 1 : 0;
+    if (organizationDirectoryMode === "collaboration") return activeRelationships.length;
+    return activeContactOrganizations.length;
+  }, [activeContactOrganizations.length, activeRelationships.length, organizationDirectoryMode, ownOrganization]);
+  const archivedOrganizationDirectoryCount = useMemo(() => {
+    if (organizationDirectoryMode === "company") return ownOrganization?.archivedAt ? 1 : 0;
+    if (organizationDirectoryMode === "collaboration") return endedRelationships.length;
+    return archivedContactOrganizations.length;
+  }, [archivedContactOrganizations.length, endedRelationships.length, organizationDirectoryMode, ownOrganization]);
   const activeFarmerOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.kind === "farmer"), [activeOrganizations]);
   const activeContractorOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.kind === "contractor"), [activeOrganizations]);
   const archivedFarmerOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.kind === "farmer"), [archivedOrganizations]);
   const archivedContractorOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.kind === "contractor"), [archivedOrganizations]);
+  const openOrganizationDirectory = (mode: OrganizationDirectoryMode) => {
+    setOrganizationDirectoryMode(mode);
+    setActiveSection("organizations");
+  };
   const openMasterResourceGroup = (group: MasterResourceGroup) => {
     setActiveMasterGroup(group);
     setActiveSection("masterData");
@@ -445,27 +970,28 @@ export function ContractorView({
           icon: <Factory size={18} />,
           title: t("masterDataOverview.companyData.title"),
           description: t("masterDataOverview.companyData.description"),
-          activeCount: activeContractorOrganizations.length,
-          archivedCount: archivedContractorOrganizations.length,
-          onClick: () => setActiveSection("organizations"),
+          activeCount: ownOrganization && !ownOrganization.archivedAt ? 1 : 0,
+          archivedCount: ownOrganization?.archivedAt ? 1 : 0,
+          onClick: () => openOrganizationDirectory("company"),
         },
         {
           id: "customers",
           icon: <Users size={18} />,
-          title: t("masterDataOverview.customers.title"),
-          description: t("masterDataOverview.customers.description"),
-          activeCount: activeFarmerOrganizations.length,
-          archivedCount: archivedFarmerOrganizations.length,
-          onClick: () => setActiveSection("organizations"),
+          title: t("masterDataOverview.contacts.title"),
+          description: t("masterDataOverview.contacts.description"),
+          activeCount: activeContactOrganizations.length,
+          archivedCount: archivedContactOrganizations.length,
+          onClick: () => openOrganizationDirectory("contacts"),
         },
         {
-          id: "suppliers",
-          icon: <Truck size={18} />,
-          title: t("masterDataOverview.suppliers.title"),
-          description: t("masterDataOverview.suppliers.description"),
-          activeCount: 0,
-          archivedCount: 0,
-          onClick: () => setActiveSection("organizations"),
+          id: "collaboration",
+          icon: <RadioTower size={18} />,
+          title: t("masterDataOverview.collaboration.title"),
+          description: t("masterDataOverview.collaboration.description"),
+          activeCount: activeRelationships.length,
+          archivedCount: invitedRelationships.length + openExternalInvites.length,
+          secondaryCountLabel: t("collaboration.openRequestsCount", { count: invitedRelationships.length + openExternalInvites.length }),
+          onClick: () => openOrganizationDirectory("collaboration"),
         },
       ],
     },
@@ -511,8 +1037,8 @@ export function ContractorView({
           icon: <Package size={18} />,
           title: t("masterDataOverview.products.title"),
           description: t("masterDataOverview.products.description"),
-          activeCount: 0,
-          archivedCount: 0,
+          activeCount: activeProducts.length,
+          archivedCount: archivedProducts.length,
           onClick: () => setActiveSection("products"),
         },
       ],
@@ -547,10 +1073,18 @@ export function ContractorView({
   const fixedResourceOrganization = activeOrganizations.find((organization) => organization.id === driverForm.organizationId)
     ?? activeOrganizations.find((organization) => organization.id === defaultResourceOrganizationId);
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(activeOrganizations[0]?.id ?? "");
-  const selectedOrganization = accessibleOrganizations.find((organization) => organization.id === selectedOrganizationId) ?? visibleOrganizations[0];
+  const selectedOrganization = organizations.find((organization) => organization.id === selectedOrganizationId) ?? visibleOrganizations[0];
+  const canManageContactOrganizations = organizationDirectoryMode === "contacts" && (currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin");
+  const canEditOrganizationRecord = (organization?: Organization) => (
+    currentRole === "support_admin"
+    || Boolean(organization?.id && authProfile?.organizationId && organization.id === authProfile.organizationId)
+    || Boolean(canManageContactOrganizations && organization?.id && organization.id !== authProfile?.organizationId)
+  );
+  const canEditSelectedOrganization = creatingOrganization ? canCreateOrganizations : canEditOrganizationRecord(selectedOrganization);
   const [organizationForm, setOrganizationForm] = useState({
     name: "",
     kind: "farmer" as Organization["kind"],
+    organizationNumber: "",
     address: "",
     street: "",
     country: "",
@@ -561,7 +1095,13 @@ export function ContractorView({
     email: "",
     website: "",
     vatId: "",
+    logoUrl: "",
+    defaultLanguage: "",
+    billingDetails: "",
+    customerNumber: "",
+    supplierCategory: "",
     notes: "",
+    customerConditionRows: [] as CustomerConditionRow[],
     contacts: [] as NonNullable<Organization["contacts"]>,
   });
 
@@ -585,16 +1125,55 @@ export function ContractorView({
       maxDailyHours: driver.maxDailyHours ?? 8,
       annualVacationDays: driver.annualVacationDays ?? 30,
       vacationUsedDays: driver.vacationUsedDays ?? 0,
+      employeeType: driver.employeeType ?? "field",
+      appRole: driver.appRole ?? "driver",
+      allowedViews: driver.allowedViews?.length ? driver.allowedViews : (["driver"] as ViewKey[]),
+      appPermissions: {
+        canEditFields: Boolean(driver.appPermissions?.canEditFields),
+        canCreateJobs: Boolean(driver.appPermissions?.canCreateJobs),
+        canEditDrivers: Boolean(driver.appPermissions?.canEditDrivers),
+        canAssignDrivers: Boolean(driver.appPermissions?.canAssignDrivers),
+      },
       resourceType: driver.resourceType ?? t("masterData.personnel"),
       operationType: driver.operationType ?? "",
     };
   }
+
+  function personnelDraftKey(resourceId: string) {
+    return `farm-manager.personnel-draft.${authProfile?.organizationId ?? "shared"}.${resourceId}`;
+  }
+
+  function readPersonnelDraft<T>(resourceId: string, fallback: T): T {
+    try {
+      const stored = window.localStorage.getItem(personnelDraftKey(resourceId));
+      if (!stored) return fallback;
+      return { ...fallback, ...JSON.parse(stored) } as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function clearPersonnelDraft(resourceId: string) {
+    window.localStorage.removeItem(personnelDraftKey(resourceId));
+  }
+
+  useEffect(() => {
+    if (!isResourceModalOpen || activeMasterGroup !== "personnel" || showArchivedMasterData) return;
+    const draftId = creatingResourceGroup === "personnel" ? "new" : selectedDriver?.id;
+    if (!draftId) return;
+    window.localStorage.setItem(personnelDraftKey(draftId), JSON.stringify(driverForm));
+  }, [activeMasterGroup, authProfile?.organizationId, creatingResourceGroup, driverForm, isResourceModalOpen, selectedDriver?.id, showArchivedMasterData]);
 
   function vehicleToForm(vehicle: Vehicle) {
     return {
       name: vehicle.name,
       type: vehicle.type,
       licensePlate: vehicle.licensePlate ?? "",
+      manufacturer: vehicle.manufacturer ?? "",
+      model: vehicle.model ?? "",
+      constructionYear: vehicle.constructionYear ? String(vehicle.constructionYear) : "",
+      operatingHours: vehicle.operatingHours ? String(vehicle.operatingHours) : "",
+      defaultDriverId: vehicle.defaultDriverId ?? "",
       resourceType: vehicle.resourceType ?? vehicle.type,
       operationType: vehicle.operationType ?? "",
       status: vehicle.status,
@@ -605,6 +1184,8 @@ export function ContractorView({
     return {
       name: implement.name,
       type: implement.type,
+      manufacturer: implement.manufacturer ?? "",
+      workingWidth: implement.workingWidth ? String(implement.workingWidth) : "",
       resourceType: implement.resourceType ?? implement.type,
       operationType: implement.operationType ?? "",
       status: implement.status,
@@ -616,7 +1197,30 @@ export function ContractorView({
   }, []);
 
   useEffect(() => {
+    return subscribeDriverTimeEntries(() => setDriverTimeEntries(readDriverTimeEntries()));
+  }, []);
+
+  useEffect(() => {
     void loadVacationRequests().then(setVacationRequests);
+  }, []);
+
+  useEffect(() => {
+    void loadDriverTimeEntries().then(setDriverTimeEntries);
+  }, []);
+
+  useEffect(() => {
+    const refreshExternalPersonnelData = () => {
+      void loadVacationRequests().then(setVacationRequests);
+      void loadDriverTimeEntries().then(setDriverTimeEntries);
+    };
+    const interval = window.setInterval(refreshExternalPersonnelData, 30000);
+    window.addEventListener("focus", refreshExternalPersonnelData);
+    document.addEventListener("visibilitychange", refreshExternalPersonnelData);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", refreshExternalPersonnelData);
+      document.removeEventListener("visibilitychange", refreshExternalPersonnelData);
+    };
   }, []);
 
   useEffect(() => {
@@ -665,6 +1269,7 @@ export function ContractorView({
 
   useEffect(() => {
     if (!selectedTaskTemplate) return;
+    const billing = billingConditionFromTaskTemplate(selectedTaskTemplate);
     setSelectedTaskTemplateId(selectedTaskTemplate.id);
     setTaskTemplateForm({
       name: selectedTaskTemplate.name,
@@ -678,6 +1283,11 @@ export function ContractorView({
       requiredImplements: selectedTaskTemplate.requiredImplements ?? 0,
       resourceHint: selectedTaskTemplate.resourceHint ?? "",
       unit: selectedTaskTemplate.unit ?? "",
+      billingUnit: billing.billingUnit,
+      standardPrice: billing.price?.toString() ?? "",
+      standardPriceCurrency: billing.currency ?? "SEK",
+      standardPriceValidFrom: billing.validFrom ?? "",
+      standardPriceValidTo: billing.validTo ?? "",
       mapStyleLabel: selectedTaskTemplate.mapStyle?.label ?? "",
       mapStyleColor: selectedTaskTemplate.mapStyle?.color ?? "#7fcf6b",
       mapStylePattern: selectedTaskTemplate.mapStyle?.pattern ?? "none",
@@ -690,6 +1300,7 @@ export function ContractorView({
     setOrganizationForm({
       name: selectedOrganization.name,
       kind: selectedOrganization.kind,
+      organizationNumber: selectedOrganization.organizationNumber ?? "",
       address: selectedOrganization.address ?? "",
       street: selectedOrganization.street ?? "",
       country: selectedOrganization.country ?? "",
@@ -700,7 +1311,13 @@ export function ContractorView({
       email: selectedOrganization.email ?? "",
       website: selectedOrganization.website ?? "",
       vatId: selectedOrganization.vatId ?? "",
-      notes: selectedOrganization.notes ?? "",
+      logoUrl: selectedOrganization.logoUrl ?? "",
+      defaultLanguage: selectedOrganization.defaultLanguage ?? "",
+      billingDetails: selectedOrganization.billingDetails ?? "",
+      customerNumber: selectedOrganization.customerNumber ?? "",
+      supplierCategory: selectedOrganization.supplierCategory ?? "",
+      notes: stripMarkerBlock(selectedOrganization.notes, customerConditionsMarker),
+      customerConditionRows: conditionsToRows(customerConditionsFromOrganization(selectedOrganization)),
       contacts: selectedOrganization.contacts ?? [],
     });
   }, [selectedOrganization?.id]);
@@ -730,11 +1347,132 @@ export function ContractorView({
   }, [dispatchGroupingLevel]);
 
   useEffect(() => {
+    writeJsonArray(productInventoryStorageKey, products);
+  }, [products]);
+
+  useEffect(() => {
+    writeJsonArray(productMovementsStorageKey, productMovements);
+  }, [productMovements]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    const client = supabase;
+    let mounted = true;
+    async function loadRemoteProductInventory() {
+      const [{ data: productRows, error: productError }, { data: movementRows, error: movementError }] = await Promise.all([
+        client.from("product_inventory").select("*"),
+        client.from("product_movements").select("*"),
+      ]);
+      if (!mounted) return;
+      if (productError || movementError) {
+        console.warn("Produktdaten konnten nicht aus Supabase geladen werden.", productError ?? movementError);
+        return;
+      }
+      const remoteProducts = ((productRows ?? []) as ProductInventoryRow[]).map(productFromRow);
+      const remoteMovements = ((movementRows ?? []) as ProductMovementRow[]).map(productMovementFromRow);
+      setProducts((current) => {
+        const next = mergeById(current, remoteProducts);
+        writeJsonArray(productInventoryStorageKey, next);
+        return next;
+      });
+      setProductMovements((current) => {
+        const next = mergeById(current, remoteMovements);
+        writeJsonArray(productMovementsStorageKey, next);
+        return next;
+      });
+    }
+    void loadRemoteProductInventory();
+    return () => {
+      mounted = false;
+    };
+  }, [authProfile?.organizationId]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || products.length === 0) return;
+    const client = supabase;
+    const handle = window.setTimeout(() => {
+      void client.from("product_inventory").upsert(products.map(productToRow), { onConflict: "id" }).then(({ error }) => {
+        if (error) console.warn("Produktdaten konnten nicht in Supabase gespeichert werden.", error);
+      });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [products]);
+
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase || productMovements.length === 0) return;
+    const client = supabase;
+    const handle = window.setTimeout(() => {
+      void client.from("product_movements").upsert(productMovements.map(productMovementToRow), { onConflict: "id" }).then(({ error }) => {
+        if (error) console.warn("Bestandsbuchungen konnten nicht in Supabase gespeichert werden.", error);
+      });
+    }, 400);
+    return () => window.clearTimeout(handle);
+  }, [productMovements]);
+
+  useEffect(() => {
+    if (!selectedProduct) {
+      setSelectedProductId("");
+      setProductForm({
+        name: "",
+        category: "",
+        unit: "Stk",
+        supplierName: "",
+        articleNumber: "",
+        photoUrl: "",
+        photoName: "",
+        currency: "SEK",
+        purchasePrice: "",
+        salesPrice: "",
+        purchasePriceValidFrom: "",
+        purchasePriceValidTo: "",
+        salesPriceValidFrom: "",
+        salesPriceValidTo: "",
+        openingStock: "0",
+        minimumStock: "",
+        packageUnit: "",
+        quantityPerPackage: "",
+        notes: "",
+      });
+      return;
+    }
+    if (selectedProductId !== selectedProduct.id) setSelectedProductId(selectedProduct.id);
+    setProductForm({
+      name: selectedProduct.name,
+      category: selectedProduct.category,
+      unit: selectedProduct.unit,
+      supplierName: selectedProduct.supplierName ?? "",
+      articleNumber: selectedProduct.articleNumber ?? "",
+      photoUrl: selectedProduct.photoUrl ?? "",
+      photoName: selectedProduct.photoName ?? "",
+      currency: selectedProduct.currency ?? "SEK",
+      purchasePrice: selectedProduct.purchasePrice?.toString() ?? "",
+      salesPrice: selectedProduct.salesPrice?.toString() ?? "",
+      purchasePriceValidFrom: selectedProduct.purchasePriceValidFrom ?? "",
+      purchasePriceValidTo: selectedProduct.purchasePriceValidTo ?? "",
+      salesPriceValidFrom: selectedProduct.salesPriceValidFrom ?? "",
+      salesPriceValidTo: selectedProduct.salesPriceValidTo ?? "",
+      openingStock: selectedProduct.openingStock.toString(),
+      minimumStock: selectedProduct.minimumStock?.toString() ?? "",
+      packageUnit: selectedProduct.packageUnit ?? "",
+      quantityPerPackage: selectedProduct.quantityPerPackage?.toString() ?? "",
+      notes: selectedProduct.notes ?? "",
+    });
+    setMovementForm((current) => ({
+      ...current,
+      packageQuantity: current.packageQuantity || selectedProduct.quantityPerPackage?.toString() || "",
+    }));
+  }, [isCreatingProduct, selectedProduct?.id, selectedProductId]);
+
+  useEffect(() => {
     if (variant === "dispatch" && activeSection !== "overview" && !isResourceModalOpen) setActiveSection("overview");
     if (variant === "masterData" && activeSection === "overview") setActiveSection("masterOverview");
   }, [activeSection, isResourceModalOpen, variant]);
 
   useEffect(() => {
+    if (variant === "masterData" && !masterDataFocus) {
+      setActiveSection("masterOverview");
+      return;
+    }
     if (!masterDataFocus) return;
     if ("section" in masterDataFocus) {
       setActiveSection(masterDataFocus.section);
@@ -768,7 +1506,7 @@ export function ContractorView({
 
   function appendResourceHistory(entry: Omit<ResourceHistoryEntry, "id" | "recordedAt" | "actor"> & { actor?: string; recordedAt?: string }) {
     const nextEntry: ResourceHistoryEntry = {
-      id: crypto.randomUUID(),
+      id: createLocalId("local"),
       recordedAt: entry.recordedAt ?? new Date().toISOString(),
       actor: entry.actor ?? authProfile?.fullName ?? t("app.user"),
       ...entry,
@@ -781,7 +1519,730 @@ export function ContractorView({
   function handleVacationDecision(request: VacationRequest, status: "approved" | "rejected") {
     const reason = window.prompt(t(status === "approved" ? "vacationApproval.approveReasonPrompt" : "vacationApproval.rejectReasonPrompt"), "");
     if (reason === null) return;
-    void decideVacationRequest(request.id, status, authProfile?.fullName ?? t("vacationApproval.disposition"), reason.trim()).then(setVacationRequests);
+    void decideVacationRequest(request.id, status, authProfile?.fullName ?? t("vacationApproval.disposition"), reason.trim()).then((next) => {
+      setVacationRequests(next);
+      setResourceHistoryVersion((current) => current + 1);
+    });
+  }
+
+  function numberFromForm(value: string) {
+    const parsed = Number(value.replace(",", "."));
+    return Number.isFinite(parsed) ? parsed : 0;
+  }
+
+  function optionalNumberFromForm(value: string) {
+    const trimmed = value.trim();
+    if (!trimmed) return undefined;
+    const parsed = numberFromForm(trimmed);
+    return Number.isFinite(parsed) ? parsed : undefined;
+  }
+
+  function formatQuantity(value: number) {
+    return new Intl.NumberFormat(i18n.language, { maximumFractionDigits: 2 }).format(value);
+  }
+
+  function formatMoneyValue(value: number, currency = "SEK") {
+    try {
+      return new Intl.NumberFormat(i18n.language, { currency, style: "currency" }).format(value);
+    } catch {
+      return `${new Intl.NumberFormat(i18n.language, { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(value)} ${currency}`;
+    }
+  }
+
+  function stripMarkerBlock(value: string | undefined, marker: string) {
+    return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+  }
+
+  function parseMarkerJson<T>(value: string | undefined, marker: string, fallback: T): T {
+    const line = (value ?? "").split("\n").find((item) => item.startsWith(marker));
+    if (!line) return fallback;
+    try {
+      return JSON.parse(line.slice(marker.length)) as T;
+    } catch {
+      return fallback;
+    }
+  }
+
+  function withMarkerJson(value: string | undefined, marker: string, data: unknown) {
+    const base = stripMarkerBlock(value, marker);
+    return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
+  }
+
+  function billingConditionFromTaskTemplate(taskTemplate?: TaskTemplate): TaskBillingCondition {
+    if (!taskTemplate) return { billingUnit: "ha", currency: "SEK" };
+    return {
+      ...parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: taskTemplate.billingUnit ?? "ha" }),
+      billingUnit: taskTemplate.billingUnit ?? parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: "ha" }).billingUnit ?? "ha",
+      price: taskTemplate.standardPrice ?? parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: "ha" }).price,
+      currency: taskTemplate.standardPriceCurrency ?? parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: "ha", currency: "SEK" }).currency ?? "SEK",
+      validFrom: taskTemplate.standardPriceValidFrom ?? parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: "ha" }).validFrom,
+      validTo: taskTemplate.standardPriceValidTo ?? parseMarkerJson<TaskBillingCondition>(taskTemplate.resourceHint, taskBillingMarker, { billingUnit: "ha" }).validTo,
+    };
+  }
+
+  function customerConditionsFromOrganization(organization?: Organization) {
+    return parseMarkerJson<Record<string, TaskBillingCondition>>(organization?.notes, customerConditionsMarker, {});
+  }
+
+  function conditionsToRows(conditions: Record<string, TaskBillingCondition>) {
+    return Object.entries(conditions).map(([taskName, condition], index) => ({
+      id: `condition-${index}-${taskName}`,
+      taskName,
+      billingUnit: condition.billingUnit || "ha",
+      price: condition.price,
+      currency: condition.currency || "SEK",
+      validFrom: condition.validFrom,
+      validTo: condition.validTo,
+    }));
+  }
+
+  function rowsToConditions(rows: CustomerConditionRow[]) {
+    return rows.reduce<Record<string, TaskBillingCondition>>((result, row) => {
+      const taskName = row.taskName.trim();
+      if (!taskName) return result;
+      result[taskName] = {
+        billingUnit: row.billingUnit || "ha",
+        price: row.price,
+        currency: row.currency || "SEK",
+        validFrom: row.validFrom || undefined,
+        validTo: row.validTo || undefined,
+      };
+      return result;
+    }, {});
+  }
+
+  function organizationPayloadFromForm() {
+    const { customerConditionRows: _customerConditionRows, notes, ...payload } = organizationForm;
+    return {
+      ...payload,
+      notes: withMarkerJson(notes, customerConditionsMarker, rowsToConditions(organizationForm.customerConditionRows)),
+    };
+  }
+
+  function addCustomerConditionRow() {
+    const firstTask = activeTaskTemplates[0] ?? taskTemplates[0];
+    const taskBilling = billingConditionFromTaskTemplate(firstTask);
+    setOrganizationForm((current) => ({
+      ...current,
+      customerConditionRows: [
+        ...current.customerConditionRows,
+        {
+          id: `condition-${Date.now()}-${Math.random().toString(36).slice(2)}`,
+          taskName: firstTask?.name ?? "",
+          billingUnit: taskBilling.billingUnit ?? "ha",
+          price: taskBilling.price,
+          currency: taskBilling.currency ?? "SEK",
+          validFrom: taskBilling.validFrom,
+          validTo: taskBilling.validTo,
+        },
+      ],
+    }));
+  }
+
+  function updateCustomerConditionRow(rowId: string, patch: Partial<CustomerConditionRow>) {
+    setOrganizationForm((current) => ({
+      ...current,
+      customerConditionRows: current.customerConditionRows.map((row) => (row.id === rowId ? { ...row, ...patch } : row)),
+    }));
+  }
+
+  function removeCustomerConditionRow(rowId: string) {
+    setOrganizationForm((current) => ({
+      ...current,
+      customerConditionRows: current.customerConditionRows.filter((row) => row.id !== rowId),
+    }));
+  }
+
+  function productPackageSummary(product: ProductInventoryItem) {
+    const parts = [
+      product.packageUnit ? `${t("products.packageUnit")}: ${product.packageUnit}` : "",
+      product.quantityPerPackage !== undefined ? `${formatQuantity(product.quantityPerPackage)} ${product.unit}/${t("products.vpeShort")}` : "",
+    ].filter(Boolean);
+    return parts.join(" · ");
+  }
+
+  function formNumberText(value: number) {
+    if (!Number.isFinite(value)) return "";
+    return String(Math.round(value * 1000) / 1000);
+  }
+
+  function movementQuantityFromPackages(form = movementForm) {
+    const packageQuantity = numberFromForm(form.packageQuantity) || selectedProduct?.quantityPerPackage || 0;
+    const fullPackageTotal = numberFromForm(form.packageCount) * packageQuantity;
+    const openedTotal = numberFromForm(form.openedPackageCount) * numberFromForm(form.openedPackageQuantity);
+    return fullPackageTotal + openedTotal;
+  }
+
+  function updateMovementPackageFields(patch: Partial<typeof movementForm>) {
+    setMovementForm((current) => {
+      const next = { ...current, ...patch };
+      const calculatedQuantity = movementQuantityFromPackages(next);
+      return {
+        ...next,
+        quantity: calculatedQuantity > 0 ? formNumberText(calculatedQuantity) : next.quantity,
+      };
+    });
+  }
+
+  function updateMovementDeliveredTotal(value: string) {
+    const total = numberFromForm(value);
+    const standardPackageQuantity = selectedProduct?.quantityPerPackage ?? 0;
+    if (total > 0 && standardPackageQuantity > 0) {
+      const fullPackages = Math.floor(total / standardPackageQuantity);
+      const rest = Math.round((total - fullPackages * standardPackageQuantity) * 1000) / 1000;
+      setMovementForm((current) => ({
+        ...current,
+        deliveredTotal: value,
+        packageCount: fullPackages > 0 ? String(fullPackages) : "",
+        packageQuantity: formNumberText(standardPackageQuantity),
+        openedPackageCount: rest > 0 ? "1" : "",
+        openedPackageQuantity: rest > 0 ? formNumberText(rest) : "",
+        quantity: formNumberText(total),
+      }));
+      return;
+    }
+    setMovementForm((current) => ({ ...current, deliveredTotal: value, quantity: value }));
+  }
+
+  async function addProductPhoto(fileList: FileList | null) {
+    const file = fileList?.[0];
+    if (!file) return;
+    const document = await fileToDataDocument(file);
+    setProductForm((current) => ({
+      ...current,
+      photoName: document.name,
+      photoUrl: document.url,
+    }));
+  }
+
+  function startNewProduct() {
+    setIsCreatingProduct(true);
+    setSelectedProductId("");
+    setProductForm({
+      name: "",
+      category: "",
+      unit: "Stk",
+      supplierName: "",
+      articleNumber: "",
+      photoUrl: "",
+      photoName: "",
+      currency: "SEK",
+      purchasePrice: "",
+      salesPrice: "",
+      purchasePriceValidFrom: "",
+      purchasePriceValidTo: "",
+      salesPriceValidFrom: "",
+      salesPriceValidTo: "",
+      openingStock: "0",
+      minimumStock: "",
+      packageUnit: "",
+      quantityPerPackage: "",
+      notes: "",
+    });
+    setMovementDocuments([]);
+  }
+
+  function saveProduct() {
+    if (!canManageProducts || !productForm.name.trim()) return;
+    const editableProduct = isCreatingProduct ? undefined : selectedProduct;
+    const nextProduct: ProductInventoryItem = {
+      id: editableProduct?.id ?? createLocalId("product"),
+      organizationId: editableProduct?.organizationId ?? resourceOrganizationId ?? authProfile?.organizationId,
+      name: productForm.name.trim(),
+      category: productForm.category.trim(),
+      unit: productForm.unit.trim() || "Stk",
+      supplierName: productForm.supplierName.trim() || undefined,
+      articleNumber: productForm.articleNumber.trim() || undefined,
+      photoUrl: productForm.photoUrl || undefined,
+      photoName: productForm.photoName || undefined,
+      currency: productForm.currency || "SEK",
+      purchasePrice: optionalNumberFromForm(productForm.purchasePrice),
+      salesPrice: optionalNumberFromForm(productForm.salesPrice),
+      purchasePriceValidFrom: productForm.purchasePriceValidFrom || undefined,
+      purchasePriceValidTo: productForm.purchasePriceValidTo || undefined,
+      salesPriceValidFrom: productForm.salesPriceValidFrom || undefined,
+      salesPriceValidTo: productForm.salesPriceValidTo || undefined,
+      openingStock: numberFromForm(productForm.openingStock),
+      minimumStock: optionalNumberFromForm(productForm.minimumStock),
+      packageUnit: productForm.packageUnit.trim() || undefined,
+      quantityPerPackage: optionalNumberFromForm(productForm.quantityPerPackage),
+      notes: productForm.notes.trim() || undefined,
+      archivedAt: editableProduct?.archivedAt,
+    };
+    setProducts((current) => {
+      const exists = current.some((product) => product.id === nextProduct.id);
+      return exists ? current.map((product) => product.id === nextProduct.id ? nextProduct : product) : [nextProduct, ...current];
+    });
+    setIsCreatingProduct(false);
+    setSelectedProductId(nextProduct.id);
+  }
+
+  function archiveSelectedProduct() {
+    if (!selectedProduct || !canManageProducts) return;
+    setProducts((current) => current.map((product) => product.id === selectedProduct.id ? { ...product, archivedAt: new Date().toISOString() } : product));
+  }
+
+  function restoreSelectedProduct() {
+    if (!selectedProduct || !canManageProducts) return;
+    setProducts((current) => current.map((product) => product.id === selectedProduct.id ? { ...product, archivedAt: undefined } : product));
+  }
+
+  async function addMovementDocuments(fileList: FileList | null) {
+    if (!fileList?.length) return;
+    const documents = await Promise.all(Array.from(fileList).map((file) => fileToDataDocument(file)));
+    setMovementDocuments((current) => [...current, ...documents]);
+  }
+
+  function bookProductMovement() {
+    if (!selectedProduct || !canManageProducts) return;
+    const quantity = numberFromForm(movementForm.quantity);
+    if (quantity <= 0) return;
+    const selectedJob = jobs.find((job) => job.id === movementForm.jobId);
+    const movement: ProductMovement = {
+      id: createLocalId("local"),
+      productId: selectedProduct.id,
+      type: movementForm.type,
+      quantity,
+      packageCount: optionalNumberFromForm(movementForm.packageCount),
+      packageQuantity: optionalNumberFromForm(movementForm.packageQuantity) ?? selectedProduct.quantityPerPackage,
+      openedPackageCount: optionalNumberFromForm(movementForm.openedPackageCount),
+      openedPackageQuantity: optionalNumberFromForm(movementForm.openedPackageQuantity),
+      bookedAt: movementForm.bookedAt || new Date().toISOString().slice(0, 10),
+      createdAt: new Date().toISOString(),
+      bookedById: authProfile?.id,
+      bookedByName: authProfile?.fullName ?? t("app.user"),
+      jobId: movementForm.type === "out" ? selectedJob?.id : undefined,
+      jobLabel: movementForm.type === "out" && selectedJob ? `${selectedJob.jobNumber ?? selectedJob.id} · ${selectedJob.title}` : undefined,
+      currency: selectedProduct.currency ?? "SEK",
+      purchasePrice: optionalNumberFromForm(movementForm.purchasePrice),
+      note: movementForm.note.trim() || undefined,
+      correctionOfMovementId: movementForm.correctionOfMovementId || undefined,
+      documents: movementDocuments,
+    };
+    setProductMovements((current) => [movement, ...current]);
+    setMovementDocuments([]);
+    setMovementForm((current) => ({
+      ...current,
+      quantity: "",
+      deliveredTotal: "",
+      packageCount: "",
+      packageQuantity: selectedProduct.quantityPerPackage?.toString() ?? "",
+      openedPackageCount: "",
+      openedPackageQuantity: "",
+      jobId: "",
+      purchasePrice: "",
+      note: "",
+      correctionOfMovementId: "",
+    }));
+    setIsProductBookingModalOpen(false);
+  }
+
+  function prepareProductMovementCorrection(movement: ProductMovement) {
+    const product = products.find((item) => item.id === movement.productId);
+    setSelectedProductMovementId("");
+    setSelectedProductId(movement.productId);
+    setMovementDocuments([]);
+    setMovementForm({
+      type: movement.type === "in" ? "out" : "in",
+      quantity: String(movement.quantity),
+      deliveredTotal: "",
+      packageCount: movement.packageCount?.toString() ?? "",
+      packageQuantity: movement.packageQuantity?.toString() ?? product?.quantityPerPackage?.toString() ?? "",
+      openedPackageCount: movement.openedPackageCount?.toString() ?? "",
+      openedPackageQuantity: movement.openedPackageQuantity?.toString() ?? "",
+      bookedAt: new Date().toISOString().slice(0, 10),
+      jobId: "",
+      purchasePrice: "",
+      note: t("products.correctionNote", {
+        date: new Date(`${movement.bookedAt}T00:00:00`).toLocaleDateString(i18n.language),
+        quantity: formatQuantity(movement.quantity),
+        unit: product?.unit ?? "",
+      }),
+      correctionOfMovementId: movement.id,
+    });
+  }
+
+  function releaseProblemJobForCompletion(jobId: string) {
+    if (!onUpdateJob) return;
+    onUpdateJob(jobId, {
+      completionStatus: "review",
+      completionStatusChangedAt: new Date().toISOString(),
+      completionStatusChangedBy: authProfile?.fullName ?? t("report.systemUser"),
+    });
+  }
+
+  const problemsPanel = (
+    <section className="dispatch-problems-panel" aria-label={t("contractor.problems")}>
+      <button
+        className="dispatch-problems-toggle"
+        aria-expanded={problemCount > 0}
+        type="button"
+      >
+        <span>{t("contractor.problems")} ({problemCount})</span>
+        <ChevronDown className={problemCount > 0 ? "open" : ""} size={18} />
+      </button>
+      {problemCount > 0 && (
+        <div className="dispatch-problems-list">
+          {openVacationRequests.map((request) => (
+            <div className="alert-item vacation-alert-item" key={request.id}>
+              <CalendarDays size={19} />
+              <div className="vacation-alert-copy">
+                <strong>{t("vacationApproval.requestTitle")} · {request.driverName}</strong>
+                <span>{request.from}-{request.to} · {request.days} {t("driver.days")}{request.note ? ` · ${request.note}` : ""}</span>
+                <small>{t("vacationApproval.submittedAt", { time: new Date(request.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}</small>
+                {request.history.filter((entry) => entry.action !== "submitted").slice(0, 2).map((entry) => (
+                  <small key={entry.id}>{t(`vacationApproval.history.${entry.action}`)} · {entry.actorName} · {new Date(entry.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.reason ? ` · ${entry.reason}` : ""}</small>
+                ))}
+              </div>
+              <div className="vacation-decision-actions">
+                <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
+                <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
+              </div>
+            </div>
+          ))}
+          {machineProblems.map((problem) => (
+            <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
+              <Wrench size={18} />
+              <div>
+                <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
+                <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
+              </div>
+            </div>
+          ))}
+          {lowStockProducts.map(({ product, stock }) => (
+            <div className="alert-item" key={`low-stock-${product.id}`}>
+              <Package size={18} />
+              <div>
+                <strong>{t("products.lowStockTitle")} · {product.name}</strong>
+                <span>{t("products.lowStockDetail", { stock: `${formatQuantity(stock)} ${product.unit}`, minimum: `${formatQuantity(product.minimumStock ?? 0)} ${product.unit}` })}</span>
+              </div>
+            </div>
+          ))}
+          {problems.map((problem) => (
+            (() => {
+              const problemJob = jobs.find((job) => job.id === problem.jobId);
+              const isReleasedForCompletion = Boolean(problemJob?.completionStatus);
+              return (
+                <div className="alert-item" key={problem.id}>
+                  <MessageSquare size={18} />
+                  <div>
+                    <strong><FieldName id={problem.fieldId} />{problemJob ? ` · ${problemJob.jobNumber ?? problemJob.title}` : ""}</strong>
+                    <span>{problem.note ?? t("contractor.openFeedback")}</span>
+                  </div>
+                  <button
+                    className="secondary-action compact-action"
+                    disabled={!problemJob || !onUpdateJob || isReleasedForCompletion}
+                    onClick={() => problemJob && releaseProblemJobForCompletion(problemJob.id)}
+                    type="button"
+                  >
+                    {t(isReleasedForCompletion ? "contractor.releasedForCompletion" : "contractor.releaseForCompletion")}
+                  </button>
+                </div>
+              );
+            })()
+          ))}
+        </div>
+      )}
+    </section>
+  );
+
+  function persistDriverTimeEntries(next: DriverTimeEntry[]) {
+    setDriverTimeEntries(next);
+    void writeDriverTimeEntries(next).then(setDriverTimeEntries);
+  }
+
+  function editDriverTimeEntry(entry: DriverTimeEntry) {
+    const minutesText = window.prompt(t("masterData.editTimeMinutesPrompt"), String(entry.minutes ?? 0));
+    if (minutesText === null) return;
+    const minutes = Math.max(0, Math.round(Number(minutesText.replace(",", ".")) || 0));
+    const note = window.prompt(t("masterData.editTimeNotePrompt"), entry.note ?? "");
+    if (note === null) return;
+    persistDriverTimeEntries(driverTimeEntries.map((item) => (
+      item.id === entry.id ? { ...item, minutes, note: note.trim() || undefined } : item
+    )));
+  }
+
+  function deleteDriverTimeEntry(entry: DriverTimeEntry) {
+    if (!window.confirm(t("masterData.deleteTimeEntryConfirm"))) return;
+    void deleteStoredDriverTimeEntry(entry.id).then(setDriverTimeEntries);
+  }
+
+  function payrollReportLines(driverId?: string) {
+    const rows = driverId ? payrollSummaries.filter((row) => row.driver.id === driverId) : payrollSummaries;
+    const title = driverId
+      ? `${t("masterData.payrollReport")} ${rows[0]?.driver.name ?? ""} ${payrollMonth}`
+      : `${t("masterData.payrollReportAll")} ${payrollMonth}`;
+    return {
+      title,
+      lines: [
+        "Farm-Manager",
+        title,
+        "",
+        ...rows.flatMap((row) => [
+          `${row.driver.name}`,
+          `${t("masterData.totalWorkTime")}: ${formatDurationMinutes(row.workMinutes)} · ${t("masterData.totalPauseTime")}: ${formatDurationMinutes(row.pauseMinutes)} · ${t("masterData.interruptionTime")}: ${formatDurationMinutes(row.interruptionMinutes)}`,
+          `${t("masterData.openVacationRequests")}: ${row.vacationRequests.filter((request) => request.status === "requested").length}`,
+          ...row.entries.map((entry) => {
+            const start = new Date(entry.startedAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" });
+            const end = entry.endedAt ? new Date(entry.endedAt).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" }) : t("driver.running");
+            return `- ${t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}: ${start}-${end} · ${entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running")}${entry.jobNumber ? ` · ${entry.jobNumber}` : ""}${entry.note ? ` · ${entry.note}` : ""}`;
+          }),
+          "",
+        ]),
+      ],
+    };
+  }
+
+  function escapeReportHtml(value: string) {
+    return value.replace(/[<>&]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[char] ?? char);
+  }
+
+  function printPayrollReport(driverId?: string) {
+    const report = payrollReportLines(driverId);
+    const rows = driverId ? payrollSummaries.filter((row) => row.driver.id === driverId) : payrollSummaries;
+    const periodLabel = new Date(`${payrollMonth}-01T00:00:00`).toLocaleDateString(i18n.language, { month: "long", year: "numeric" });
+    const employeeSections = rows.map((row) => {
+      const vacationRows = row.vacationRequests.map((request) => `
+        <tr>
+          <td>${escapeReportHtml(request.from)}</td>
+          <td>${escapeReportHtml(request.to)}</td>
+          <td class="numeric">${request.days}</td>
+          <td>${escapeReportHtml(t(`driver.vacationStatus.${request.status}`))}</td>
+          <td>${escapeReportHtml(request.note || request.decisionReason || "-")}</td>
+        </tr>
+      `).join("");
+      const timeRows = row.entries.map((entry) => {
+        const startedAt = new Date(entry.startedAt);
+        const endedAt = entry.endedAt ? new Date(entry.endedAt) : undefined;
+        return `
+          <tr>
+            <td>${escapeReportHtml(startedAt.toLocaleDateString(i18n.language))}</td>
+            <td>${escapeReportHtml(startedAt.toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" }))}</td>
+            <td>${endedAt ? escapeReportHtml(endedAt.toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" })) : escapeReportHtml(t("driver.running"))}</td>
+            <td>${escapeReportHtml(t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption"))}</td>
+            <td class="numeric">${escapeReportHtml(entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running"))}</td>
+            <td>${escapeReportHtml(entry.reason ? t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`) : "-")}</td>
+            <td>${escapeReportHtml([entry.jobNumber, entry.note].filter(Boolean).join(" · ") || "-")}</td>
+          </tr>
+        `;
+      }).join("");
+      return `
+        <section class="employee">
+          <div class="employee-head">
+            <div>
+              <h2>${escapeReportHtml(row.driver.name)}</h2>
+              <p>${escapeReportHtml([row.driver.mobile, row.driver.email, row.driver.resourceType].filter(Boolean).join(" · ") || "-")}</p>
+            </div>
+            <div class="summary compact">
+              <div><span>${escapeReportHtml(t("masterData.totalWorkTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(row.workMinutes))}</strong></div>
+              <div><span>${escapeReportHtml(t("masterData.totalPauseTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(row.pauseMinutes))}</strong></div>
+              <div><span>${escapeReportHtml(t("masterData.interruptionTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(row.interruptionMinutes))}</strong></div>
+            </div>
+          </div>
+          <h3>Einsatzzeiten</h3>
+          <table>
+            <thead>
+              <tr><th>Datum</th><th>Start</th><th>Ende</th><th>Art</th><th class="numeric">Dauer</th><th>Grund</th><th>Auftrag / Notiz</th></tr>
+            </thead>
+            <tbody>${timeRows || `<tr><td colspan="7">${escapeReportHtml(t("masterData.noTimeEntries"))}</td></tr>`}</tbody>
+          </table>
+          <h3>Urlaub</h3>
+          <table>
+            <thead>
+              <tr><th>Von</th><th>Bis</th><th class="numeric">Tage</th><th>Status</th><th>Bemerkung / Entscheidung</th></tr>
+            </thead>
+            <tbody>${vacationRows || `<tr><td colspan="5">${escapeReportHtml(t("masterData.noVacationRequests"))}</td></tr>`}</tbody>
+          </table>
+        </section>
+      `;
+    }).join("");
+    const printWindow = window.open("about:blank", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapeReportHtml(report.title)}</title>
+          <style>
+            @page { margin: 18mm; }
+            body { font-family: Arial, sans-serif; color: #14221a; margin: 0; }
+            .report { display: grid; gap: 18px; }
+            .report-head { border-bottom: 3px solid #2f6f3e; display: grid; gap: 8px; padding-bottom: 14px; }
+            .brand { color: #2f6f3e; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+            h1 { font-size: 24px; line-height: 1.15; margin: 0; }
+            h2 { font-size: 18px; margin: 0 0 3px; }
+            h3 { color: #31543a; font-size: 13px; margin: 14px 0 7px; }
+            p { color: #617268; font-size: 12px; margin: 0; }
+            .meta { color: #52645a; display: grid; font-size: 12px; gap: 4px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+            .summary { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .summary.compact { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .summary div { border: 1px solid #dbe6dc; border-radius: 8px; padding: 10px; }
+            .summary span { color: #617268; display: block; font-size: 11px; font-weight: 700; margin-bottom: 5px; }
+            .summary strong { font-size: 17px; }
+            .employee { break-inside: avoid; display: grid; gap: 8px; }
+            .employee + .employee { border-top: 1px solid #dbe6dc; padding-top: 18px; }
+            .employee-head { align-items: start; display: grid; gap: 14px; grid-template-columns: minmax(180px, 1fr) minmax(360px, 1.7fr); }
+            table { border-collapse: collapse; font-size: 11px; width: 100%; }
+            th { background: #eef6e9; color: #26362c; font-size: 10px; text-align: left; text-transform: uppercase; }
+            th, td { border-bottom: 1px solid #dfe8dc; padding: 7px 6px; vertical-align: top; }
+            .numeric { text-align: right; white-space: nowrap; }
+            .signature { display: grid; gap: 30px; grid-template-columns: repeat(2, 1fr); margin-top: 28px; }
+            .signature div { border-top: 1px solid #718176; color: #617268; font-size: 11px; padding-top: 6px; }
+          </style>
+        </head>
+        <body>
+          <main class="report">
+            <section class="report-head">
+              <div class="brand">Farm-Manager</div>
+              <h1>${escapeReportHtml(report.title)}</h1>
+              <div class="meta">
+                <span><b>Zeitraum:</b> ${escapeReportHtml(periodLabel)}</span>
+                <span><b>Erstellt:</b> ${escapeReportHtml(new Date().toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" }))}</span>
+                <span><b>Mitarbeiter:</b> ${rows.length}</span>
+                <span><b>${escapeReportHtml(t("masterData.openVacationRequests"))}:</b> ${rows.reduce((sum, row) => sum + row.vacationRequests.filter((request) => request.status === "requested").length, 0)}</span>
+              </div>
+            </section>
+            <section class="summary">
+              <div><span>${escapeReportHtml(t("masterData.totalWorkTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(rows.reduce((sum, row) => sum + row.workMinutes, 0)))}</strong></div>
+              <div><span>${escapeReportHtml(t("masterData.totalPauseTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(rows.reduce((sum, row) => sum + row.pauseMinutes, 0)))}</strong></div>
+              <div><span>${escapeReportHtml(t("masterData.interruptionTime"))}</span><strong>${escapeReportHtml(formatDurationMinutes(rows.reduce((sum, row) => sum + row.interruptionMinutes, 0)))}</strong></div>
+              <div><span>${escapeReportHtml(t("driver.timeEntries"))}</span><strong>${rows.reduce((sum, row) => sum + row.entries.length, 0)}</strong></div>
+            </section>
+            ${employeeSections}
+            <section class="signature">
+              <div>Lohnbuchhaltung</div>
+              <div>Geprüft durch Einsatzleitung</div>
+            </section>
+          </main>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
+  }
+
+  function printProductInventoryReport(product = selectedProduct) {
+    if (!product) return;
+    const sortedMovements = productMovements
+      .filter((movement) => movement.productId === product.id)
+      .sort((a, b) => `${a.bookedAt}-${a.createdAt ?? ""}`.localeCompare(`${b.bookedAt}-${b.createdAt ?? ""}`));
+    let runningStock = product.openingStock ?? 0;
+    const movementRows = sortedMovements.map((movement) => {
+      runningStock += movement.type === "in" ? movement.quantity : -movement.quantity;
+      const packageInfo = [
+        movement.packageCount ? `${formatQuantity(movement.packageCount)} ${product.packageUnit ?? t("products.vpeShort")}` : "",
+        movement.packageQuantity ? `${formatQuantity(movement.packageQuantity)} ${product.unit}/${t("products.vpeShort")}` : "",
+        movement.openedPackageCount || movement.openedPackageQuantity
+          ? `${movement.openedPackageCount ? formatQuantity(movement.openedPackageCount) : "1"} ${t("products.openedPackage")} · ${movement.openedPackageQuantity ? formatQuantity(movement.openedPackageQuantity) : "-"} ${product.unit}`
+          : "",
+      ].filter(Boolean).join(" · ");
+      return `
+        <tr>
+          <td>${escapeReportHtml(new Date(`${movement.bookedAt}T00:00:00`).toLocaleDateString(i18n.language))}</td>
+          <td>${escapeReportHtml(movement.type === "in" ? t("products.movementIn") : t("products.movementOut"))}</td>
+          <td class="numeric">${movement.type === "in" ? "+" : "-"}${escapeReportHtml(formatQuantity(movement.quantity))} ${escapeReportHtml(product.unit)}</td>
+          <td class="numeric">${escapeReportHtml(formatQuantity(runningStock))} ${escapeReportHtml(product.unit)}</td>
+          <td>${escapeReportHtml(packageInfo || "-")}</td>
+          <td>${escapeReportHtml(movement.purchasePrice !== undefined ? formatMoneyValue(movement.purchasePrice, movement.currency ?? product.currency ?? "SEK") : "-")}</td>
+          <td>${escapeReportHtml(movement.jobLabel ?? "-")}</td>
+          <td>${escapeReportHtml(movement.bookedByName ?? t("products.unknownBooker"))}</td>
+          <td class="numeric">${movement.documents.length}</td>
+          <td>${escapeReportHtml(movement.note ?? "-")}</td>
+        </tr>
+      `;
+    }).join("");
+    const totalIn = sortedMovements.filter((movement) => movement.type === "in").reduce((sum, movement) => sum + movement.quantity, 0);
+    const totalOut = sortedMovements.filter((movement) => movement.type === "out").reduce((sum, movement) => sum + movement.quantity, 0);
+    const priceValidity = (price?: number, from?: string, to?: string) => [
+      price !== undefined ? formatMoneyValue(price, product.currency ?? "SEK") : "-",
+      from || to ? `${from || "-"}-${to || "-"}` : "",
+    ].filter(Boolean).join(" · ");
+    const printWindow = window.open("about:blank", "_blank");
+    if (!printWindow) return;
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>${escapeReportHtml(t("products.inventoryReport"))} ${escapeReportHtml(product.name)}</title>
+          <style>
+            @page { margin: 16mm; }
+            body { font-family: Arial, sans-serif; color: #14221a; margin: 0; }
+            .report { display: grid; gap: 18px; }
+            .report-head { border-bottom: 3px solid #2f6f3e; display: grid; gap: 9px; padding-bottom: 14px; }
+            .brand { color: #2f6f3e; font-size: 13px; font-weight: 800; letter-spacing: .04em; text-transform: uppercase; }
+            h1 { font-size: 25px; line-height: 1.15; margin: 0; }
+            h2 { color: #31543a; font-size: 14px; margin: 0; }
+            p { color: #617268; font-size: 12px; margin: 0; }
+            .meta { display: grid; gap: 6px 18px; grid-template-columns: repeat(3, minmax(0, 1fr)); }
+            .meta div { border-bottom: 1px solid #e3ece0; padding-bottom: 5px; }
+            .meta span { color: #617268; display: block; font-size: 10px; font-weight: 800; text-transform: uppercase; }
+            .meta b { display: block; font-size: 12px; margin-top: 2px; }
+            .summary { display: grid; gap: 10px; grid-template-columns: repeat(4, minmax(0, 1fr)); }
+            .summary div { border: 1px solid #dbe6dc; border-radius: 8px; padding: 10px; }
+            .summary span { color: #617268; display: block; font-size: 11px; font-weight: 700; margin-bottom: 5px; }
+            .summary strong { font-size: 17px; }
+            table { border-collapse: collapse; font-size: 10.5px; width: 100%; }
+            th { background: #eef6e9; color: #26362c; font-size: 9px; text-align: left; text-transform: uppercase; }
+            th, td { border-bottom: 1px solid #dfe8dc; padding: 7px 5px; vertical-align: top; }
+            .numeric { text-align: right; white-space: nowrap; }
+            .footer { border-top: 1px solid #dbe6dc; color: #617268; display: flex; font-size: 10px; justify-content: space-between; padding-top: 8px; }
+          </style>
+        </head>
+        <body>
+          <main class="report">
+            <section class="report-head">
+              <div class="brand">Farm-Manager</div>
+              <h1>${escapeReportHtml(t("products.inventoryReport"))}</h1>
+              <p>${escapeReportHtml(product.name)} · ${escapeReportHtml([product.category, product.articleNumber, product.supplierName].filter(Boolean).join(" · ") || "-")}</p>
+              <div class="meta">
+                <div><span>${escapeReportHtml(t("masterDataOverview.productFields.name"))}</span><b>${escapeReportHtml(product.name)}</b></div>
+                <div><span>${escapeReportHtml(t("masterDataOverview.productFields.category"))}</span><b>${escapeReportHtml(product.category || "-")}</b></div>
+                <div><span>${escapeReportHtml(t("products.supplier"))}</span><b>${escapeReportHtml(product.supplierName || "-")}</b></div>
+                <div><span>${escapeReportHtml(t("products.articleNumber"))}</span><b>${escapeReportHtml(product.articleNumber || "-")}</b></div>
+                <div><span>${escapeReportHtml(t("masterDataOverview.productFields.unit"))}</span><b>${escapeReportHtml(product.unit)}</b></div>
+                <div><span>${escapeReportHtml(t("products.currency"))}</span><b>${escapeReportHtml(product.currency ?? "SEK")}</b></div>
+                <div><span>${escapeReportHtml(t("products.purchasePrice"))}</span><b>${escapeReportHtml(priceValidity(product.purchasePrice, product.purchasePriceValidFrom, product.purchasePriceValidTo))}</b></div>
+                <div><span>${escapeReportHtml(t("products.salesPrice"))}</span><b>${escapeReportHtml(priceValidity(product.salesPrice, product.salesPriceValidFrom, product.salesPriceValidTo))}</b></div>
+                <div><span>${escapeReportHtml(t("products.organization"))}</span><b>${escapeReportHtml(ownOrganization?.name ?? "-")}</b></div>
+                <div><span>${escapeReportHtml(t("products.packageUnit"))}</span><b>${escapeReportHtml([product.packageUnit, product.quantityPerPackage ? `${formatQuantity(product.quantityPerPackage)} ${product.unit}` : ""].filter(Boolean).join(" · ") || "-")}</b></div>
+                <div><span>${escapeReportHtml(t("products.minimumStock"))}</span><b>${product.minimumStock !== undefined ? `${escapeReportHtml(formatQuantity(product.minimumStock))} ${escapeReportHtml(product.unit)}` : "-"}</b></div>
+                <div><span>${escapeReportHtml(t("products.createdAt"))}</span><b>${escapeReportHtml(new Date().toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" }))}</b></div>
+              </div>
+            </section>
+            <section class="summary">
+              <div><span>${escapeReportHtml(t("products.openingStock"))}</span><strong>${escapeReportHtml(formatQuantity(product.openingStock ?? 0))} ${escapeReportHtml(product.unit)}</strong></div>
+              <div><span>${escapeReportHtml(t("products.totalIn"))}</span><strong>${escapeReportHtml(formatQuantity(totalIn))} ${escapeReportHtml(product.unit)}</strong></div>
+              <div><span>${escapeReportHtml(t("products.totalOut"))}</span><strong>${escapeReportHtml(formatQuantity(totalOut))} ${escapeReportHtml(product.unit)}</strong></div>
+              <div><span>${escapeReportHtml(t("products.currentStock"))}</span><strong>${escapeReportHtml(formatQuantity(productStock(product.id)))} ${escapeReportHtml(product.unit)}</strong></div>
+            </section>
+            <section>
+              <h2>${escapeReportHtml(t("products.movementHistory"))}</h2>
+              <table>
+                <thead>
+                  <tr>
+                    <th>${escapeReportHtml(t("products.bookingDate"))}</th>
+                    <th>${escapeReportHtml(t("products.movementType"))}</th>
+                    <th class="numeric">${escapeReportHtml(t("products.quantity"))}</th>
+                    <th class="numeric">${escapeReportHtml(t("products.stockAfterMovement"))}</th>
+                    <th>${escapeReportHtml(t("products.packageUnit"))}</th>
+                    <th>${escapeReportHtml(t("products.purchasePrice"))}</th>
+                    <th>${escapeReportHtml(t("products.assignJob"))}</th>
+                    <th>${escapeReportHtml(t("products.bookedBy"))}</th>
+                    <th class="numeric">${escapeReportHtml(t("products.documents"))}</th>
+                    <th>${escapeReportHtml(t("products.bookingNote"))}</th>
+                  </tr>
+                </thead>
+                <tbody>${movementRows || `<tr><td colspan="10">${escapeReportHtml(t("products.noMovements"))}</td></tr>`}</tbody>
+              </table>
+            </section>
+            <section class="footer">
+              <span>${escapeReportHtml(t("products.inventoryReport"))}</span>
+              <span>${escapeReportHtml(new Date().toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" }))}</span>
+            </section>
+          </main>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+    printWindow.focus();
   }
 
   function activeResourceHistory() {
@@ -877,13 +2338,12 @@ export function ContractorView({
   }
 
   function createDriver() {
-    setCreatingResourceGroup("personnel");
-    setShowDriverPassword(false);
-    setDriverForm({
+    const draftId = "new";
+    const draft = readPersonnelDraft(draftId, {
       name: t("masterData.newDriverName"),
       organizationId: defaultResourceOrganizationId,
       vehicle: "",
-      jobVisibility: "assigned_only",
+      jobVisibility: "assigned_only" as Driver["jobVisibility"],
       email: "",
       accessPassword: generateDriverPassword(),
       mobile: "",
@@ -891,9 +2351,21 @@ export function ContractorView({
       maxDailyHours: 8,
       annualVacationDays: 30,
       vacationUsedDays: 0,
+      employeeType: "field" as PersonnelEmployeeType,
+      appRole: "driver" as UserRole,
+      allowedViews: ["driver"] as ViewKey[],
+      appPermissions: {
+        canEditFields: false,
+        canCreateJobs: false,
+        canEditDrivers: false,
+        canAssignDrivers: false,
+      } as Record<PersonnelAppPermissionKey, boolean>,
       resourceType: t("masterData.personnel"),
       operationType: "",
     });
+    setCreatingResourceGroup("personnel");
+    setShowDriverPassword(false);
+    setDriverForm(draft);
     setIsResourceModalOpen(true);
   }
 
@@ -901,8 +2373,24 @@ export function ContractorView({
     setCreatingResourceGroup(null);
     setShowDriverPassword(false);
     setSelectedDriverId(driver.id);
-    setDriverForm(driverToForm(driver));
+    setDriverForm(readPersonnelDraft(driver.id, driverToForm(driver)));
     setIsResourceModalOpen(true);
+  }
+
+  function updatePersonnelViewAccess(view: ViewKey, enabled: boolean) {
+    setDriverForm((current) => {
+      const nextViews = enabled
+        ? Array.from(new Set([...current.allowedViews, view]))
+        : current.allowedViews.filter((item) => item !== view);
+      return { ...current, allowedViews: nextViews.length > 0 ? nextViews : [current.appRole === "driver" ? "driver" : "dashboard"] };
+    });
+  }
+
+  function updatePersonnelPermission(permission: PersonnelAppPermissionKey, enabled: boolean) {
+    setDriverForm((current) => ({
+      ...current,
+      appPermissions: { ...current.appPermissions, [permission]: enabled },
+    }));
   }
 
   function saveDriver() {
@@ -927,13 +2415,15 @@ export function ContractorView({
       licenseClasses: driverForm.licenseClasses.split(",").map((item) => item.trim()).filter(Boolean),
     };
     if (creatingResourceGroup === "personnel") {
-      const id = crypto.randomUUID();
+      const id = createLocalId("local");
       addDriver({ id, ...payload });
       appendResourceHistory({ resourceGroup: "personnel", resourceId: id, event: "created", title: payload.name, details: payload.vehicle });
       setSelectedDriverId(id);
+      clearPersonnelDraft("new");
     } else if (selectedDriver) {
       updateDriver(selectedDriver.id, payload);
       appendResourceHistory({ resourceGroup: "personnel", resourceId: selectedDriver.id, event: "updated", title: payload.name, details: payload.vehicle });
+      clearPersonnelDraft(selectedDriver.id);
     }
     closeResourceModal();
   }
@@ -942,6 +2432,12 @@ export function ContractorView({
     const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
     const suffix = Array.from({ length: 6 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
     return `SL-${suffix}`;
+  }
+
+  function generateOrganizationPassword() {
+    const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+    const suffix = Array.from({ length: 8 }, () => alphabet[Math.floor(Math.random() * alphabet.length)]).join("");
+    return `FM-${suffix}`;
   }
 
   function driverAccessMessage() {
@@ -965,12 +2461,77 @@ export function ContractorView({
     window.location.href = `sms:${encodeURIComponent(driverForm.mobile)}?&body=${encodeURIComponent(driverAccessMessage())}`;
   }
 
+  function organizationAdminRole(organization?: Organization) {
+    return organization?.kind === "farmer" ? "farmer_admin" : "contractor_admin";
+  }
+
+  function organizationLoginMessage() {
+    const appUrl = `${window.location.origin}/admin`;
+    return t("masterData.organizationAccessMessage", {
+      appUrl,
+      email: organizationForm.email || "-",
+      password: organizationLoginPassword || "-",
+    });
+  }
+
+  function openOrganizationAccessMail() {
+    if (!organizationForm.email) return;
+    const subject = encodeURIComponent(t("masterData.organizationAccessMailSubject"));
+    const body = encodeURIComponent(organizationLoginMessage());
+    window.location.href = `mailto:${encodeURIComponent(organizationForm.email)}?subject=${subject}&body=${body}`;
+  }
+
+  async function createOrganizationAdminLogin() {
+    if (!selectedOrganization || creatingOrganization) return;
+    if (!isSupabaseConfigured || !supabase) {
+      setOrganizationLoginStatus(t("masterData.organizationLoginRequiresSupabase"));
+      return;
+    }
+    const email = organizationForm.email.trim();
+    const password = organizationLoginPassword.trim();
+    if (!email || password.length < 6) {
+      setOrganizationLoginStatus(t("masterData.organizationLoginMissingData"));
+      return;
+    }
+    setOrganizationLoginStatus(t("masterData.organizationLoginCreating"));
+    updateOrganization(selectedOrganization.id, organizationPayloadFromForm());
+    const { error } = await supabase.functions.invoke("sync-organization-admin-auth", {
+      body: {
+        organizationId: selectedOrganization.id,
+        fullName: organizationForm.contacts[0]?.name || organizationForm.name,
+        email,
+        password,
+        role: organizationAdminRole({ ...selectedOrganization, ...organizationForm }),
+      },
+    });
+    if (error) {
+      let errorMessage = error.message;
+      const context = typeof error === "object" && error && "context" in error ? (error as { context?: unknown }).context : null;
+      if (context instanceof Response) {
+        try {
+          const payload = await context.clone().json() as { error?: string };
+          if (payload.error) errorMessage = payload.error;
+        } catch {
+          // Keep Supabase client error.
+        }
+      }
+      setOrganizationLoginStatus(t("masterData.organizationLoginError", { error: errorMessage }));
+      return;
+    }
+    setOrganizationLoginStatus(t("masterData.organizationLoginCreated"));
+  }
+
   function createVehicle() {
     setCreatingResourceGroup("vehicles");
     setVehicleForm({
       name: t("masterData.newVehicleName"),
       type: t("terms.vehicle"),
       licensePlate: "",
+      manufacturer: "",
+      model: "",
+      constructionYear: "",
+      operatingHours: "",
+      defaultDriverId: "",
       resourceType: t("terms.vehicle"),
       operationType: "",
       status: "frei",
@@ -986,14 +2547,20 @@ export function ContractorView({
   }
 
   function saveVehicle() {
+    const payload = {
+      ...vehicleForm,
+      constructionYear: vehicleForm.constructionYear ? Number(vehicleForm.constructionYear) : undefined,
+      operatingHours: vehicleForm.operatingHours ? Number(vehicleForm.operatingHours) : undefined,
+      defaultDriverId: vehicleForm.defaultDriverId || undefined,
+    };
     if (creatingResourceGroup === "vehicles") {
-      const id = crypto.randomUUID();
-      addVehicle({ id, organizationId: defaultResourceOrganizationId, ...vehicleForm });
-      appendResourceHistory({ resourceGroup: "vehicles", resourceId: id, event: "created", title: vehicleForm.name, details: [vehicleForm.licensePlate, vehicleForm.status].filter(Boolean).join(" · ") });
+      const id = createLocalId("local");
+      addVehicle({ id, organizationId: defaultResourceOrganizationId, ...payload });
+      appendResourceHistory({ resourceGroup: "vehicles", resourceId: id, event: "created", title: payload.name, details: [payload.licensePlate, payload.status].filter(Boolean).join(" · ") });
       setSelectedVehicleId(id);
     } else if (selectedVehicle) {
-      updateVehicle(selectedVehicle.id, vehicleForm);
-      appendResourceHistory({ resourceGroup: "vehicles", resourceId: selectedVehicle.id, event: "updated", title: vehicleForm.name, details: [vehicleForm.licensePlate, vehicleForm.status].filter(Boolean).join(" · ") });
+      updateVehicle(selectedVehicle.id, payload);
+      appendResourceHistory({ resourceGroup: "vehicles", resourceId: selectedVehicle.id, event: "updated", title: payload.name, details: [payload.licensePlate, payload.status].filter(Boolean).join(" · ") });
     }
     closeResourceModal();
   }
@@ -1003,6 +2570,8 @@ export function ContractorView({
     setImplementForm({
       name: t("masterData.newImplementName"),
       type: t("masterData.implementType"),
+      manufacturer: "",
+      workingWidth: "",
       resourceType: t("masterData.implementType"),
       operationType: "",
       status: "frei",
@@ -1018,14 +2587,18 @@ export function ContractorView({
   }
 
   function saveImplement() {
+    const payload = {
+      ...implementForm,
+      workingWidth: implementForm.workingWidth ? Number(implementForm.workingWidth) : undefined,
+    };
     if (creatingResourceGroup === "implements") {
-      const id = crypto.randomUUID();
-      addImplement({ id, organizationId: defaultResourceOrganizationId, ...implementForm });
-      appendResourceHistory({ resourceGroup: "implements", resourceId: id, event: "created", title: implementForm.name, details: [implementForm.type, implementForm.status].filter(Boolean).join(" · ") });
+      const id = createLocalId("local");
+      addImplement({ id, organizationId: defaultResourceOrganizationId, ...payload });
+      appendResourceHistory({ resourceGroup: "implements", resourceId: id, event: "created", title: payload.name, details: [payload.type, payload.status].filter(Boolean).join(" · ") });
       setSelectedImplementId(id);
     } else if (selectedImplement) {
-      updateImplement(selectedImplement.id, implementForm);
-      appendResourceHistory({ resourceGroup: "implements", resourceId: selectedImplement.id, event: "updated", title: implementForm.name, details: [implementForm.type, implementForm.status].filter(Boolean).join(" · ") });
+      updateImplement(selectedImplement.id, payload);
+      appendResourceHistory({ resourceGroup: "implements", resourceId: selectedImplement.id, event: "updated", title: payload.name, details: [payload.type, payload.status].filter(Boolean).join(" · ") });
     }
     closeResourceModal();
   }
@@ -1161,7 +2734,7 @@ export function ContractorView({
   }
 
   function createTaskTemplate() {
-    const id = crypto.randomUUID();
+    const id = createLocalId("local");
     addTaskTemplate({
       id,
       organizationId: currentRole === "support_admin" ? undefined : authProfile?.organizationId,
@@ -1178,7 +2751,9 @@ export function ContractorView({
       requiredDrivers: 1,
       requiredVehicles: 1,
       requiredImplements: 0,
-      resourceHint: "",
+      resourceHint: withMarkerJson("", taskBillingMarker, { billingUnit: "ha", currency: "SEK" }),
+      billingUnit: "ha",
+      standardPriceCurrency: "SEK",
       mapStyle: undefined,
     });
     setSelectedTaskTemplateId(id);
@@ -1187,6 +2762,13 @@ export function ContractorView({
 
   function saveTaskTemplate() {
     if (!selectedTaskTemplate) return;
+    const billingCondition: TaskBillingCondition = {
+      billingUnit: taskTemplateForm.billingUnit,
+      price: optionalNumberFromForm(taskTemplateForm.standardPrice),
+      currency: taskTemplateForm.standardPriceCurrency || "SEK",
+      validFrom: taskTemplateForm.standardPriceValidFrom || undefined,
+      validTo: taskTemplateForm.standardPriceValidTo || undefined,
+    };
     updateTaskTemplate(selectedTaskTemplate.id, {
       name: taskTemplateForm.name,
       timePerHa: taskTemplateForm.timePerHa,
@@ -1196,8 +2778,13 @@ export function ContractorView({
       requiredDrivers: taskTemplateForm.requiredDrivers,
       requiredVehicles: taskTemplateForm.requiredVehicles,
       requiredImplements: taskTemplateForm.requiredImplements,
-      resourceHint: taskTemplateForm.resourceHint,
+      resourceHint: withMarkerJson(taskTemplateForm.resourceHint, taskBillingMarker, billingCondition),
       unit: taskTemplateForm.unit.trim() || undefined,
+      billingUnit: billingCondition.billingUnit,
+      standardPrice: billingCondition.price,
+      standardPriceCurrency: billingCondition.currency,
+      standardPriceValidFrom: billingCondition.validFrom,
+      standardPriceValidTo: billingCondition.validTo,
       mapStyle: taskTemplateForm.mapStyleLabel.trim()
         ? {
             label: taskTemplateForm.mapStyleLabel.trim(),
@@ -1230,9 +2817,12 @@ export function ContractorView({
 
   function createOrganization() {
     setCreatingOrganization(true);
+    setOrganizationLoginPassword("");
+    setOrganizationLoginStatus("");
     setOrganizationForm({
       name: "",
       kind: "farmer",
+      organizationNumber: "",
       address: "",
       street: "",
       country: "",
@@ -1243,18 +2833,140 @@ export function ContractorView({
       email: "",
       website: "",
       vatId: "",
+      logoUrl: "",
+      defaultLanguage: "",
+      billingDetails: "",
+      customerNumber: "",
+      supplierCategory: "",
       notes: "",
+      customerConditionRows: [],
       contacts: [],
     });
     setIsOrganizationModalOpen(true);
   }
 
+  function findOrganizationForInvite(organizationNumber: string) {
+    const normalizedNumber = organizationNumber.trim().toLowerCase();
+    return organizations.find((organization) => (
+      normalizedNumber && organization.organizationNumber?.trim().toLowerCase() === normalizedNumber
+    ));
+  }
+
+  function relationshipSides(targetOrganization?: Organization) {
+    if (!authProfile?.organizationId) return null;
+    if (currentRole === "contractor_admin") {
+      return {
+        farmerOrganizationId: targetOrganization?.kind === "farmer" ? targetOrganization.id : "",
+        contractorOrganizationId: authProfile.organizationId,
+      };
+    }
+    return {
+      farmerOrganizationId: authProfile.organizationId,
+      contractorOrganizationId: targetOrganization?.kind === "contractor" ? targetOrganization.id : "",
+    };
+  }
+
+  function collaborationInvitationMessage(targetName: string, message?: string) {
+    const appUrl = `${window.location.origin}/admin`;
+    return t("collaboration.invitationMailBody", {
+      appUrl,
+      fromOrganization: ownOrganization?.name ?? t("masterData.noOrganizationAssigned"),
+      targetOrganization: targetName || "-",
+      message: message?.trim() || t("collaboration.noInvitationMessage"),
+    });
+  }
+
+  function openCollaborationInvitationMail(email?: string, targetName?: string, message?: string) {
+    if (!email?.trim()) return;
+    const subject = encodeURIComponent(t("collaboration.invitationMailSubject", {
+      fromOrganization: ownOrganization?.name ?? "Farm-Manager",
+    }));
+    const body = encodeURIComponent(collaborationInvitationMessage(targetName ?? email, message));
+    window.location.href = `mailto:${encodeURIComponent(email.trim())}?subject=${subject}&body=${body}`;
+  }
+
+  function inviteCollaboration() {
+    if (!authProfile?.organizationId || !collaborationInviteForm.organizationNumber.trim()) return;
+    const matchedOrganization = findOrganizationForInvite(collaborationInviteForm.organizationNumber);
+    const sides = relationshipSides(matchedOrganization);
+    const contactType: ExternalContactType = currentRole === "contractor_admin" ? "customer" : "contractor";
+    const now = new Date().toISOString();
+    const invitationEmail = collaborationInviteForm.email.trim() || matchedOrganization?.email || "";
+
+    const existingContact = ownExternalContacts.find((contact) => (
+      contact.organizationNumber?.trim().toLowerCase() === collaborationInviteForm.organizationNumber.trim().toLowerCase()
+    ));
+    const contactPatch: ExternalContact = {
+      id: existingContact?.id ?? createLocalId("local"),
+      organizationId: authProfile.organizationId,
+      contactType,
+      companyName: collaborationInviteForm.companyName.trim() || matchedOrganization?.name || collaborationInviteForm.organizationNumber.trim(),
+      contactPerson: existingContact?.contactPerson,
+      email: invitationEmail,
+      phone: existingContact?.phone,
+      address: existingContact?.address,
+      organizationNumber: collaborationInviteForm.organizationNumber.trim() || matchedOrganization?.organizationNumber,
+      linkedOrganizationId: matchedOrganization?.id,
+      status: matchedOrganization ? "invited" : "invited",
+      notes: collaborationInviteForm.message.trim(),
+      createdAt: existingContact?.createdAt ?? now,
+      updatedAt: now,
+    };
+    if (existingContact) updateExternalContact(existingContact.id, contactPatch);
+    else addExternalContact(contactPatch);
+
+    if (matchedOrganization && sides?.farmerOrganizationId && sides.contractorOrganizationId) {
+      const existingRelationship = ownOrganizationRelationships.find((relationship) => (
+        relationship.farmerOrganizationId === sides.farmerOrganizationId
+        && relationship.contractorOrganizationId === sides.contractorOrganizationId
+      ));
+      const relationship: OrganizationRelationship = {
+        id: existingRelationship?.id ?? createLocalId("local"),
+        farmerOrganizationId: sides.farmerOrganizationId,
+        contractorOrganizationId: sides.contractorOrganizationId,
+        status: "invited",
+        invitedBy: authProfile.id,
+        invitationEmail,
+        invitationMessage: collaborationInviteForm.message.trim(),
+        createdAt: existingRelationship?.createdAt ?? now,
+      };
+      if (existingRelationship) updateOrganizationRelationship(existingRelationship.id, relationship);
+      else addOrganizationRelationship(relationship);
+    }
+
+    openCollaborationInvitationMail(
+      invitationEmail,
+      contactPatch.companyName,
+      collaborationInviteForm.message,
+    );
+    setCollaborationInviteForm({ email: "", organizationNumber: "", companyName: "", message: "" });
+  }
+
+  function acceptRelationship(relationship: OrganizationRelationship) {
+    updateOrganizationRelationship(relationship.id, {
+      status: "active",
+      acceptedBy: authProfile?.id,
+      acceptedAt: new Date().toISOString(),
+      endedAt: undefined,
+    });
+  }
+
+  function setRelationshipStatus(relationship: OrganizationRelationship, status: OrganizationRelationship["status"]) {
+    updateOrganizationRelationship(relationship.id, {
+      status,
+      endedAt: status === "ended" || status === "blocked" ? new Date().toISOString() : undefined,
+    });
+  }
+
   function openOrganizationEditor(organization: Organization) {
     setCreatingOrganization(false);
+    setOrganizationLoginPassword("");
+    setOrganizationLoginStatus("");
     setSelectedOrganizationId(organization.id);
     setOrganizationForm({
       name: organization.name,
       kind: organization.kind,
+      organizationNumber: organization.organizationNumber ?? "",
       address: organization.address ?? "",
       street: organization.street ?? "",
       country: organization.country ?? "",
@@ -1265,7 +2977,13 @@ export function ContractorView({
       email: organization.email ?? "",
       website: organization.website ?? "",
       vatId: organization.vatId ?? "",
-      notes: organization.notes ?? "",
+      logoUrl: organization.logoUrl ?? "",
+      defaultLanguage: organization.defaultLanguage ?? "",
+      billingDetails: organization.billingDetails ?? "",
+      customerNumber: organization.customerNumber ?? "",
+      supplierCategory: organization.supplierCategory ?? "",
+      notes: stripMarkerBlock(organization.notes, customerConditionsMarker),
+      customerConditionRows: conditionsToRows(customerConditionsFromOrganization(organization)),
       contacts: organization.contacts ?? [],
     });
     setIsOrganizationModalOpen(true);
@@ -1276,7 +2994,7 @@ export function ContractorView({
       ...current,
       contacts: [
         ...current.contacts,
-        { id: crypto.randomUUID(), name: "", role: "", phone: "", mobile: "", email: "", sms: "", notes: "" },
+        { id: createLocalId("local"), name: "", role: "", phone: "", mobile: "", email: "", sms: "", notes: "" },
       ],
     }));
   }
@@ -1295,14 +3013,24 @@ export function ContractorView({
     }));
   }
 
+  function uploadOrganizationLogo(file?: File) {
+    if (!file) return;
+    const reader = new FileReader();
+    reader.addEventListener("load", () => {
+      setOrganizationForm((current) => ({ ...current, logoUrl: typeof reader.result === "string" ? reader.result : current.logoUrl }));
+    });
+    reader.readAsDataURL(file);
+  }
+
   function saveOrganization() {
     if (!organizationForm.name.trim()) return;
+    const payload = organizationPayloadFromForm();
     if (creatingOrganization) {
-      const id = crypto.randomUUID();
-      addOrganization({ id, ...organizationForm });
+      const id = createLocalId("local");
+      addOrganization({ id, ...payload });
       setSelectedOrganizationId(id);
     } else if (selectedOrganization) {
-      updateOrganization(selectedOrganization.id, organizationForm);
+      updateOrganization(selectedOrganization.id, payload);
     }
     setIsOrganizationModalOpen(false);
     setCreatingOrganization(false);
@@ -1941,73 +3669,230 @@ export function ContractorView({
     };
   }
 
+  function toggleCollaborationState(organizationId: string) {
+    setInactiveCollaborationIds((current) => {
+      const next = new Set(current);
+      if (next.has(organizationId)) {
+        next.delete(organizationId);
+      } else {
+        next.add(organizationId);
+      }
+      window.localStorage.setItem(inactiveCollaborationsStorageKey, JSON.stringify(Array.from(next)));
+      return next;
+    });
+  }
+
+  function relationshipPartner(relationship: OrganizationRelationship) {
+    const partnerId = relationship.farmerOrganizationId === authProfile?.organizationId
+      ? relationship.contractorOrganizationId
+      : relationship.farmerOrganizationId;
+    return organizations.find((organization) => organization.id === partnerId);
+  }
+
+  function renderRelationshipRow(relationship: OrganizationRelationship) {
+    const partner = relationshipPartner(relationship);
+    const requestedAt = relationship.createdAt
+      ? new Date(relationship.createdAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" })
+      : "-";
+    const isInviteSender = Boolean(relationship.invitedBy && relationship.invitedBy === authProfile?.id);
+    return (
+      <article className="collaboration-row" key={relationship.id}>
+        <div>
+          <strong>{partner?.name ?? relationship.invitationEmail ?? "-"}</strong>
+          <span>{partner ? t("masterData.connectedFarmManagerBusiness") : t("masterData.externalContactPending")}</span>
+          {relationship.status === "invited" && <small>{t("collaboration.requestedAt", { time: requestedAt })}</small>}
+          <small>{relationship.invitationEmail || partner?.email || "-"}</small>
+          {relationship.invitationMessage && <small>{relationship.invitationMessage}</small>}
+        </div>
+        <div className="collaboration-actions">
+          {relationship.status === "invited" && isInviteSender && (
+            <>
+              <button className="secondary-action" onClick={() => openCollaborationInvitationMail(relationship.invitationEmail || partner?.email, partner?.name, relationship.invitationMessage)} type="button">
+                <Mail size={16} /> {t("collaboration.openInvitationMail")}
+              </button>
+              <button className="danger-action" onClick={() => deleteOrganizationRelationship(relationship.id)} type="button">
+                <Trash2 size={16} /> {t("collaboration.deleteRequest")}
+              </button>
+            </>
+          )}
+          {relationship.status === "invited" && !isInviteSender && (
+            <>
+              <button className="secondary-action" onClick={() => openCollaborationInvitationMail(relationship.invitationEmail || partner?.email, partner?.name, relationship.invitationMessage)} type="button">
+                <Mail size={16} /> {t("collaboration.openInvitationMail")}
+              </button>
+              <button className="primary-action" onClick={() => acceptRelationship(relationship)} type="button">
+                <CheckCircle size={16} /> {t("collaboration.acceptInvitation")}
+              </button>
+              <button className="danger-action" onClick={() => setRelationshipStatus(relationship, "ended")} type="button">
+                <X size={16} /> {t("collaboration.declineInvitation")}
+              </button>
+            </>
+          )}
+          {relationship.status === "active" && (
+            <>
+              <button className="secondary-action" onClick={() => setRelationshipStatus(relationship, "paused")} type="button">
+                {t("collaboration.pause")}
+              </button>
+              <button className="danger-action" onClick={() => setRelationshipStatus(relationship, "ended")} type="button">
+                {t("collaboration.end")}
+              </button>
+            </>
+          )}
+          {(relationship.status === "paused" || relationship.status === "ended") && (
+            <button className="primary-action" onClick={() => acceptRelationship(relationship)} type="button">
+              {t("collaboration.activate")}
+            </button>
+          )}
+        </div>
+      </article>
+    );
+  }
+
+  function renderOpenExternalInviteRow(contact: ExternalContact) {
+    const requestedAt = contact.createdAt
+      ? new Date(contact.createdAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" })
+      : "-";
+    return (
+      <article className="collaboration-row" key={contact.id}>
+        <div>
+          <strong>{contact.companyName}</strong>
+          <span>{t("masterData.externalContactPending")}</span>
+          <small>{t("collaboration.requestedAt", { time: requestedAt })}</small>
+          <small>{[contact.email, contact.organizationNumber, contact.phone].filter(Boolean).join(" · ") || "-"}</small>
+          {contact.notes && <small>{contact.notes}</small>}
+        </div>
+        <div className="collaboration-actions">
+          <button className="secondary-action" onClick={() => openCollaborationInvitationMail(contact.email, contact.companyName, contact.notes)} type="button">
+            <Mail size={16} /> {t("collaboration.openInvitationMail")}
+          </button>
+          <button className="danger-action" onClick={() => updateExternalContact(contact.id, { status: "archived" })} type="button">
+            <Trash2 size={16} /> {t("collaboration.deleteRequest")}
+          </button>
+        </div>
+      </article>
+    );
+  }
+
+  function renderCollaborationDirectory() {
+    return (
+      <div className="collaboration-directory">
+        <section className="collaboration-panel">
+          <div className="section-heading compact-heading">
+            <h3>{currentRole === "contractor_admin" ? t("collaboration.inviteCustomer") : t("collaboration.inviteContractor")}</h3>
+          </div>
+          <div className="form-row modal-form-row">
+            <label>{t("masterData.email")}<input value={collaborationInviteForm.email} onChange={(event) => setCollaborationInviteForm((current) => ({ ...current, email: event.target.value }))} /></label>
+            <label>{t("masterData.organizationNumber")}<input value={collaborationInviteForm.organizationNumber} onChange={(event) => setCollaborationInviteForm((current) => ({ ...current, organizationNumber: event.target.value }))} /></label>
+            <label>{t("masterData.organizationName")}<input value={collaborationInviteForm.companyName} onChange={(event) => setCollaborationInviteForm((current) => ({ ...current, companyName: event.target.value }))} /></label>
+            <label>{t("collaboration.message")}<input value={collaborationInviteForm.message} onChange={(event) => setCollaborationInviteForm((current) => ({ ...current, message: event.target.value }))} /></label>
+          </div>
+          <button className="primary-action" onClick={inviteCollaboration} type="button">
+            <Mail size={16} /> {t("collaboration.sendInvitation")}
+          </button>
+        </section>
+
+        <section className="collaboration-panel">
+          <h3>{t("collaboration.active")} · {activeRelationships.length}</h3>
+          {activeRelationships.length ? activeRelationships.map(renderRelationshipRow) : <p className="permission-note">{t("collaboration.emptyActive")}</p>}
+        </section>
+        <section className="collaboration-panel">
+          <h3>{t("collaboration.openRequests")} · {invitedRelationships.length + openExternalInvites.length}</h3>
+          {invitedRelationships.length + openExternalInvites.length
+            ? (
+                <>
+                  {invitedRelationships.map(renderRelationshipRow)}
+                  {openExternalInvites.map(renderOpenExternalInviteRow)}
+                </>
+              )
+            : <p className="permission-note">{t("collaboration.emptyOpenRequests")}</p>}
+        </section>
+        <section className="collaboration-panel">
+          <h3>{t("collaboration.ended")} · {endedRelationships.length}</h3>
+          {endedRelationships.length ? endedRelationships.map(renderRelationshipRow) : <p className="permission-note">{t("collaboration.emptyEnded")}</p>}
+        </section>
+      </div>
+    );
+  }
+
   function renderOrganizationCard(organization: Organization) {
     const resources = getOrganizationResources(organization.id);
+    const isOwnOrganization = organization.id === authProfile?.organizationId;
+    const isCollaborationView = organizationDirectoryMode === "collaboration";
+    const isInactiveCollaboration = inactiveCollaborationIds.has(organization.id);
     return (
       <article className="resource-card organization-card" key={organization.id}>
         <div className="organization-card-main">
           <div>
             <span className="resource-kind">
-              {organization.kind === "farmer" ? t("masterData.farmerOrganization") : t("masterData.contractorOrganization")}
+              {t(`masterData.organizationKinds.${organization.kind}`)}
             </span>
             <strong>{organization.name}</strong>
             <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
             <small>{[organization.phone, organization.mobile, organization.email].filter(Boolean).join(" · ") || t("masterData.noContactData")}</small>
             <small>{t("masterData.contactsCount", { count: organization.contacts?.length ?? 0 })}</small>
+            <small>{isOwnOrganization ? t("masterData.ownOrganization") : t("masterData.linkedFarmManagerOrganization")}</small>
+            {organizationDirectoryMode === "contacts" && <small>{t("masterData.contactCategory")}: {t(`masterData.organizationKinds.${organization.kind}`)}{organization.supplierCategory ? ` · ${organization.supplierCategory}` : ""}</small>}
+            {isCollaborationView && <small>{isInactiveCollaboration ? t("masterData.collaborationInactive") : t("masterData.collaborationActive")}</small>}
           </div>
-          <button className="secondary-action" onClick={() => openOrganizationEditor(organization)} type="button">
-            {t("masterData.editOrganization")}
-          </button>
-        </div>
-        <details className="organization-resource-details">
-          <summary>
-            <span>{t("masterData.assignedResources")}</span>
-            <strong>{resources.total}</strong>
-          </summary>
-          {resources.total === 0 ? (
-            <p className="permission-note">{t("masterData.noAssignedResources")}</p>
-          ) : (
-            <div className="organization-resource-list">
-              <div>
-                <strong>{t("masterData.personnel")}</strong>
-                {resources.drivers.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.drivers.map((driver) => (
-                  <span key={driver.id}>{driver.name}{driver.vehicle ? ` · ${driver.vehicle}` : ""}</span>
-                ))}
-              </div>
-              <div>
-                <strong>{t("contractor.vehicleResources")}</strong>
-                {resources.vehicles.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.vehicles.map((vehicle) => (
-                  <span key={vehicle.id}>{[vehicle.name, vehicle.licensePlate, vehicle.type].filter(Boolean).join(" · ")}</span>
-                ))}
-              </div>
-              <div>
-                <strong>{t("contractor.implementResources")}</strong>
-                {resources.implementsList.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.implementsList.map((implement) => (
-                  <span key={implement.id}>{[implement.name, implement.type, implement.operationType].filter(Boolean).join(" · ")}</span>
-                ))}
-              </div>
-            </div>
+          {isCollaborationView && !isOwnOrganization && (
+            <button
+              className={isInactiveCollaboration ? "secondary-action" : "danger-action"}
+              onClick={() => toggleCollaborationState(organization.id)}
+              type="button"
+            >
+              {isInactiveCollaboration ? t("masterData.activateCollaboration") : t("masterData.deactivateCollaboration")}
+            </button>
           )}
-        </details>
+          {canEditOrganizationRecord(organization) && !isCollaborationView && (
+            <button className="secondary-action" onClick={() => openOrganizationEditor(organization)} type="button">
+              {t("masterData.editOrganization")}
+            </button>
+          )}
+        </div>
+        {isOwnOrganization && (
+          <details className="organization-resource-details">
+            <summary>
+              <span>{t("masterData.assignedResources")}</span>
+              <strong>{resources.total}</strong>
+            </summary>
+            {resources.total === 0 ? (
+              <p className="permission-note">{t("masterData.noAssignedResources")}</p>
+            ) : (
+              <div className="organization-resource-list">
+                <div>
+                  <strong>{t("masterData.personnel")}</strong>
+                  {resources.drivers.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.drivers.map((driver) => (
+                    <span key={driver.id}>{driver.name}{driver.vehicle ? ` · ${driver.vehicle}` : ""}</span>
+                  ))}
+                </div>
+                <div>
+                  <strong>{t("contractor.vehicleResources")}</strong>
+                  {resources.vehicles.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.vehicles.map((vehicle) => (
+                    <span key={vehicle.id}>{[vehicle.name, vehicle.licensePlate, vehicle.type].filter(Boolean).join(" · ")}</span>
+                  ))}
+                </div>
+                <div>
+                  <strong>{t("contractor.implementResources")}</strong>
+                  {resources.implementsList.length === 0 ? <span>{t("masterData.noAssignedResources")}</span> : resources.implementsList.map((implement) => (
+                    <span key={implement.id}>{[implement.name, implement.type, implement.operationType].filter(Boolean).join(" · ")}</span>
+                  ))}
+                </div>
+              </div>
+            )}
+          </details>
+        )}
       </article>
     );
   }
 
   return (
     <section className="view-stack">
-      {variant === "masterData" && (
-        <div className="subpage-tabs" role="tablist" aria-label={t("contractor.sections")}>
-          <button className={activeSection === "masterOverview" ? "active" : ""} onClick={() => setActiveSection("masterOverview")} type="button">
-            {t("masterDataOverview.overview")}
-          </button>
-        </div>
-      )}
-
       {activeSection === "masterOverview" && (
         <div className="panel master-overview-page">
           <div className="section-heading">
             <div>
               <h2>{t("masterDataOverview.title")}</h2>
+              <strong className="master-organization-label">{t("masterData.masterDataFor", { organization: ownOrganization?.name ?? t("masterData.noOrganizationAssigned") })}</strong>
               <p>{t("masterDataOverview.subtitle")}</p>
             </div>
             <span className="master-overview-total">
@@ -2028,7 +3913,7 @@ export function ContractorView({
                       </span>
                       <span className="master-overview-counts">
                         <span>{t("masterDataOverview.activeCount", { count: item.activeCount })}</span>
-                        <small>{t("masterDataOverview.archivedCount", { count: item.archivedCount })}</small>
+                        <small>{item.secondaryCountLabel ?? t("masterDataOverview.archivedCount", { count: item.archivedCount })}</small>
                       </span>
                     </button>
                   ))}
@@ -2041,45 +3926,6 @@ export function ContractorView({
 
       {activeSection === "overview" && (
         <>
-          <div className="panel resource-board">
-            <div className="section-heading">
-              <h2>{t("contractor.resourceOverview")}</h2>
-              <span>{resourceCount} {t("contractor.resources")}</span>
-            </div>
-            <div className="resource-group-grid">
-              {resourceGroups.map((group) => (
-                <details className="resource-group" key={group.id}>
-                  <summary className="resource-group-heading">
-                    <strong>{group.title}</strong>
-                    <span>{group.resources.length}</span>
-                  </summary>
-                  <div className="resource-grid">
-                    {group.resources.map((resource) => {
-                      const task = resource.subtask ? getTask(resource.subtask, jobs) : undefined;
-                      return (
-                        <button
-                          className="resource-card resource-card-button"
-                          key={`${resource.kind}-${resource.id}`}
-                          onClick={() => openResourceMasterData(group.id, resource.id)}
-                          type="button"
-                        >
-                          <span className="resource-kind">{resource.kind}</span>
-                          <strong>{resource.name}</strong>
-                          <span>{resource.detail}</span>
-                          <small>{resource.resourceType}{resource.operationType ? ` · ${resource.operationType}` : ""}</small>
-                          <span className={resource.subtask ? "pill warning-pill" : "pill success"}>
-                            {resource.subtask ? t("contractor.assignedTo", { task: task?.name ?? "", field: "" }) : t("contractor.available")}
-                          </span>
-                          {resource.subtask && <small><FieldName id={resource.subtask.fieldId} /></small>}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </details>
-              ))}
-            </div>
-          </div>
-
           <div className="panel live-location-panel">
             <div className="section-heading">
               <h2><RadioTower size={20} /> {t("liveLocation.dispatchTitle")}</h2>
@@ -2093,6 +3939,7 @@ export function ContractorView({
             {driverLocations.length > 0 ? (
               <>
                 <LiveLocationMap fields={fields} jobs={jobs} locations={driverLocations} subtasks={subtasks} />
+                {problemsPanel}
                 <div className="live-location-list">
                   <div className="live-location-row live-location-header">
                     <span>{t("terms.driver")}</span>
@@ -2476,167 +4323,27 @@ export function ContractorView({
             </div>
           </div>
 
-          <div className="dispatch-workflow">
-            <div className="panel">
-              <div className="section-heading">
-                <h2>{t("contractor.allCustomerJobs")}</h2>
-                <span>{jobs.length} {t("terms.active")}</span>
-              </div>
-              <div className="dispatch-list compact-customer-jobs">
-                {sortOpenBeforeDone(subtasks).map((subtask, sortedIndex, sortedSubtasks) => {
-                  const task = getTask(subtask, jobs);
-                  const job = jobs.find((item) => item.id === subtask.jobId);
-                  const lastDriver = [...subtask.activeDriverIds].reverse().find((driverId) => canControlResource(getDriverByAssignmentId(driverId)));
-                  const activeVehicles = getDisplayVehiclesForSubtask(subtask)
-                    .map((vehicle) => vehicle.name)
-                    .join(", ");
-                  const activeImplements = (subtask.activeImplementIds ?? [])
-                    .map((id) => allImplementsList.find((implement) => implement.id === id)?.name)
-                    .filter(Boolean)
-                    .join(", ");
-                  const startsDoneGroup = subtask.status === "erledigt" && sortedSubtasks[sortedIndex - 1]?.status !== "erledigt";
-                  return (
-                    <article className={`dispatch-item compact-customer-job ${subtask.status === "erledigt" ? "completed-item" : ""} ${startsDoneGroup ? "completed-section-start" : ""}`} key={subtask.id}>
-                      <div className="compact-customer-main">
-                        <div className="compact-job-title-line">
-                          <small className="compact-job-id">{job?.jobNumber ?? subtask.jobId}</small>
-                          <strong>{task?.name}</strong>
-                        </div>
-                        <span><FieldName id={subtask.fieldId} /></span>
-                        <small>
-                          {t("contractor.resourceNeedShort", {
-                            crews: subtask.plannedCrews ?? 1,
-                            drivers: task?.requiredDrivers ?? 0,
-                            vehicles: task?.requiredVehicles ?? task?.maxVehicles ?? 0,
-                            implements: task?.requiredImplements ?? 0,
-                          })}
-                        </small>
-                      </div>
-                      <div className="compact-customer-status">
-                        <StatusBadge status={subtask.status} />
-                        <ProgressBar value={subtask.progress} />
-                        <small>{subtask.progress}%</small>
-                      </div>
-                      <div className="compact-customer-resources">
-                        {subtask.activeDriverIds.length > 0 ? <span><DriverChips subtask={subtask} /></span> : <small>{t("contractor.noDriverAssigned")}</small>}
-                        <small>{activeVehicles || t("contractor.noVehicleAssigned")}</small>
-                        <small>{activeImplements || t("contractor.noImplementAssigned")}</small>
-                      </div>
-                      {permissions.canAssignDrivers && (
-                        <div className="dispatch-actions compact-dispatch-actions">
-                          <button onClick={() => assignResources(subtask)} type="button">
-                            <UserPlus size={17} /> {t("actions.assignResources")}
-                          </button>
-                          {lastDriver && (
-                            <button
-                              onClick={() =>
-                                onUpdateSubtask(subtask.id, {
-                                  activeDriverIds: subtask.activeDriverIds.filter((id) => id !== lastDriver),
-                                  activeDriverNames: (subtask.activeDriverNames ?? []).filter((name) => name !== getDriverByAssignmentId(lastDriver)?.name),
-                                  status: subtask.activeDriverIds.length <= 1 ? "offen" : subtask.status,
-                                })
-                              }
-                              type="button"
-                            >
-                              <UserMinus size={17} /> {t("actions.removeDriver")}
-                            </button>
-                          )}
-                          {subtask.activeDriverIds.some((driverId) => canControlResource(getDriverByAssignmentId(driverId))) && (
-                            <button onClick={() => releaseDriverLogins(subtask)} type="button">
-                              <UserMinus size={17} /> {t("actions.releaseDriverLogins")}
-                            </button>
-                          )}
-                          <button onClick={() => releaseResources(subtask)} type="button"><RotateCcw size={17} /> {t("actions.release")}</button>
-                          <button onClick={() => onUpdateSubtask(subtask.id, { status: "erledigt", progress: 100 })} type="button"><CheckCircle size={17} /> {t("actions.close")}</button>
-                          <div className="assignment-picker">
-                            <input
-                              aria-label={t("contractor.plannedCrews")}
-                              min={1}
-                              max={8}
-                              value={subtask.plannedCrews ?? 1}
-                              onChange={(event) => setSubtaskCrews(subtask, Number(event.target.value))}
-                              type="number"
-                            />
-                            <select value={assignDriverId} onChange={(event) => setAssignDriverId(event.target.value)}>
-                              {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
-                            </select>
-                            <select value={assignVehicleId} onChange={(event) => setAssignVehicleId(event.target.value)}>
-                              {vehicles.map((vehicle) => <option key={vehicle.id} value={vehicle.id}>{vehicle.name}</option>)}
-                            </select>
-                            <select value={assignImplementId} onChange={(event) => setAssignImplementId(event.target.value)}>
-                              <option value="">{t("contractor.noImplement")}</option>
-                              {implementsList.map((implement) => <option key={implement.id} value={implement.id}>{implement.name}</option>)}
-                            </select>
-                          </div>
-                        </div>
-                      )}
-                    </article>
-                  );
-                })}
-              </div>
-            </div>
-
-            <section className="dispatch-problems-panel" aria-label={t("contractor.problems")}>
-              <button
-                className="dispatch-problems-toggle"
-                aria-expanded={isProblemsOpen}
-                onClick={() => setIsProblemsOpen((open) => !open)}
-                type="button"
-              >
-                <span>{t("contractor.problems")} ({problemCount})</span>
-                <ChevronDown className={isProblemsOpen ? "open" : ""} size={18} />
-              </button>
-              {isProblemsOpen && problemCount > 0 && (
-                <div className="dispatch-problems-list">
-                  {openVacationRequests.map((request) => (
-                    <div className="alert-item vacation-alert-item" key={request.id}>
-                      <CalendarDays size={19} />
-                      <div>
-                        <strong>{t("vacationApproval.requestTitle")} · {request.driverName}</strong>
-                        <span>{request.from}-{request.to} · {request.days} {t("driver.days")}{request.note ? ` · ${request.note}` : ""}</span>
-                        <small>{t("vacationApproval.submittedAt", { time: new Date(request.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}</small>
-                        {request.history.slice(0, 2).map((entry) => (
-                          <small key={entry.id}>{t(`vacationApproval.history.${entry.action}`)} · {entry.actorName} · {new Date(entry.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.reason ? ` · ${entry.reason}` : ""}</small>
-                        ))}
-                      </div>
-                      <div className="vacation-decision-actions">
-                        <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
-                        <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
-                      </div>
-                    </div>
-                  ))}
-                  {machineProblems.map((problem) => (
-                    <div className="alert-item" key={problem.id ?? `${problem.recordedAt}-${problem.driverName}`}>
-                      <strong>{t("dashboard.machineProblem")} · {[...(problem.vehicleNames ?? []), ...(problem.implementNames ?? [])].join(" · ") || t("terms.vehicle")}</strong>
-                      <span>{[problem.driverName, problem.problemRecipient ? t(`driver.notify.${problem.problemRecipient}`) : "", problem.note].filter(Boolean).join(" · ")}</span>
-                    </div>
-                  ))}
-                  {problems.map((problem) => (
-                    <div className="alert-item" key={problem.id}>
-                      <strong><FieldName id={problem.fieldId} /></strong>
-                      <span>{problem.note ?? t("contractor.openFeedback")}</span>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </section>
-          </div>
         </>
       )}
 
       {activeSection === "masterData" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
+          <div className="section-heading master-detail-heading">
             <h2>
               {activeMasterGroup === "personnel" && t("masterData.personnel")}
               {activeMasterGroup === "vehicles" && t("contractor.vehicleResources")}
               {activeMasterGroup === "implements" && t("contractor.implementResources")}
             </h2>
-            <span>
-              {activeMasterGroup === "personnel" && masterDrivers.length}
-              {activeMasterGroup === "vehicles" && masterVehicles.length}
-              {activeMasterGroup === "implements" && masterImplements.length}
-            </span>
+            <div className="modal-actions">
+              <span className="master-overview-total">
+                {activeMasterGroup === "personnel" && masterDrivers.length}
+                {activeMasterGroup === "vehicles" && masterVehicles.length}
+                {activeMasterGroup === "implements" && masterImplements.length}
+              </span>
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
+            </div>
           </div>
 
           <div className="resource-master-toolbar">
@@ -2667,6 +4374,20 @@ export function ContractorView({
           </div>
           {!permissions.canEditDrivers && <p className="permission-note">{t("permissions.driversReadOnly")}</p>}
 
+          {activeMasterGroup === "personnel" && (
+            <button className="personnel-planning-panel personnel-planning-button" onClick={() => setIsPayrollModalOpen(true)} type="button">
+              <div>
+                <strong>{t("masterData.personnelTimeVacationTitle")}</strong>
+                <span>{t("masterData.personnelTimeVacationHint")}</span>
+              </div>
+              <div className="personnel-planning-metrics">
+                <span>{t("masterData.totalWorkTime")}: <b>{formatDurationMinutes(personnelTotalWorkMinutes)}</b></span>
+                <span>{t("masterData.totalPauseTime")}: <b>{formatDurationMinutes(personnelTotalPauseMinutes)}</b></span>
+                <span>{t("masterData.openVacationRequests")}: <b>{personnelOpenVacationRequestCount}</b></span>
+              </div>
+            </button>
+          )}
+
           <div className="resource-master-layout resource-master-layout-single">
             <div className="resource-list-panel resource-list-panel-full">
               {activeMasterGroup === "personnel" && masterDrivers.map((driver) => (
@@ -2675,12 +4396,21 @@ export function ContractorView({
                   const vehicleLabel = standardVehicle
                     ? [standardVehicle.name, standardVehicle.licensePlate, standardVehicle.type].filter(Boolean).join(" · ")
                     : driver.vehicle || t("masterData.noDefaultVehicle");
+                  const personnelSummary = personnelTimeSummary.find((row) => row.driverId === driver.id);
                   return (
-                    <button className={driver.id === selectedDriver?.id ? "roster-item active" : "roster-item"} key={driver.id} onClick={() => openDriverEditor(driver)} type="button">
-                      <strong>{driver.name}</strong>
-                      <span>{driver.mobile || t("masterData.mobile")} · {driver.licenseClasses?.join(", ") || t("masterData.licenseClasses")}</span>
-                      <span>{t("masterData.defaultVehicle")}: {vehicleLabel}</span>
-                      <span>{activeOrganizations.find((organization) => organization.id === driver.organizationId)?.name ?? t("masterData.noOrganizationAssigned")} · {t(`masterData.driverVisibility.${normalizedDriverJobVisibility(driver)}`)}</span>
+                    <button className={driver.id === selectedDriver?.id ? "roster-item personnel-roster-item active" : "roster-item personnel-roster-item"} key={driver.id} onClick={() => openDriverEditor(driver)} type="button">
+                      <div>
+                        <strong>{driver.name}</strong>
+                        <span>{t(`masterData.employeeTypes.${driver.employeeType ?? "field"}`)} · {driver.mobile || t("masterData.mobile")} · {driver.licenseClasses?.join(", ") || t("masterData.licenseClasses")}</span>
+                        <span>{t("masterData.defaultVehicle")}: {vehicleLabel}</span>
+                        <span>{activeOrganizations.find((organization) => organization.id === driver.organizationId)?.name ?? t("masterData.noOrganizationAssigned")} · {t(`masterData.driverVisibility.${normalizedDriverJobVisibility(driver)}`)}</span>
+                      </div>
+                      <div className="personnel-roster-metrics">
+                        <span>{t("masterData.workTimeShort")} <b>{formatDurationMinutes(personnelSummary?.workMinutes ?? 0)}</b></span>
+                        <span>{t("masterData.pauseShort")} <b>{formatDurationMinutes(personnelSummary?.pauseMinutes ?? 0)}</b></span>
+                        <span>{t("masterData.vacationRemainingShort")} <b>{personnelSummary?.vacationRemaining ?? 0}</b></span>
+                        <span>{t("masterData.openRequestsShort")} <b>{personnelSummary?.openVacationRequests ?? 0}</b></span>
+                      </div>
                     </button>
                   );
                 })()
@@ -2699,6 +4429,95 @@ export function ContractorView({
               ))}
             </div>
           </div>
+          {isPayrollModalOpen && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="resource-modal payroll-modal" role="dialog" aria-modal="true" aria-labelledby="payroll-modal-title">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="payroll-modal-title">{t("masterData.payrollPreparation")}</h2>
+                    <p>{t("masterData.payrollPreparationHint")}</p>
+                  </div>
+                  <button className="secondary-action icon-action" onClick={() => setIsPayrollModalOpen(false)} type="button">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className="payroll-toolbar">
+                  <label>
+                    {t("masterData.payrollMonth")}
+                    <select value={payrollMonth} onChange={(event) => setPayrollMonth(event.target.value)}>
+                      {payrollMonthOptions.map((month) => (
+                        <option key={month} value={month}>{new Date(`${month}-01T00:00:00`).toLocaleDateString("de-DE", { month: "long", year: "numeric" })}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <div className="personnel-planning-metrics">
+                    <span>{t("masterData.totalWorkTime")}: <b>{formatDurationMinutes(payrollTotals.workMinutes)}</b></span>
+                    <span>{t("masterData.totalPauseTime")}: <b>{formatDurationMinutes(payrollTotals.pauseMinutes)}</b></span>
+                    <span>{t("masterData.openVacationRequests")}: <b>{payrollTotals.openVacationRequests}</b></span>
+                  </div>
+                  <button className="primary-action" onClick={() => printPayrollReport()} type="button">
+                    <ClipboardList size={16} /> {t("masterData.exportAllPayrollPdf")}
+                  </button>
+                </div>
+                <div className="payroll-employee-list">
+                  {payrollSummaries.map((row) => (
+                    <section className="payroll-employee-card" key={row.driver.id}>
+                      <div className="payroll-employee-head">
+                        <div>
+                          <strong>{row.driver.name}</strong>
+                          <span>{[row.driver.mobile, row.driver.email].filter(Boolean).join(" · ") || t("masterData.personnel")}</span>
+                        </div>
+                        <div className="personnel-planning-metrics">
+                          <span>{t("masterData.totalWorkTime")}: <b>{formatDurationMinutes(row.workMinutes)}</b></span>
+                          <span>{t("masterData.totalPauseTime")}: <b>{formatDurationMinutes(row.pauseMinutes)}</b></span>
+                          <span>{t("masterData.interruptionTime")}: <b>{formatDurationMinutes(row.interruptionMinutes)}</b></span>
+                        </div>
+                        <button className="secondary-action compact-action" onClick={() => printPayrollReport(row.driver.id)} type="button">
+                          {t("masterData.exportEmployeePayrollPdf")}
+                        </button>
+                      </div>
+                      {row.vacationRequests.length > 0 && (
+                        <div className="personnel-request-list payroll-vacation-list">
+                          {row.vacationRequests.map((request) => (
+                            <div className={`personnel-request-row ${request.status}`} key={request.id}>
+                              <div>
+                                <strong>{request.from}-{request.to} · {request.days} {t("driver.days")}</strong>
+                                <span>{t(`driver.vacationStatus.${request.status}`)}{request.note ? ` · ${request.note}` : ""}</span>
+                              </div>
+                              {request.status === "requested" && (
+                                <div className="vacation-decision-actions">
+                                  <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
+                                  <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
+                                </div>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                      {row.entries.length > 0 ? (
+                        <div className="payroll-time-table">
+                          {row.entries.map((entry) => (
+                            <div className={`payroll-time-row ${entry.kind}`} key={entry.id}>
+                              <strong>{t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
+                              <span>{new Date(entry.startedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                              <span>{entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running")}</span>
+                              <span>{[entry.jobNumber, entry.note].filter(Boolean).join(" · ") || "-"}</span>
+                              <div className="payroll-row-actions">
+                                <button className="secondary-action compact-action" onClick={() => editDriverTimeEntry(entry)} type="button">{t("masterData.editTimeEntry")}</button>
+                                <button className="danger-action compact-action" onClick={() => deleteDriverTimeEntry(entry)} type="button">{t("masterData.deleteTimeEntry")}</button>
+                              </div>
+                            </div>
+                          ))}
+                        </div>
+                      ) : (
+                        <p className="resource-editor-summary">{t("masterData.noTimeEntries")}</p>
+                      )}
+                    </section>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
           {isResourceModalOpen && (
             <div className="modal-backdrop" role="presentation">
               <div className="resource-modal" role="dialog" aria-modal="true" aria-labelledby="resource-modal-title">
@@ -2784,6 +4603,73 @@ export function ContractorView({
                     </section>
 
                     <section className="driver-form-section">
+                      <h3>{t("masterData.personnelAccessRights")}</h3>
+                      <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-access-rights-grid">
+                        <label>
+                          {t("masterData.employeeType")}
+                          <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.employeeType} onChange={(event) => setDriverForm((current) => ({ ...current, employeeType: event.target.value as PersonnelEmployeeType }))}>
+                            <option value="field">{t("masterData.employeeTypes.field")}</option>
+                            <option value="administration">{t("masterData.employeeTypes.administration")}</option>
+                            <option value="workshop">{t("masterData.employeeTypes.workshop")}</option>
+                            <option value="warehouse">{t("masterData.employeeTypes.warehouse")}</option>
+                          </select>
+                        </label>
+                        <label>
+                          {t("masterData.appRole")}
+                          <select
+                            disabled={!permissions.canEditDrivers || showArchivedMasterData}
+                            value={driverForm.appRole}
+                            onChange={(event) => {
+                              const nextRole = event.target.value as UserRole;
+                              setDriverForm((current) => ({
+                                ...current,
+                                appRole: nextRole,
+                                allowedViews: nextRole === "driver" ? ["driver"] : current.allowedViews.filter((view) => view !== "driver").length ? current.allowedViews.filter((view) => view !== "driver") : ["dashboard"],
+                              }));
+                            }}
+                          >
+                            <option value="driver">{t("roles.driver")}</option>
+                            <option value="farmer_employee">{t("roles.farmer_employee")}</option>
+                            <option value="contractor_admin">{t("roles.contractor_admin")}</option>
+                            <option value="advisor">{t("roles.advisor")}</option>
+                          </select>
+                        </label>
+                        <div className="personnel-permission-panel">
+                          <strong>{t("masterData.allowedProgramAreas")}</strong>
+                          <div className="personnel-check-grid">
+                            {personnelViewOptions.map((view) => (
+                              <label key={view}>
+                                <input
+                                  checked={driverForm.allowedViews.includes(view)}
+                                  disabled={!permissions.canEditDrivers || showArchivedMasterData || (driverForm.appRole === "driver" && view !== "driver")}
+                                  onChange={(event) => updatePersonnelViewAccess(view, event.target.checked)}
+                                  type="checkbox"
+                                />
+                                <span>{t(`nav.${view}`)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                        <div className="personnel-permission-panel">
+                          <strong>{t("masterData.editPermissions")}</strong>
+                          <div className="personnel-check-grid">
+                            {personnelPermissionOptions.map((permission) => (
+                              <label key={permission}>
+                                <input
+                                  checked={Boolean(driverForm.appPermissions[permission])}
+                                  disabled={!permissions.canEditDrivers || showArchivedMasterData || driverForm.appRole === "driver"}
+                                  onChange={(event) => updatePersonnelPermission(permission, event.target.checked)}
+                                  type="checkbox"
+                                />
+                                <span>{t(`masterData.permissionLabels.${permission}`)}</span>
+                              </label>
+                            ))}
+                          </div>
+                        </div>
+                      </div>
+                    </section>
+
+                    <section className="driver-form-section">
                       <h3>{t("masterData.driverSectionPlanning")}</h3>
                       <div className="form-row resource-form-row modal-form-row compact-driver-form-grid driver-planning-grid">
                         <label>
@@ -2818,6 +4704,75 @@ export function ContractorView({
                         <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={driverForm.operationType} onChange={(event) => setDriverForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
                       </div>
                     </section>
+
+                    {!creatingResourceGroup && selectedDriver && (
+                      <section className="driver-form-section personnel-dialog-planning">
+                        <h3>{t("masterData.timeVacationPlanning")}</h3>
+                        <div className="personnel-dialog-grid">
+                          <div className="personnel-dialog-card">
+                            <div className="personnel-dialog-card-head">
+                              <strong><CalendarDays size={17} /> {t("masterData.vacationOverview")}</strong>
+                              <span>{t("masterData.vacationRemainingShort")} {selectedDriverVacationRemaining}</span>
+                            </div>
+                            <div className="personnel-dialog-metrics">
+                              <span>{t("masterData.annualVacationDays")}: <b>{selectedDriverVacationAllowance}</b></span>
+                              <span>{t("masterData.vacationUsedDays")}: <b>{selectedDriverVacationUsedDays}</b></span>
+                              <span>{t("masterData.vacationRequestedDays")}: <b>{selectedDriverVacationRequestedDays}</b></span>
+                            </div>
+                            {selectedDriverVacationRequests.length > 0 ? (
+                              <div className="personnel-request-list">
+                                {selectedDriverVacationRequests.map((request) => (
+                                  <div className={`personnel-request-row ${request.status}`} key={request.id}>
+                                    <div>
+                                      <strong>{request.from}-{request.to} · {request.days} {t("driver.days")}</strong>
+                                      <span>{t(`driver.vacationStatus.${request.status}`)} · {t("vacationApproval.submittedAt", { time: new Date(request.createdAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" }) })}</span>
+                                      {request.note && <small>{request.note}</small>}
+                                      {request.decisionReason && <small>{t("vacationApproval.reason")}: {request.decisionReason}</small>}
+                                    </div>
+                                    {request.status === "requested" && (
+                                      <div className="vacation-decision-actions">
+                                        <button className="secondary-action compact-action" onClick={() => handleVacationDecision(request, "rejected")} type="button">{t("vacationApproval.reject")}</button>
+                                        <button className="primary-action compact-action" onClick={() => handleVacationDecision(request, "approved")} type="button">{t("vacationApproval.approve")}</button>
+                                      </div>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="resource-editor-summary">{t("masterData.noVacationRequests")}</p>
+                            )}
+                          </div>
+
+                          <div className="personnel-dialog-card">
+                            <div className="personnel-dialog-card-head">
+                              <strong><Clock size={17} /> {t("masterData.timeEntriesOverview")}</strong>
+                              <span>{selectedDriverClosedTimeEntries.length} {t("driver.timeEntries")}</span>
+                            </div>
+                            <div className="personnel-dialog-metrics">
+                              <span>{t("masterData.totalWorkTime")}: <b>{formatDurationMinutes(selectedDriverClosedTimeEntries.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0))}</b></span>
+                              <span>{t("masterData.totalPauseTime")}: <b>{formatDurationMinutes(selectedDriverClosedTimeEntries.filter((entry) => entry.kind === "pause").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0))}</b></span>
+                              <span>{t("masterData.interruptionTime")}: <b>{formatDurationMinutes(selectedDriverClosedTimeEntries.filter((entry) => entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0))}</b></span>
+                            </div>
+                            {selectedDriverTimeEntries.length > 0 ? (
+                              <div className="personnel-time-list">
+                                {selectedDriverTimeEntries.slice(0, 20).map((entry) => (
+                                  <div className={`personnel-time-row ${entry.kind}`} key={entry.id}>
+                                    <strong>{t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
+                                    <span>{new Date(entry.startedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                                    <span>{entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running")}</span>
+                                    {entry.reason && <small>{t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}</small>}
+                                    {entry.jobNumber && <small>{entry.jobNumber}</small>}
+                                    {entry.note && <small>{entry.note}</small>}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : (
+                              <p className="resource-editor-summary">{t("masterData.noTimeEntries")}</p>
+                            )}
+                          </div>
+                        </div>
+                      </section>
+                    )}
                   </div>
                 )}
 
@@ -2826,6 +4781,17 @@ export function ContractorView({
                     <label>{t("masterData.vehicleDescription")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.name} onChange={(event) => setVehicleForm((current) => ({ ...current, name: event.target.value }))} /></label>
                     <label>{t("masterData.licensePlate")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.licensePlate} onChange={(event) => setVehicleForm((current) => ({ ...current, licensePlate: event.target.value }))} /></label>
                     <label>{t("masterData.type")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.type} onChange={(event) => setVehicleForm((current) => ({ ...current, type: event.target.value }))} /></label>
+                    <label>{t("masterData.manufacturer")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.manufacturer} onChange={(event) => setVehicleForm((current) => ({ ...current, manufacturer: event.target.value }))} /></label>
+                    <label>{t("masterData.model")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.model} onChange={(event) => setVehicleForm((current) => ({ ...current, model: event.target.value }))} /></label>
+                    <label>{t("masterData.constructionYear")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={1900} max={2100} value={vehicleForm.constructionYear} onChange={(event) => setVehicleForm((current) => ({ ...current, constructionYear: event.target.value }))} type="number" /></label>
+                    <label>{t("masterData.operatingHours")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={0} step={1} value={vehicleForm.operatingHours} onChange={(event) => setVehicleForm((current) => ({ ...current, operatingHours: event.target.value }))} type="number" /></label>
+                    <label>
+                      {t("masterData.defaultDriver")}
+                      <select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.defaultDriverId} onChange={(event) => setVehicleForm((current) => ({ ...current, defaultDriverId: event.target.value }))}>
+                        <option value="">{t("masterData.noDefaultDriver")}</option>
+                        {drivers.map((driver) => <option key={driver.id} value={driver.id}>{driver.name}</option>)}
+                      </select>
+                    </label>
                     <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.resourceType} onChange={(event) => setVehicleForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
                     <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.operationType} onChange={(event) => setVehicleForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
                     <label>{t("masterData.status")}<select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={vehicleForm.status} onChange={(event) => setVehicleForm((current) => ({ ...current, status: event.target.value as Vehicle["status"] }))}><option value="frei">{t("resourceStatus.frei")}</option><option value="zugewiesen">{t("resourceStatus.zugewiesen")}</option><option value="wartung">{t("resourceStatus.wartung")}</option></select></label>
@@ -2836,6 +4802,8 @@ export function ContractorView({
                   <div className="form-row resource-form-row modal-form-row">
                     <label>{t("terms.implement")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.name} onChange={(event) => setImplementForm((current) => ({ ...current, name: event.target.value }))} /></label>
                     <label>{t("masterData.type")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.type} onChange={(event) => setImplementForm((current) => ({ ...current, type: event.target.value }))} /></label>
+                    <label>{t("masterData.manufacturer")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.manufacturer} onChange={(event) => setImplementForm((current) => ({ ...current, manufacturer: event.target.value }))} /></label>
+                    <label>{t("masterData.workingWidth")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} min={0} step={0.1} value={implementForm.workingWidth} onChange={(event) => setImplementForm((current) => ({ ...current, workingWidth: event.target.value }))} type="number" /></label>
                     <label>{t("masterData.resourceType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.resourceType} onChange={(event) => setImplementForm((current) => ({ ...current, resourceType: event.target.value }))} /></label>
                     <label>{t("masterData.operationType")}<input disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.operationType} onChange={(event) => setImplementForm((current) => ({ ...current, operationType: event.target.value }))} /></label>
                     <label>{t("masterData.status")}<select disabled={!permissions.canEditDrivers || showArchivedMasterData} value={implementForm.status} onChange={(event) => setImplementForm((current) => ({ ...current, status: event.target.value as Implement["status"] }))}><option value="frei">{t("resourceStatus.frei")}</option><option value="zugewiesen">{t("resourceStatus.zugewiesen")}</option><option value="wartung">{t("resourceStatus.wartung")}</option></select></label>
@@ -2890,9 +4858,6 @@ export function ContractorView({
                       <Trash2 size={16} /> {t("actions.deletePermanent")}
                     </button>
                   )}
-                  <button className="secondary-action" onClick={closeResourceModal} type="button">
-                    {t("actions.cancel")}
-                  </button>
                   {canManageResources && !showArchivedMasterData && activeMasterGroup === "personnel" && <button className="primary-action" onClick={saveDriver} type="button"><Save size={16} /> {t("masterData.saveChanges")}</button>}
                   {canManageResources && !showArchivedMasterData && activeMasterGroup === "vehicles" && <button className="primary-action" onClick={saveVehicle} type="button"><Save size={16} /> {t("masterData.saveChanges")}</button>}
                   {canManageResources && !showArchivedMasterData && activeMasterGroup === "implements" && <button className="primary-action" onClick={saveImplement} type="button"><Save size={16} /> {t("masterData.saveChanges")}</button>}
@@ -2905,84 +4870,404 @@ export function ContractorView({
 
       {activeSection === "organizations" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
-            <h2><Building2 size={20} /> {t("contractor.organizationMasterData")}</h2>
+          <div className="section-heading master-detail-heading">
+            <h2><Building2 size={20} /> {t(`masterData.organizationDirectory.${organizationDirectoryMode}`)}</h2>
+            <span>{t("masterData.masterDataFor", { organization: ownOrganization?.name ?? t("masterData.noOrganizationAssigned") })}</span>
             <div className="modal-actions">
-              <div className="segmented-control archive-toggle category-archive-toggle">
-                <button className={!showArchivedOrganizations ? "active" : ""} onClick={() => setShowArchivedOrganizations(false)} type="button">
-                  {t("archive.active")} · {activeOrganizations.length}
-                </button>
-                <button className={showArchivedOrganizations ? "active" : ""} onClick={() => setShowArchivedOrganizations(true)} type="button">
-                  {t("archive.archived")} · {archivedOrganizations.length}
-                </button>
-              </div>
-              {canManageOrganizations && !showArchivedOrganizations && (
+              {organizationDirectoryMode !== "company" && organizationDirectoryMode !== "collaboration" && (
+                <div className="segmented-control archive-toggle category-archive-toggle">
+                  <button className={!showArchivedOrganizations ? "active" : ""} onClick={() => setShowArchivedOrganizations(false)} type="button">
+                    {t("archive.active")} · {activeOrganizationDirectoryCount}
+                  </button>
+                  <button className={showArchivedOrganizations ? "active" : ""} onClick={() => setShowArchivedOrganizations(true)} type="button">
+                    {t("archive.archived")} · {archivedOrganizationDirectoryCount}
+                  </button>
+                </div>
+              )}
+              {organizationDirectoryMode === "contacts" && canCreateOrganizations && !showArchivedOrganizations && (
                 <button className="primary-action" onClick={createOrganization} type="button">
                   <Plus size={16} /> {t("masterData.newOrganization")}
                 </button>
               )}
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
             </div>
           </div>
-          {!canManageOrganizations && <p className="permission-note">{t("permissions.organizationsReadOnly")}</p>}
-
-          <div className="resource-group-grid">
+          {organizationDirectoryMode === "collaboration" ? (
+            renderCollaborationDirectory()
+          ) : (
             <div className="resource-group">
               <div className="resource-group-heading">
-                <strong>{t("masterData.farmerOrganizations")}</strong>
-                <span>{farmerOrganizations.length}</span>
+                <strong>{t(`masterData.organizationDirectory.${organizationDirectoryMode}`)}</strong>
+                <span>{directoryOrganizations.length}</span>
               </div>
-              <div className="resource-grid">
-                {farmerOrganizations.map((organization) => renderOrganizationCard(organization))}
-              </div>
-            </div>
-            <div className="resource-group">
-              <div className="resource-group-heading">
-                <strong>{t("masterData.contractorOrganizations")}</strong>
-                <span>{contractorOrganizations.length}</span>
-              </div>
-              <div className="resource-grid">
-                {contractorOrganizations.map((organization) => renderOrganizationCard(organization))}
+              <div className="resource-grid organization-directory-grid">
+                {directoryOrganizations.length === 0 ? (
+                  <p className="permission-note">{t(`masterData.organizationDirectoryEmpty.${organizationDirectoryMode}`)}</p>
+                ) : (
+                  directoryOrganizations.map((organization) => renderOrganizationCard(organization))
+                )}
               </div>
             </div>
-          </div>
+          )}
         </div>
       )}
 
       {activeSection === "products" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
+          <div className="section-heading master-detail-heading">
             <div>
               <h2><Package size={20} /> {t("masterDataOverview.groups.inputs")}</h2>
-              <p>{t("masterDataOverview.productsSectionHint")}</p>
+              <p>{t("products.sectionHint")}</p>
             </div>
-            <span>0</span>
+            <div className="modal-actions">
+              <span className="master-overview-total">{showArchivedProducts ? archivedProducts.length : activeProducts.length}</span>
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
+            </div>
           </div>
-          <div className="master-placeholder-grid single-column">
-            <section className="master-placeholder-panel">
-              <div className="master-placeholder-heading">
-                <Package size={18} />
-                <h3>{t("masterDataOverview.products.title")}</h3>
+          <div className="resource-master-toolbar product-toolbar">
+            <div className="segmented-control archive-toggle category-archive-toggle">
+              <button className={!showArchivedProducts ? "active" : ""} onClick={() => setShowArchivedProducts(false)} type="button">
+                {t("archive.active")} · {activeProducts.length}
+              </button>
+              <button className={showArchivedProducts ? "active" : ""} onClick={() => setShowArchivedProducts(true)} type="button">
+                {t("archive.archived")} · {archivedProducts.length}
+              </button>
+            </div>
+            <div className="product-kpi-row">
+              <span>{t("products.inventoryValue")}: <b>{inventoryValueLabel}</b></span>
+              <span>{t("products.activeProducts")}: <b>{activeProducts.length}</b></span>
+            </div>
+            {canManageProducts && (
+              <button className="primary-action" onClick={startNewProduct} type="button">
+                <Plus size={16} /> {t("products.newProduct")}
+              </button>
+            )}
+          </div>
+          <div className="product-inventory-layout">
+            <aside className="product-list-panel">
+              {visibleProducts.length === 0 ? (
+                <p className="permission-note">{t("products.noProducts")}</p>
+              ) : visibleProducts.map((product) => {
+                const stock = productStock(product.id);
+                const isLow = product.minimumStock !== undefined && stock <= product.minimumStock;
+                return (
+                  <button
+                    className={`product-list-entry ${selectedProduct?.id === product.id ? "active" : ""} ${isLow ? "stock-low" : ""}`}
+                    key={product.id}
+                    onClick={() => {
+                      setIsCreatingProduct(false);
+                      setSelectedProductId(product.id);
+                    }}
+                    type="button"
+                  >
+                    <span>
+                      <b>{product.name}</b>
+                      <small>{[product.category, product.supplierName, product.articleNumber, product.currency ?? "SEK"].filter(Boolean).join(" · ") || t("products.noDetails")}</small>
+                      {productPackageSummary(product) && <small>{productPackageSummary(product)}</small>}
+                    </span>
+                    <strong>{formatQuantity(stock)} {product.unit}</strong>
+                  </button>
+                );
+              })}
+            </aside>
+            <div className="product-detail-stack">
+              <section className="resource-editor-block product-editor-panel">
+                <div className="section-heading">
+                  <h2>{isCreatingProduct ? t("products.newProduct") : selectedProduct ? selectedProduct.name : t("products.productMasterData")}</h2>
+                  <div className="modal-actions">
+                    {selectedProduct && canManageProducts && !showArchivedProducts && (
+                      <button className="secondary-action" onClick={() => setIsProductBookingModalOpen(true)} type="button">
+                        <Package size={16} /> {t("products.stockBooking")}
+                      </button>
+                    )}
+                    {selectedProduct && (
+                      <button className="secondary-action" onClick={() => setIsProductMovementsModalOpen(true)} type="button">
+                        <Eye size={16} /> {t("products.showMovements")}
+                      </button>
+                    )}
+                    {selectedProduct && canManageProducts && !showArchivedProducts && (
+                      <button className="danger-action" onClick={archiveSelectedProduct} type="button">
+                        <Archive size={16} /> {t("products.archiveProduct")}
+                      </button>
+                    )}
+                    {selectedProduct && canManageProducts && showArchivedProducts && (
+                      <button className="secondary-action" onClick={restoreSelectedProduct} type="button">
+                        <RotateCcw size={16} /> {t("products.restoreProduct")}
+                      </button>
+                    )}
+                    {canManageProducts && (
+                      <button className="primary-action" onClick={saveProduct} type="button">
+                        <Save size={16} /> {t("products.saveProduct")}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                <div className="form-row product-form-grid">
+                  <div className="product-photo-field">
+                    <div className="product-photo-preview">
+                      {productForm.photoUrl ? <img alt={productForm.photoName || productForm.name} src={productForm.photoUrl} /> : <Package size={34} />}
+                    </div>
+                    <div className="product-photo-actions">
+                      <strong>{t("products.articlePhoto")}</strong>
+                      <label className="secondary-action file-action">
+                        <Camera size={16} /> {t("products.scanPhoto")}
+                        <input accept="image/*" capture="environment" hidden onChange={(event) => void addProductPhoto(event.target.files)} type="file" />
+                      </label>
+                      <label className="secondary-action file-action">
+                        <FileArchive size={16} /> {t("products.choosePhoto")}
+                        <input accept="image/*" hidden onChange={(event) => void addProductPhoto(event.target.files)} type="file" />
+                      </label>
+                    </div>
+                  </div>
+                  <label>{t("masterDataOverview.productFields.name")}<input value={productForm.name} onChange={(event) => setProductForm((current) => ({ ...current, name: event.target.value }))} /></label>
+                  <label>{t("masterDataOverview.productFields.category")}<input value={productForm.category} onChange={(event) => setProductForm((current) => ({ ...current, category: event.target.value }))} /></label>
+                  <label>{t("masterDataOverview.productFields.unit")}<input value={productForm.unit} onChange={(event) => setProductForm((current) => ({ ...current, unit: event.target.value }))} /></label>
+                  <label>{t("products.supplier")}<input list="product-suppliers" value={productForm.supplierName} onChange={(event) => setProductForm((current) => ({ ...current, supplierName: event.target.value }))} /></label>
+                  <label>{t("products.articleNumber")}<input value={productForm.articleNumber} onChange={(event) => setProductForm((current) => ({ ...current, articleNumber: event.target.value }))} /></label>
+                  <label>{t("products.currency")}<select value={productForm.currency} onChange={(event) => setProductForm((current) => ({ ...current, currency: event.target.value }))}>{productCurrencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+                  <label>{t("products.purchasePrice")}<input inputMode="decimal" value={productForm.purchasePrice} onChange={(event) => setProductForm((current) => ({ ...current, purchasePrice: event.target.value }))} /></label>
+                  <label>{t("products.priceValidFrom")}<input type="date" value={productForm.purchasePriceValidFrom} onChange={(event) => setProductForm((current) => ({ ...current, purchasePriceValidFrom: event.target.value }))} /></label>
+                  <label>{t("products.priceValidTo")}<input type="date" value={productForm.purchasePriceValidTo} onChange={(event) => setProductForm((current) => ({ ...current, purchasePriceValidTo: event.target.value }))} /></label>
+                  <label>{t("products.salesPrice")}<input inputMode="decimal" value={productForm.salesPrice} onChange={(event) => setProductForm((current) => ({ ...current, salesPrice: event.target.value }))} /></label>
+                  <label>{t("products.priceValidFrom")}<input type="date" value={productForm.salesPriceValidFrom} onChange={(event) => setProductForm((current) => ({ ...current, salesPriceValidFrom: event.target.value }))} /></label>
+                  <label>{t("products.priceValidTo")}<input type="date" value={productForm.salesPriceValidTo} onChange={(event) => setProductForm((current) => ({ ...current, salesPriceValidTo: event.target.value }))} /></label>
+                  <label>{t("products.minimumStock")}<input inputMode="decimal" value={productForm.minimumStock} onChange={(event) => setProductForm((current) => ({ ...current, minimumStock: event.target.value }))} /></label>
+                  <label>{t("products.packageUnit")}<input value={productForm.packageUnit} onChange={(event) => setProductForm((current) => ({ ...current, packageUnit: event.target.value }))} /></label>
+                  <label>{t("products.quantityPerPackage")}<input inputMode="decimal" value={productForm.quantityPerPackage} onChange={(event) => setProductForm((current) => ({ ...current, quantityPerPackage: event.target.value }))} /></label>
+                  <label className="wide-field">{t("products.notes")}<input value={productForm.notes} onChange={(event) => setProductForm((current) => ({ ...current, notes: event.target.value }))} /></label>
+                  <datalist id="product-suppliers">
+                    {supplierNameOptions.map((supplierName) => <option key={supplierName} value={supplierName} />)}
+                  </datalist>
+                </div>
+              </section>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProductBookingModalOpen && selectedProduct && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal product-movement-modal" role="dialog" aria-modal="true" aria-labelledby="product-booking-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="product-booking-title">{t("products.stockBooking")} · {selectedProduct.name}</h2>
+                <p>{t("products.currentStock")}: <b>{formatQuantity(productStock(selectedProduct.id))} {selectedProduct.unit}</b></p>
               </div>
-              <p>{t("masterDataOverview.products.description")}</p>
-              <div className="master-field-list">
-                <span>{t("masterDataOverview.productFields.name")}</span>
-                <span>{t("masterDataOverview.productFields.category")}</span>
-                <span>{t("masterDataOverview.productFields.unit")}</span>
-                <span>{t("masterDataOverview.productFields.supplier")}</span>
-                <span>{t("masterDataOverview.productFields.articleNumber")}</span>
-                <span>{t("masterDataOverview.productFields.price")}</span>
-                <span>{t("masterDataOverview.productFields.status")}</span>
+              <button className="secondary-action icon-action" onClick={() => setIsProductBookingModalOpen(false)} type="button">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="form-row product-movement-form">
+              <label>{t("products.movementType")}<select value={movementForm.type} onChange={(event) => setMovementForm((current) => ({ ...current, type: event.target.value as ProductMovement["type"], jobId: event.target.value === "in" ? "" : current.jobId }))}>
+                <option value="in">{t("products.movementIn")}</option>
+                <option value="out">{t("products.movementOut")}</option>
+              </select></label>
+              <label>{t("products.deliveredTotal")}<input inputMode="decimal" value={movementForm.deliveredTotal} onChange={(event) => updateMovementDeliveredTotal(event.target.value)} /></label>
+              <label>{t("products.packageCount")}<input inputMode="decimal" value={movementForm.packageCount} onChange={(event) => updateMovementPackageFields({ packageCount: event.target.value, deliveredTotal: "" })} /></label>
+              <label>{t("products.packageQuantityBooking")}<input inputMode="decimal" value={movementForm.packageQuantity} onChange={(event) => updateMovementPackageFields({ packageQuantity: event.target.value, deliveredTotal: "" })} /></label>
+              <label>{t("products.openedPackageCount")}<input inputMode="decimal" value={movementForm.openedPackageCount} onChange={(event) => updateMovementPackageFields({ openedPackageCount: event.target.value, deliveredTotal: "" })} /></label>
+              <label>{t("products.openedPackageQuantity")}<input inputMode="decimal" value={movementForm.openedPackageQuantity} onChange={(event) => updateMovementPackageFields({ openedPackageQuantity: event.target.value, deliveredTotal: "" })} /></label>
+              <label>{t("products.quantity")}<input inputMode="decimal" value={movementForm.quantity} onChange={(event) => setMovementForm((current) => ({ ...current, quantity: event.target.value, deliveredTotal: "" }))} /></label>
+              <label>{t("products.bookingDate")}<input type="date" value={movementForm.bookedAt} onChange={(event) => setMovementForm((current) => ({ ...current, bookedAt: event.target.value }))} /></label>
+              <label>{t("products.assignJob")}<select disabled={movementForm.type === "in"} value={movementForm.jobId} onChange={(event) => setMovementForm((current) => ({ ...current, jobId: event.target.value }))}>
+                <option value="">{t("products.noJobAssignment")}</option>
+                {jobs.filter((job) => !job.archivedAt).map((job) => <option key={job.id} value={job.id}>{job.jobNumber ?? job.id} · {job.title}</option>)}
+              </select></label>
+              <label>{t("products.purchasePrice")}<input inputMode="decimal" value={movementForm.purchasePrice} onChange={(event) => setMovementForm((current) => ({ ...current, purchasePrice: event.target.value }))} /></label>
+              <label className="wide-field">{t("products.bookingNote")}<input value={movementForm.note} onChange={(event) => setMovementForm((current) => ({ ...current, note: event.target.value }))} /></label>
+            </div>
+            <div className="product-upload-actions">
+              <label className="secondary-action file-action">
+                <Camera size={16} /> {t("products.scanReceipt")}
+                <input accept="image/*" capture="environment" hidden multiple onChange={(event) => void addMovementDocuments(event.target.files)} type="file" />
+              </label>
+              <label className="secondary-action file-action">
+                <FileArchive size={16} /> {t("products.chooseFile")}
+                <input accept="image/*,.pdf,.doc,.docx" hidden multiple onChange={(event) => void addMovementDocuments(event.target.files)} type="file" />
+              </label>
+              <span>{t("products.documents")}: <b>{movementDocuments.length}</b></span>
+            </div>
+            {movementDocuments.length > 0 && (
+              <div className="product-document-list">
+                {movementDocuments.map((document) => (
+                  <button className="secondary-action" key={document.id} onClick={() => setMovementDocuments((current) => current.filter((item) => item.id !== document.id))} type="button">
+                    <X size={14} /> {document.name}
+                  </button>
+                ))}
               </div>
+            )}
+            <div className="modal-actions">
+              <button className="primary-action" disabled={!movementForm.quantity} onClick={bookProductMovement} type="button">
+                <Save size={16} /> {t("products.bookMovement")}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {isProductMovementsModalOpen && selectedProduct && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal product-movement-modal" role="dialog" aria-modal="true" aria-labelledby="product-movements-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="product-movements-title">{t("products.movementHistory")} · {selectedProduct.name}</h2>
+                <p>{selectedProductMovements.length} {t("products.movementHistory")}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-action" onClick={() => printProductInventoryReport(selectedProduct)} type="button">
+                  <FileArchive size={16} /> {t("products.exportInventoryPdf")}
+                </button>
+                <button className="secondary-action icon-action" onClick={() => setIsProductMovementsModalOpen(false)} type="button">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <section className="resource-list-panel master-list-full product-movement-list">
+              {selectedProductMovements.length === 0 ? (
+                <p className="permission-note">{t("products.noMovements")}</p>
+              ) : selectedProductMovements.map((movement) => (
+                <button className={`product-movement-entry ${movement.type === "in" ? "movement-in" : "movement-out"}`} key={movement.id} onClick={() => {
+                  setIsProductMovementsModalOpen(false);
+                  setSelectedProductMovementId(movement.id);
+                }} type="button">
+                  <div>
+                    <b>{movement.type === "in" ? t("products.movementIn") : t("products.movementOut")} · {formatQuantity(movement.quantity)} {selectedProduct.unit}</b>
+                    <span>{new Date(`${movement.bookedAt}T00:00:00`).toLocaleDateString(i18n.language)}{movement.jobLabel ? ` · ${movement.jobLabel}` : ""}</span>
+                    <span>{t("products.bookedBy")}: {movement.bookedByName ?? t("products.unknownBooker")}</span>
+                    {movement.note && <small>{movement.note}</small>}
+                  </div>
+                  <div>
+                    <span>{t("products.purchasePrice")}: {movement.purchasePrice !== undefined ? formatMoneyValue(movement.purchasePrice, movement.currency ?? selectedProduct.currency ?? "SEK") : "-"}</span>
+                    <span>{t("products.documentCount", { count: movement.documents.length })}</span>
+                  </div>
+                  <Eye size={18} />
+                </button>
+              ))}
             </section>
+          </div>
+        </div>
+      )}
+
+      {selectedProductMovement && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal product-movement-modal" role="dialog" aria-modal="true" aria-labelledby="product-movement-detail-title">
+            <div className="section-heading">
+              <h2 id="product-movement-detail-title">{t("products.movementDetails")}</h2>
+              <button className="secondary-action icon-action" onClick={() => setSelectedProductMovementId("")} type="button">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="product-movement-detail-grid">
+              <div>
+                <span>{t("masterDataOverview.products.title")}</span>
+                <b>{selectedProductMovementProduct?.name ?? "-"}</b>
+              </div>
+              <div>
+                <span>{t("products.movementType")}</span>
+                <b>{selectedProductMovement.type === "in" ? t("products.movementIn") : t("products.movementOut")}</b>
+              </div>
+              <div>
+                <span>{t("products.quantity")}</span>
+                <b>{formatQuantity(selectedProductMovement.quantity)} {selectedProductMovementProduct?.unit ?? ""}</b>
+              </div>
+              {(selectedProductMovement.packageCount || selectedProductMovement.packageQuantity) && (
+                <div>
+                  <span>{t("products.packageCount")}</span>
+                  <b>{selectedProductMovement.packageCount ? `${formatQuantity(selectedProductMovement.packageCount)} ${selectedProductMovementProduct?.packageUnit ?? t("products.vpeShort")}` : "-"} · {selectedProductMovement.packageQuantity ? `${formatQuantity(selectedProductMovement.packageQuantity)} ${selectedProductMovementProduct?.unit ?? ""}/${t("products.vpeShort")}` : "-"}</b>
+                </div>
+              )}
+              {(selectedProductMovement.openedPackageCount || selectedProductMovement.openedPackageQuantity) && (
+                <div>
+                  <span>{t("products.openedPackageCount")}</span>
+                  <b>{selectedProductMovement.openedPackageCount ? `${formatQuantity(selectedProductMovement.openedPackageCount)} ${selectedProductMovementProduct?.packageUnit ?? t("products.vpeShort")}` : "-"} · {selectedProductMovement.openedPackageQuantity ? `${formatQuantity(selectedProductMovement.openedPackageQuantity)} ${selectedProductMovementProduct?.unit ?? ""}` : "-"}</b>
+                </div>
+              )}
+              <div>
+                <span>{t("products.bookingDate")}</span>
+                <b>{new Date(`${selectedProductMovement.bookedAt}T00:00:00`).toLocaleDateString(i18n.language)}</b>
+              </div>
+              <div>
+                <span>{t("products.bookedBy")}</span>
+                <b>{selectedProductMovement.bookedByName ?? t("products.unknownBooker")}</b>
+              </div>
+              <div>
+                <span>{t("products.createdAt")}</span>
+                <b>{selectedProductMovement.createdAt ? new Date(selectedProductMovement.createdAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" }) : "-"}</b>
+              </div>
+              <div>
+                <span>{t("products.purchasePrice")}</span>
+                <b>{selectedProductMovement.purchasePrice !== undefined ? formatMoneyValue(selectedProductMovement.purchasePrice, selectedProductMovement.currency ?? selectedProductMovementProduct?.currency ?? "SEK") : "-"}</b>
+              </div>
+              <div>
+                <span>{t("products.currency")}</span>
+                <b>{selectedProductMovement.currency ?? selectedProductMovementProduct?.currency ?? "SEK"}</b>
+              </div>
+              {selectedProductMovement.jobLabel && (
+                <div className="wide-field">
+                  <span>{t("products.assignJob")}</span>
+                  <b>{selectedProductMovement.jobLabel}</b>
+                </div>
+              )}
+              {selectedProductMovement.correctionOfMovementId && (
+                <div className="wide-field">
+                  <span>{t("products.correctionOf")}</span>
+                  <b>{selectedProductMovement.correctionOfMovementId}</b>
+                </div>
+              )}
+              {selectedProductMovement.note && (
+                <div className="wide-field">
+                  <span>{t("products.bookingNote")}</span>
+                  <b>{selectedProductMovement.note}</b>
+                </div>
+              )}
+            </div>
+            <section className="product-movement-documents">
+              <div className="section-heading compact-heading">
+                <h3>{t("products.documents")}</h3>
+                <span>{selectedProductMovement.documents.length}</span>
+              </div>
+              {selectedProductMovement.documents.length === 0 ? (
+                <p className="permission-note">{t("products.noDocuments")}</p>
+              ) : (
+                <div className="product-document-preview-grid">
+                  {selectedProductMovement.documents.map((document) => (
+                    <a href={document.url} key={document.id} rel="noreferrer" target="_blank">
+                      {document.kind === "photo" || document.mimeType?.startsWith("image/") ? (
+                        <img alt={document.name} src={document.url} />
+                      ) : (
+                        <FileArchive size={34} />
+                      )}
+                      <span>{document.name}</span>
+                    </a>
+                  ))}
+                </div>
+              )}
+            </section>
+            <div className="modal-actions">
+              {canManageProducts && (
+                <button className="primary-action" onClick={() => prepareProductMovementCorrection(selectedProductMovement)} type="button">
+                  <RotateCw size={16} /> {t("products.prepareCorrection")}
+                </button>
+              )}
+            </div>
           </div>
         </div>
       )}
 
       {activeSection === "taskTemplates" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
+          <div className="section-heading master-detail-heading">
             <h2>{t("contractor.taskTemplateMasterData")}</h2>
-            <span>{showArchivedTaskTemplates ? archivedTaskTemplates.length : activeTaskTemplates.length}</span>
+            <div className="modal-actions">
+              <span className="master-overview-total">{showArchivedTaskTemplates ? archivedTaskTemplates.length : activeTaskTemplates.length}</span>
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
+            </div>
           </div>
           <div className="resource-editor-block">
             <div className="section-heading">
@@ -3030,6 +5315,9 @@ export function ContractorView({
               >
                 <strong>{taskTemplate.name}</strong>
                 <span>{taskTemplate.timePerHa} {t("createJob.hoursPerHa")} · {t(`mode.${taskTemplate.mode}`)} · {taskTemplate.resourceHint || t("createJob.dispatchPlannerDecides")}</span>
+                {currentRole === "support_admin" && (
+                  <span className="template-owner-line">{t("masterData.templateOwner")}: <b>{taskTemplateOwnerLabel(taskTemplate)}</b></span>
+                )}
               </button>
             ))}
           </div>
@@ -3049,11 +5337,25 @@ export function ContractorView({
                   <label>{t("createJob.maxVehicles")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={1} max={12} value={taskTemplateForm.maxVehicles} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, maxVehicles: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("createJob.progressBy")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.progressMetric} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, progressMetric: event.target.value as ProgressMetric }))}>{taskMetrics.map((item) => <option key={item} value={item}>{t(`metrics.${item}`)}</option>)}</select></label>
                   <label>{t("masterData.taskUnit")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} placeholder={t("masterData.taskUnitPlaceholder")} value={taskTemplateForm.unit} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, unit: event.target.value }))} /></label>
+                  <label>{t("pricing.billingUnit")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.billingUnit} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, billingUnit: event.target.value as BillingUnit }))}>
+                    <option value="ha">{t("pricing.units.ha")}</option>
+                    <option value="hour">{t("pricing.units.hour")}</option>
+                    <option value="trip">{t("pricing.units.trip")}</option>
+                    <option value="quantity">{t("pricing.units.quantity")}</option>
+                    <option value="flat">{t("pricing.units.flat")}</option>
+                  </select></label>
+                  <label>{t("pricing.standardPrice")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.standardPrice} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, standardPrice: event.target.value }))} inputMode="decimal" /></label>
+                  <label>{t("pricing.currency")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.standardPriceCurrency} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, standardPriceCurrency: event.target.value }))}>{productCurrencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}</select></label>
+                  <label>{t("pricing.validFrom")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.standardPriceValidFrom} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, standardPriceValidFrom: event.target.value }))} type="date" /></label>
+                  <label>{t("pricing.validTo")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.standardPriceValidTo} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, standardPriceValidTo: event.target.value }))} type="date" /></label>
                   <label>{t("terms.driver")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredDrivers} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredDrivers: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("terms.vehicle")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredVehicles} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredVehicles: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("terms.implement")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} min={0} max={10} value={taskTemplateForm.requiredImplements} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, requiredImplements: Number(event.target.value) }))} type="number" /></label>
                   <label>{t("createJob.subtasks")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.workSteps} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, workSteps: event.target.value }))} /></label>
                   <label>{t("createJob.resourceNeed")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.resourceHint} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, resourceHint: event.target.value }))} /></label>
+                  {currentRole === "support_admin" && (
+                    <label>{t("masterData.templateOwner")}<input disabled value={taskTemplateOwnerLabel(selectedTaskTemplate)} /></label>
+                  )}
                   <label>{t("mapStatus.label")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} placeholder={t("mapStatus.none")} value={taskTemplateForm.mapStyleLabel} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStyleLabel: event.target.value }))} /></label>
                   <label>{t("mapStatus.color")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates || !taskTemplateForm.mapStyleLabel.trim()} value={taskTemplateForm.mapStyleColor} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStyleColor: event.target.value }))} type="color" /></label>
                   <label>{t("mapStatus.pattern")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates || !taskTemplateForm.mapStyleLabel.trim()} value={taskTemplateForm.mapStylePattern} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStylePattern: event.target.value as FieldMapPattern }))}>{mapPatterns.map((pattern) => <option key={pattern} value={pattern}>{t(`mapStatus.patterns.${pattern}`)}</option>)}</select></label>
@@ -3066,9 +5368,6 @@ export function ContractorView({
                   <span>{t("createJob.workModeHelpSplit")}</span>
                 </div>
                 <div className="modal-actions">
-                  <button className="secondary-action" onClick={() => setIsTaskTemplateModalOpen(false)} type="button">
-                    {t("actions.cancel")}
-                  </button>
                   {canEditSelectedTaskTemplate && !showArchivedTaskTemplates && (
                     <button className="danger-action" onClick={archiveSelectedTaskTemplate} type="button">
                       <Archive size={16} /> {t("actions.archive")}
@@ -3093,9 +5392,14 @@ export function ContractorView({
 
       {activeSection === "jobTypes" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
+          <div className="section-heading master-detail-heading">
             <h2>{t("contractor.jobTypeMasterData")}</h2>
-            <span>{showArchivedJobTypes ? archivedJobTypes.length : activeJobTypes.length}</span>
+            <div className="modal-actions">
+              <span className="master-overview-total">{showArchivedJobTypes ? archivedJobTypes.length : activeJobTypes.length}</span>
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
+            </div>
           </div>
           <div className="master-overview-examples">
             <strong>{t("masterDataOverview.workChainExamplesTitle")}</strong>
@@ -3228,9 +5532,14 @@ export function ContractorView({
       )}
       {activeSection === "programSettings" && (
         <div className="panel resource-master-page">
-          <div className="section-heading">
+          <div className="section-heading master-detail-heading">
             <h2>{t("contractor.programSettings")}</h2>
-            <span>{t("contractor.dispatchSettings")}</span>
+            <div className="modal-actions">
+              <span>{t("contractor.dispatchSettings")}</span>
+              <button className="secondary-action icon-action" onClick={() => setActiveSection("masterOverview")} type="button">
+                <X size={18} />
+              </button>
+            </div>
           </div>
           <div className="resource-editor-block">
             <div className="form-row modal-form-row">
@@ -3263,6 +5572,35 @@ export function ContractorView({
 	            <p className="resource-editor-summary">{t("contractor.dispatchGroupingHint")}</p>
 	            <p className="resource-editor-summary">{t("contractor.mapProviderHint")}</p>
           </div>
+          {currentRole === "support_admin" && (
+            <div className="resource-editor-block">
+              <div className="section-heading compact-heading">
+                <div>
+                  <h2><Users size={20} /> {t("contractor.userManagement")}</h2>
+                  <p>{t("contractor.userManagementHint")}</p>
+                </div>
+                <span>{activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length}</span>
+              </div>
+              <div className="user-management-list">
+                {activeOrganizations
+                  .filter((organization) => organization.kind === "farmer" || organization.kind === "contractor")
+                  .map((organization) => (
+                    <button className="user-management-row" key={organization.id} onClick={() => openOrganizationEditor(organization)} type="button">
+                      <span className="user-management-kind">{t(`masterData.organizationKinds.${organization.kind}`)}</span>
+                      <strong>{organization.name}</strong>
+                      <span>{organization.email || t("masterData.noContactData")}</span>
+                      <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
+                      <span className="user-management-action">
+                        <UserPlus size={16} /> {t("contractor.manageLogin")}
+                      </span>
+                    </button>
+                  ))}
+              </div>
+              {activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length === 0 && (
+                <p className="permission-note">{t("masterData.organizationDirectoryEmpty.contacts")}</p>
+              )}
+            </div>
+          )}
         </div>
       )}
       {isOrganizationModalOpen && (
@@ -3277,61 +5615,160 @@ export function ContractorView({
             <div className="form-row resource-form-row modal-form-row">
               <label>
                 {t("masterData.organizationName")}
-                <input disabled={!canManageOrganizations} value={organizationForm.name} onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.name} onChange={(event) => setOrganizationForm((current) => ({ ...current, name: event.target.value }))} />
+              </label>
+              <label>
+                {t("masterData.organizationNumber")}
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.organizationNumber} onChange={(event) => setOrganizationForm((current) => ({ ...current, organizationNumber: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.organizationKind")}
-                <select disabled={currentRole !== "support_admin"} value={organizationForm.kind} onChange={(event) => setOrganizationForm((current) => ({ ...current, kind: event.target.value as Organization["kind"] }))}>
+                <select disabled={!canEditSelectedOrganization || (!creatingOrganization && !canManageContactOrganizations && currentRole !== "support_admin")} value={organizationForm.kind} onChange={(event) => setOrganizationForm((current) => ({ ...current, kind: event.target.value as Organization["kind"] }))}>
                   <option value="farmer">{t("masterData.farmerOrganization")}</option>
                   <option value="contractor">{t("masterData.contractorOrganization")}</option>
+                  <option value="advisor">{t("masterData.organizationKinds.advisor")}</option>
+                  <option value="supplier">{t("masterData.organizationKinds.supplier")}</option>
+                  <option value="other">{t("masterData.organizationKinds.other")}</option>
                 </select>
-                {currentRole !== "support_admin" && <small>{t("masterData.organizationKindLockedHint")}</small>}
+                {!creatingOrganization && !canManageContactOrganizations && currentRole !== "support_admin" && <small>{t("masterData.organizationKindLockedHint")}</small>}
               </label>
               <label>
                 {t("masterData.street")}
-                <input disabled={!canManageOrganizations} value={organizationForm.street} onChange={(event) => setOrganizationForm((current) => ({ ...current, street: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.street} onChange={(event) => setOrganizationForm((current) => ({ ...current, street: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.country")}
-                <input disabled={!canManageOrganizations} value={organizationForm.country} onChange={(event) => setOrganizationForm((current) => ({ ...current, country: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.country} onChange={(event) => setOrganizationForm((current) => ({ ...current, country: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.postalCode")}
-                <input disabled={!canManageOrganizations} value={organizationForm.postalCode} onChange={(event) => setOrganizationForm((current) => ({ ...current, postalCode: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.postalCode} onChange={(event) => setOrganizationForm((current) => ({ ...current, postalCode: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.city")}
-                <input disabled={!canManageOrganizations} value={organizationForm.city} onChange={(event) => setOrganizationForm((current) => ({ ...current, city: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.city} onChange={(event) => setOrganizationForm((current) => ({ ...current, city: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.queryPhone")}
-                <input disabled={!canManageOrganizations} value={organizationForm.phone} onChange={(event) => setOrganizationForm((current) => ({ ...current, phone: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.phone} onChange={(event) => setOrganizationForm((current) => ({ ...current, phone: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.contactMobile")}
-                <input disabled={!canManageOrganizations} value={organizationForm.mobile} onChange={(event) => setOrganizationForm((current) => ({ ...current, mobile: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.mobile} onChange={(event) => setOrganizationForm((current) => ({ ...current, mobile: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.email")}
-                <input disabled={!canManageOrganizations} type="email" value={organizationForm.email} onChange={(event) => setOrganizationForm((current) => ({ ...current, email: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} type="email" value={organizationForm.email} onChange={(event) => setOrganizationForm((current) => ({ ...current, email: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.website")}
-                <input disabled={!canManageOrganizations} value={organizationForm.website} onChange={(event) => setOrganizationForm((current) => ({ ...current, website: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.website} onChange={(event) => setOrganizationForm((current) => ({ ...current, website: event.target.value }))} />
               </label>
               <label>
                 {t("masterData.vatId")}
-                <input disabled={!canManageOrganizations} value={organizationForm.vatId} onChange={(event) => setOrganizationForm((current) => ({ ...current, vatId: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.vatId} onChange={(event) => setOrganizationForm((current) => ({ ...current, vatId: event.target.value }))} />
+              </label>
+              <label>
+                {t("masterData.customerNumber")}
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.customerNumber} onChange={(event) => setOrganizationForm((current) => ({ ...current, customerNumber: event.target.value }))} />
+              </label>
+              <label>
+                {t("masterData.supplierCategory")}
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.supplierCategory} onChange={(event) => setOrganizationForm((current) => ({ ...current, supplierCategory: event.target.value }))} />
+              </label>
+              <label>
+                {t("masterData.defaultLanguage")}
+                <select disabled={!canEditSelectedOrganization} value={organizationForm.defaultLanguage} onChange={(event) => setOrganizationForm((current) => ({ ...current, defaultLanguage: event.target.value }))}>
+                  <option value="">{t("masterData.noDefaultLanguage")}</option>
+                  <option value="de">Deutsch</option>
+                  <option value="en">English</option>
+                  <option value="sv">Svenska</option>
+                </select>
+              </label>
+              <label>
+                {t("masterData.logo")}
+                <input disabled={!canEditSelectedOrganization} accept="image/*" onChange={(event) => uploadOrganizationLogo(event.target.files?.[0])} type="file" />
+                {organizationForm.logoUrl && (
+                  <span className="organization-logo-preview">
+                    <img alt="" src={organizationForm.logoUrl} />
+                    <small>{t("masterData.logoStored")}</small>
+                  </span>
+                )}
+              </label>
+              <label>
+                {t("masterData.billingDetails")}
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.billingDetails} onChange={(event) => setOrganizationForm((current) => ({ ...current, billingDetails: event.target.value }))} />
               </label>
               <label>
                 {t("terms.notes")}
-                <input disabled={!canManageOrganizations} value={organizationForm.notes} onChange={(event) => setOrganizationForm((current) => ({ ...current, notes: event.target.value }))} />
+                <input disabled={!canEditSelectedOrganization} value={organizationForm.notes} onChange={(event) => setOrganizationForm((current) => ({ ...current, notes: event.target.value }))} />
               </label>
+              <div className="customer-conditions-editor wide-form-field">
+                <div className="customer-conditions-toolbar">
+                  <div>
+                    <h3>{t("pricing.customerConditions")}</h3>
+                    <p>{t("pricing.customerConditionsHint")}</p>
+                  </div>
+                  {canEditSelectedOrganization && (
+                    <button className="secondary-action" onClick={addCustomerConditionRow} type="button">
+                      <Plus size={16} /> {t("pricing.addCondition")}
+                    </button>
+                  )}
+                </div>
+                {organizationForm.customerConditionRows.length === 0 ? (
+                  <p className="permission-note">{t("pricing.noCustomerConditions")}</p>
+                ) : (
+                  <div className="customer-condition-table">
+                    <div className="customer-condition-row customer-condition-head">
+                      <span>{t("terms.task")}</span>
+                      <span>{t("pricing.billingUnit")}</span>
+                      <span>{t("pricing.standardPrice")}</span>
+                      <span>{t("pricing.currency")}</span>
+                      <span>{t("pricing.validFrom")}</span>
+                      <span>{t("pricing.validTo")}</span>
+                      <span>{t("report.actions")}</span>
+                    </div>
+                    {organizationForm.customerConditionRows.map((row) => (
+                      <div className="customer-condition-row" key={row.id}>
+                        <select disabled={!canEditSelectedOrganization} value={row.taskName} onChange={(event) => {
+                          const selectedTemplate = taskTemplates.find((template) => template.name === event.target.value);
+                          const templateCondition = billingConditionFromTaskTemplate(selectedTemplate);
+                          updateCustomerConditionRow(row.id, {
+                            taskName: event.target.value,
+                            billingUnit: templateCondition.billingUnit ?? row.billingUnit,
+                            price: row.price ?? templateCondition.price,
+                            currency: row.currency || templateCondition.currency || "SEK",
+                          });
+                        }}>
+                          <option value="">{t("pricing.selectTask")}</option>
+                          {taskTemplates.map((template) => <option key={template.id} value={template.name}>{template.name}</option>)}
+                        </select>
+                        <select disabled={!canEditSelectedOrganization} value={row.billingUnit} onChange={(event) => updateCustomerConditionRow(row.id, { billingUnit: event.target.value as BillingUnit })}>
+                          <option value="ha">{t("pricing.units.ha")}</option>
+                          <option value="hour">{t("pricing.units.hour")}</option>
+                          <option value="trip">{t("pricing.units.trip")}</option>
+                          <option value="quantity">{t("pricing.units.quantity")}</option>
+                          <option value="flat">{t("pricing.units.flat")}</option>
+                        </select>
+                        <input disabled={!canEditSelectedOrganization} inputMode="decimal" value={row.price ?? ""} onChange={(event) => updateCustomerConditionRow(row.id, { price: optionalNumberFromForm(event.target.value) })} />
+                        <select disabled={!canEditSelectedOrganization} value={row.currency ?? "SEK"} onChange={(event) => updateCustomerConditionRow(row.id, { currency: event.target.value })}>
+                          {productCurrencyOptions.map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+                        </select>
+                        <input disabled={!canEditSelectedOrganization} type="date" value={row.validFrom ?? ""} onChange={(event) => updateCustomerConditionRow(row.id, { validFrom: event.target.value })} />
+                        <input disabled={!canEditSelectedOrganization} type="date" value={row.validTo ?? ""} onChange={(event) => updateCustomerConditionRow(row.id, { validTo: event.target.value })} />
+                        <button className="secondary-action compact-action" disabled={!canEditSelectedOrganization} onClick={() => removeCustomerConditionRow(row.id)} type="button">
+                          <Trash2 size={16} /> {t("actions.delete")}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
             </div>
             <div className="resource-editor-block contact-editor-block">
               <div className="section-heading">
                 <h2>{t("masterData.contacts")}</h2>
-                {canManageOrganizations && (
+                {canEditSelectedOrganization && (
                   <button className="secondary-action" onClick={addOrganizationContact} type="button">
                     <Plus size={16} /> {t("masterData.addContact")}
                   </button>
@@ -3341,14 +5778,14 @@ export function ContractorView({
                 {organizationForm.contacts.length === 0 && <p className="permission-note">{t("masterData.noContacts")}</p>}
                 {organizationForm.contacts.map((contact) => (
                   <div className="contact-editor-card" key={contact.id}>
-                    <label>{t("masterData.contactName")}<input disabled={!canManageOrganizations} value={contact.name} onChange={(event) => updateOrganizationContact(contact.id, { name: event.target.value })} /></label>
-                    <label>{t("masterData.contactRole")}<input disabled={!canManageOrganizations} value={contact.role ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { role: event.target.value })} /></label>
-                    <label>{t("masterData.queryPhone")}<input disabled={!canManageOrganizations} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
-                    <label>{t("masterData.contactMobile")}<input disabled={!canManageOrganizations} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
-                    <label>{t("masterData.sms")}<input disabled={!canManageOrganizations} value={contact.sms ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { sms: event.target.value })} /></label>
-                    <label>{t("masterData.email")}<input disabled={!canManageOrganizations} type="email" value={contact.email ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { email: event.target.value })} /></label>
-                    <label>{t("terms.notes")}<input disabled={!canManageOrganizations} value={contact.notes ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { notes: event.target.value })} /></label>
-                    {canManageOrganizations && (
+                    <label>{t("masterData.contactName")}<input disabled={!canEditSelectedOrganization} value={contact.name} onChange={(event) => updateOrganizationContact(contact.id, { name: event.target.value })} /></label>
+                    <label>{t("masterData.contactRole")}<input disabled={!canEditSelectedOrganization} value={contact.role ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { role: event.target.value })} /></label>
+                    <label>{t("masterData.queryPhone")}<input disabled={!canEditSelectedOrganization} value={contact.phone ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { phone: event.target.value })} /></label>
+                    <label>{t("masterData.contactMobile")}<input disabled={!canEditSelectedOrganization} value={contact.mobile ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { mobile: event.target.value })} /></label>
+                    <label>{t("masterData.sms")}<input disabled={!canEditSelectedOrganization} value={contact.sms ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { sms: event.target.value })} /></label>
+                    <label>{t("masterData.email")}<input disabled={!canEditSelectedOrganization} type="email" value={contact.email ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { email: event.target.value })} /></label>
+                    <label>{t("terms.notes")}<input disabled={!canEditSelectedOrganization} value={contact.notes ?? ""} onChange={(event) => updateOrganizationContact(contact.id, { notes: event.target.value })} /></label>
+                    {canEditSelectedOrganization && (
                       <button className="danger-action" onClick={() => removeOrganizationContact(contact.id)} type="button">
                         <Trash2 size={16} /> {t("actions.delete")}
                       </button>
@@ -3357,21 +5794,47 @@ export function ContractorView({
                 ))}
               </div>
             </div>
+            {!creatingOrganization && ["farmer", "contractor"].includes(organizationForm.kind) && (
+              <div className="resource-editor-block contact-editor-block">
+                <div className="section-heading">
+                  <h2>{t("masterData.organizationLoginTitle")}</h2>
+                  <span>{t(`roles.${organizationAdminRole({ ...selectedOrganization, ...organizationForm })}`)}</span>
+                </div>
+                <p className="permission-note">{t("masterData.organizationLoginHint")}</p>
+                <div className="organization-login-row">
+                  <label>
+                    {t("masterData.email")}
+                    <input disabled={!canEditSelectedOrganization} type="email" value={organizationForm.email} onChange={(event) => setOrganizationForm((current) => ({ ...current, email: event.target.value }))} />
+                  </label>
+                  <label>
+                    {t("masterData.organizationPassword")} <small>{t("masterData.driverPasswordMinLength")}</small>
+                    <input disabled={!canEditSelectedOrganization} type="text" value={organizationLoginPassword} onChange={(event) => setOrganizationLoginPassword(event.target.value)} />
+                  </label>
+                  <button className="secondary-action organization-login-generate" disabled={!canEditSelectedOrganization} onClick={() => setOrganizationLoginPassword(generateOrganizationPassword())} type="button">
+                    {t("masterData.generateDriverPassword")}
+                  </button>
+                  <button className="primary-action" disabled={!canEditSelectedOrganization} onClick={createOrganizationAdminLogin} type="button">
+                    <UserPlus size={16} /> {t("masterData.createOrganizationLogin")}
+                  </button>
+                  <button className="secondary-action" disabled={!organizationForm.email || !organizationLoginPassword} onClick={openOrganizationAccessMail} type="button">
+                    <Mail size={16} /> {t("masterData.sendAccessByEmail")}
+                  </button>
+                </div>
+                {organizationLoginStatus && <p className="permission-note">{organizationLoginStatus}</p>}
+              </div>
+            )}
             <div className="modal-actions">
-              {canManageOrganizations && !showArchivedOrganizations && !creatingOrganization && (
+              {organizationDirectoryMode !== "company" && canEditSelectedOrganization && !showArchivedOrganizations && !creatingOrganization && (
                 <button className="danger-action" onClick={archiveSelectedOrganization} type="button">
                   <Archive size={16} /> {t("actions.archive")}
                 </button>
               )}
-              {canManageOrganizations && showArchivedOrganizations && !creatingOrganization && (
+              {organizationDirectoryMode !== "company" && canEditSelectedOrganization && showArchivedOrganizations && !creatingOrganization && (
                 <button className="danger-action" onClick={requestDeleteSelectedOrganization} type="button">
                   <Trash2 size={16} /> {t("actions.deletePermanent")}
                 </button>
               )}
-              <button className="secondary-action" onClick={() => setIsOrganizationModalOpen(false)} type="button">
-                {t("actions.cancel")}
-              </button>
-              {canManageOrganizations && !showArchivedOrganizations && (
+              {canEditSelectedOrganization && !showArchivedOrganizations && (
                 <button className="primary-action" onClick={saveOrganization} type="button">
                   <Save size={16} /> {t("masterData.saveChanges")}
                 </button>
@@ -3413,9 +5876,6 @@ export function ContractorView({
               <button className="secondary-action" onClick={() => confirmStandardVehicleChoice()} type="button">
                 {t("contractor.planDriverOnly")}
               </button>
-              <button className="secondary-action" onClick={() => setStandardVehicleChoice(null)} type="button">
-                {t("actions.cancel")}
-              </button>
             </div>
           </div>
         </div>
@@ -3438,9 +5898,6 @@ export function ContractorView({
               })}
             </p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setWorkTimeOverride(null)} type="button">
-                {t("actions.cancel")}
-              </button>
               <button className="primary-action" onClick={confirmWorkTimeOverride} type="button">
                 {t("contractor.overrideWorkTime")}
               </button>
@@ -3459,9 +5916,6 @@ export function ContractorView({
             </div>
             <p>{t("contractor.keepResourcesOnMove")}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setMoveResourceConfirm(null)} type="button">
-                {t("actions.cancel")}
-              </button>
               <button className="secondary-action" onClick={() => confirmMoveJobWithResources(false)} type="button">
                 {t("contractor.moveWithoutResources")}
               </button>
@@ -3483,7 +5937,6 @@ export function ContractorView({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: deleteOrganizationConfirm.name })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setDeleteOrganizationConfirm(null)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={confirmDeleteSelectedOrganization} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>
@@ -3500,7 +5953,6 @@ export function ContractorView({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: deleteResourceConfirm.name })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setDeleteResourceConfirm(null)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={confirmDeleteSelectedResource} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>
@@ -3517,7 +5969,6 @@ export function ContractorView({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: deleteTaskTemplateConfirm.name })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setDeleteTaskTemplateConfirm(null)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={confirmDeleteSelectedTaskTemplate} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>
@@ -3534,7 +5985,6 @@ export function ContractorView({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: deleteJobTypeConfirm.name })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setDeleteJobTypeConfirm(null)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={confirmDeleteSelectedJobType} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>

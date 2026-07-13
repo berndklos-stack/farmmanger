@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { contractor, drivers, farmer, fields as mockFields, implementsList as mockImplements, jobs as mockJobs, organizations as mockOrganizations, subtasks as mockSubtasks, taskTemplates as mockTaskTemplates, vehicles as mockVehicles } from "../data/mockData";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
-import type { Driver, Field, FieldAttachment, FieldHazard, FieldHazardType, Implement, Job, Organization, ProgressMetric, Status, Subtask, SubtaskPhoto, SubtaskStatusEvent, Task, TaskTemplate, Vehicle, WorkMode } from "../types";
+import type { Driver, Field, FieldAttachment, FieldHazard, FieldHazardType, Implement, Job, Organization, PersonnelAppAccess, PersonnelEmployeeType, ProgressMetric, Status, Subtask, SubtaskPhoto, SubtaskStatusEvent, Task, TaskTemplate, UserRole, Vehicle, WorkMode } from "../types";
 
 type DataState = {
   fields: Field[];
@@ -21,6 +21,26 @@ type DataState = {
 type RefreshDataOptions = {
   silent?: boolean;
 };
+
+const personnelAccessMarker = "FM_PERSONNEL_ACCESS:";
+
+function stripMarkerBlock(value: string | undefined | null, marker: string) {
+  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+}
+
+function parseMarkerJson<T>(value: string | undefined | null, marker: string, fallback: T): T {
+  const line = (value ?? "").split("\n").find((item) => item.startsWith(marker));
+  if (!line) return fallback;
+  try {
+    return JSON.parse(line.slice(marker.length)) as T;
+  } catch {
+    return fallback;
+  }
+}
+
+function personnelAccessFromOperationType(value: string | undefined | null) {
+  return parseMarkerJson<Partial<PersonnelAppAccess> & { employeeType?: PersonnelEmployeeType }>(value, personnelAccessMarker, {});
+}
 
 const offlineDataCacheKey = "farm-manager.offlineDataCache";
 const fieldReleaseMarker = "__farm-manager_released_contractors:";
@@ -111,13 +131,19 @@ type DocumentRow = {
 type OrganizationRow = {
   id: string;
   name: string;
-  organization_type: "farmer" | "contractor";
+  organization_type: Organization["kind"];
   address: string | null;
+  organization_number?: string | null;
   phone?: string | null;
   mobile?: string | null;
   email?: string | null;
   website?: string | null;
   vat_id?: string | null;
+  logo_url?: string | null;
+  default_language?: string | null;
+  billing_details?: string | null;
+  customer_number?: string | null;
+  supplier_category?: string | null;
   notes?: string | null;
   contacts?: Organization["contacts"] | string | null;
   archived_at?: string | null;
@@ -133,6 +159,11 @@ type JobRow = {
   planned_start: string | null;
   planned_end: string | null;
   status: string | null;
+  completion_status?: Job["completionStatus"] | null;
+  completion_status_changed_at?: string | null;
+  completion_status_changed_by?: string | null;
+  invoice_number?: string | null;
+  invoice_date?: string | null;
   archived_at?: string | null;
 };
 
@@ -189,7 +220,7 @@ type TaskReportRow = {
 type DriverRow = {
   id: string;
   full_name: string | null;
-  role: string | null;
+  role: UserRole | null;
   organization_id?: string | null;
   email?: string | null;
   vehicle_name?: string | null;
@@ -228,6 +259,11 @@ type VehicleRow = {
   name: string;
   vehicle_type: string | null;
   license_plate?: string | null;
+  manufacturer?: string | null;
+  model?: string | null;
+  construction_year?: number | null;
+  operating_hours?: number | null;
+  default_driver_id?: string | null;
   resource_type?: string | null;
   operation_type?: string | null;
   status: Vehicle["status"] | null;
@@ -239,6 +275,8 @@ type ImplementRow = {
   organization_id?: string | null;
   name: string;
   implement_type: string | null;
+  manufacturer?: string | null;
+  working_width?: number | null;
   resource_type?: string | null;
   operation_type?: string | null;
   status: Implement["status"] | null;
@@ -369,12 +407,18 @@ function mapOrganizations(organizationRows: OrganizationRow[]): Organization[] {
       id: row.id,
       name: row.name,
       kind: row.organization_type,
+      organizationNumber: row.organization_number ?? parsedAddress.meta?.organizationNumber ?? undefined,
       address: parsedAddress.cleanAddress,
       phone: row.phone ?? parsedAddress.meta?.phone ?? undefined,
       mobile: row.mobile ?? parsedAddress.meta?.mobile ?? undefined,
       email: row.email ?? parsedAddress.meta?.email ?? undefined,
       website: row.website ?? parsedAddress.meta?.website ?? undefined,
       vatId: row.vat_id ?? parsedAddress.meta?.vatId ?? undefined,
+      logoUrl: row.logo_url ?? parsedAddress.meta?.logoUrl ?? undefined,
+      defaultLanguage: row.default_language ?? parsedAddress.meta?.defaultLanguage ?? undefined,
+      billingDetails: row.billing_details ?? parsedAddress.meta?.billingDetails ?? undefined,
+      customerNumber: row.customer_number ?? parsedAddress.meta?.customerNumber ?? undefined,
+      supplierCategory: row.supplier_category ?? parsedAddress.meta?.supplierCategory ?? undefined,
       notes: row.notes ?? parsedAddress.meta?.notes ?? undefined,
       contacts,
       archivedAt: row.archived_at ?? undefined,
@@ -411,6 +455,11 @@ function mapJobs(jobRows: JobRow[], jobFieldRows: JobFieldRow[], taskRows: JobTa
       tasks,
       timeWindow: formatTimeWindow(row.planned_start, row.planned_end),
       notes: row.description ?? row.status ?? "",
+      completionStatus: row.completion_status ?? undefined,
+      completionStatusChangedAt: row.completion_status_changed_at ?? undefined,
+      completionStatusChangedBy: row.completion_status_changed_by ?? undefined,
+      invoiceNumber: row.invoice_number ?? undefined,
+      invoiceDate: row.invoice_date ?? undefined,
       archivedAt: row.archived_at ?? undefined,
     };
   });
@@ -554,7 +603,7 @@ function mapSubtasks(
 
 function mapDrivers(driverRows: DriverRow[]): Driver[] {
   return driverRows
-    .filter((driver) => driver.role === "driver")
+    .filter((driver) => driver.role === "driver" || driver.role === "farmer_employee" || driver.role === "contractor_admin" || driver.role === "advisor")
     .map((driver) => ({
       id: driver.id,
       profileId: driver.id,
@@ -572,16 +621,23 @@ function mapDrivers(driverRows: DriverRow[]): Driver[] {
         : typeof driver.license_classes === "string"
           ? driver.license_classes.split(",").map((item) => item.trim()).filter(Boolean)
           : [],
+      employeeType: personnelAccessFromOperationType(driver.operation_type).employeeType ?? (driver.role === "driver" ? "field" : "administration"),
+      appRole: personnelAccessFromOperationType(driver.operation_type).role ?? driver.role ?? "driver",
+      allowedViews: personnelAccessFromOperationType(driver.operation_type).allowedViews,
+      appPermissions: personnelAccessFromOperationType(driver.operation_type).permissions,
       resourceType: driver.resource_type ?? "Personal",
-      operationType: driver.operation_type ?? "",
+      operationType: stripMarkerBlock(driver.operation_type, personnelAccessMarker),
     }));
 }
 
 function mapPersonnelResources(personnelRows: PersonnelResourceRow[], profileRows: DriverRow[] = []): Driver[] {
-  const profilesByName = new Map(profileRows.filter((profile) => profile.role === "driver").map((profile) => [normalizeName(profile.full_name), profile]));
-  const profilesById = new Map(profileRows.filter((profile) => profile.role === "driver").map((profile) => [profile.id, profile]));
+  const personnelProfileRoles = new Set(["driver", "farmer_employee", "contractor_admin", "advisor"]);
+  const profilesByName = new Map(profileRows.filter((profile) => personnelProfileRoles.has(profile.role ?? "")).map((profile) => [normalizeName(profile.full_name), profile]));
+  const profilesById = new Map(profileRows.filter((profile) => personnelProfileRoles.has(profile.role ?? "")).map((profile) => [profile.id, profile]));
   const personnelDrivers = personnelRows.map((person) => {
     const profile = (person.profile_id ? profilesById.get(person.profile_id) : undefined) ?? profilesByName.get(normalizeName(person.full_name));
+    const access = personnelAccessFromOperationType(person.operation_type);
+    const appRole = access.role ?? profile?.role ?? "driver";
     return {
     id: person.id,
     profileId: person.profile_id ?? profile?.id,
@@ -600,8 +656,12 @@ function mapPersonnelResources(personnelRows: PersonnelResourceRow[], profileRow
       : typeof person.license_classes === "string"
         ? person.license_classes.split(",").map((item) => item.trim()).filter(Boolean)
         : [],
+    employeeType: access.employeeType ?? (appRole === "driver" ? "field" : "administration"),
+    appRole,
+    allowedViews: access.allowedViews,
+    appPermissions: access.permissions,
     resourceType: person.resource_type ?? "Personal",
-    operationType: person.operation_type ?? "",
+    operationType: stripMarkerBlock(person.operation_type, personnelAccessMarker),
     archivedAt: person.archived_at ?? undefined,
     };
   });
@@ -617,6 +677,11 @@ function mapVehicles(vehicleRows: VehicleRow[]): Vehicle[] {
     name: vehicle.name,
     type: vehicle.vehicle_type ?? "Fahrzeug",
     licensePlate: vehicle.license_plate ?? "",
+    manufacturer: vehicle.manufacturer ?? "",
+    model: vehicle.model ?? "",
+    constructionYear: vehicle.construction_year ?? undefined,
+    operatingHours: vehicle.operating_hours ?? undefined,
+    defaultDriverId: vehicle.default_driver_id ?? undefined,
     resourceType: vehicle.resource_type ?? vehicle.vehicle_type ?? "Fahrzeug",
     operationType: vehicle.operation_type ?? "",
     status: vehicle.status ?? "frei",
@@ -630,6 +695,8 @@ function mapImplements(implementRows: ImplementRow[]): Implement[] {
     organizationId: implement.organization_id ?? undefined,
     name: implement.name,
     type: implement.implement_type ?? "Anbaugerät",
+    manufacturer: implement.manufacturer ?? "",
+    workingWidth: implement.working_width ?? undefined,
     resourceType: implement.resource_type ?? implement.implement_type ?? "Anbaugerät",
     operationType: implement.operation_type ?? "",
     status: implement.status ?? "frei",
@@ -706,7 +773,7 @@ export function useFarmManagerData(): DataState {
       taskTemplatesResult,
     ] = await Promise.all([
       supabase.from("fields").select("*").order("name"),
-      supabase.from("profiles").select("*").eq("role", "driver").order("full_name"),
+      supabase.from("profiles").select("*").in("role", ["driver", "farmer_employee", "contractor_admin", "advisor"]).order("full_name"),
       supabase.from("personnel_resources").select("*").order("full_name"),
       supabase.from("vehicles").select("*").order("name"),
       supabase.from("implements").select("*").order("name"),

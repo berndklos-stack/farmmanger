@@ -357,7 +357,6 @@ export function JobEditModal({
             </div>
             <p>{t("archive.confirmPermanentDelete", { item: job.title })}</p>
             <div className="modal-actions">
-              <button className="secondary-action" onClick={() => setConfirmDeleteOpen(false)} type="button">{t("actions.cancel")}</button>
               <button className="danger-action" onClick={() => { onDeleteJob(job.id); setConfirmDeleteOpen(false); onClose(); }} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
           </div>
