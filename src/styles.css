@@ -5797,6 +5797,43 @@ select {
   padding: 9px 10px;
 }
 
+.driver-time-two-column {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(320px, .9fr) minmax(340px, 1.1fr);
+}
+
+.driver-time-actions-panel,
+.driver-today-panel {
+  align-content: start;
+  display: grid;
+  gap: 8px;
+}
+
+.driver-today-panel {
+  background: #f7faf5;
+  border: 1px solid #dbe6dc;
+  border-radius: 8px;
+  padding: 8px;
+}
+
+.driver-today-panel-head {
+  align-items: center;
+  display: flex;
+  gap: 10px;
+  justify-content: space-between;
+}
+
+.driver-today-panel-head strong {
+  color: #14221a;
+}
+
+.driver-today-panel-head small,
+.driver-today-empty {
+  color: #617268;
+  font-weight: 850;
+}
+
 .driver-time-status {
   align-items: center;
   border: 1px solid #dbe6dc;
@@ -5857,6 +5894,19 @@ select {
 .driver-time-card-compact .driver-time-reason-form label {
   display: grid;
   gap: 4px;
+}
+
+.driver-time-card-compact .driver-time-reason-form .tracking-actions {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.driver-today-panel .driver-time-summary {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+}
+
+.driver-today-log {
+  border-top: 1px solid #dbe6dc;
+  padding-top: 7px;
 }
 
 .driver-time-list-toggle {
@@ -8121,6 +8171,7 @@ select {
   .driver-group-field-list,
   .driver-actions,
   .tracking-actions,
+  .driver-time-two-column,
   .driver-contact-grid,
   .driver-travel-fields,
   .driver-time-grid,

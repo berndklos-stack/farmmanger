@@ -827,6 +827,8 @@
     "timeSaved": "Time recorded.",
     "monthWork": "Work this month",
     "monthInterruptions": "Interruptions",
+    "todayOverview": "Today",
+    "todayNoEntries": "No time entries today yet.",
     "monthReport": "Monthly report",
     "dayReport": "Daily report",
     "monthDayOverview": "Daily overview with totals",

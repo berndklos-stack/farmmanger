@@ -827,6 +827,8 @@
     "timeSaved": "Tid registrerad.",
     "monthWork": "Arbetstid månad",
     "monthInterruptions": "Avbrott",
+    "todayOverview": "Idag",
+    "todayNoEntries": "Inga tidsregistreringar idag ännu.",
     "monthReport": "Månadsrapport",
     "dayReport": "Dagsrapport",
     "monthDayOverview": "Dagsöversikt med summor",

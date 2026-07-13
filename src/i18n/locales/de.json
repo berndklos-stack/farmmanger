@@ -827,6 +827,8 @@
     "timeSaved": "Zeit erfasst.",
     "monthWork": "Arbeitszeit Monat",
     "monthInterruptions": "Unterbrechungen",
+    "todayOverview": "Heute",
+    "todayNoEntries": "Heute noch keine Zeitbuchungen.",
     "monthReport": "Monatsrapport",
     "dayReport": "Tagesrapport",
     "monthDayOverview": "Tagesübersicht mit Summen",

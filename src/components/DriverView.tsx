@@ -386,6 +386,12 @@ export function DriverView({
   const closedMonthEntries = currentMonthEntries.filter((entry) => entry.minutes);
   const monthlyWorkMinutes = closedMonthEntries.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
   const monthlyInterruptionMinutes = closedMonthEntries.filter((entry) => entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const currentDayKey = dateInputValue(0);
+  const todayTimeEntries = driverTimeEntries.filter((entry) => entry.startedAt.slice(0, 10) === currentDayKey).sort((a, b) => a.startedAt.localeCompare(b.startedAt));
+  const closedTodayEntries = todayTimeEntries.filter((entry) => entry.minutes);
+  const todayWorkMinutes = closedTodayEntries.filter((entry) => entry.kind === "work" || entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const todayPauseMinutes = closedTodayEntries.filter((entry) => entry.kind === "pause").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
+  const todayInterruptionMinutes = closedTodayEntries.filter((entry) => entry.kind === "interruption").reduce((sum, entry) => sum + (entry.minutes ?? 0), 0);
   const ownVacationRequests = vacationRequests.filter((request) => request.driverId === activeDriver.id);
   const requestedVacationDays = ownVacationRequests.filter((request) => request.status !== "rejected").reduce((sum, request) => sum + request.days, 0);
   const vacationAllowance = activeDriver.annualVacationDays ?? 30;
@@ -1479,7 +1485,7 @@ export function DriverView({
             </button>
           </div>
           <div className="driver-time-grid">
-            <section className="driver-time-card driver-time-card-compact">
+            <section className="driver-time-card driver-time-card-compact driver-time-card-split">
               <div className="driver-time-card-head">
                 <div>
                   <strong>{t("driver.timeTracking")}</strong>
@@ -1487,70 +1493,85 @@ export function DriverView({
                 </div>
                 <Clock3 size={18} />
               </div>
-              <div className={`driver-time-status ${activeTimeEntry?.kind ?? "idle"}`}>
-                <span>{t("driver.currentTimeStatus")}</span>
-                <strong>{t(activeTimeEntry ? `driver.timeStatus.${activeTimeEntry.kind}` : "driver.timeStatus.idle")}</strong>
-              </div>
-              <div className="driver-time-summary">
-                <span>{t("driver.monthWork")}: <b>{formatTravelMinutes(monthlyWorkMinutes)}</b></span>
-                <span>{t("driver.monthInterruptions")}: <b>{formatTravelMinutes(monthlyInterruptionMinutes)}</b></span>
-              </div>
-              {timeActionKind && (
-                <div className="driver-time-form driver-time-reason-form">
-                  <label>
-                    <span>{t(timeActionKind === "pause" ? "driver.selectPauseReason" : "driver.selectInterruptionReason")}</span>
-                    <select value={timeReason} onChange={(event) => setTimeReason(event.target.value)}>
-                      {timeActionKind === "pause" ? (
-                        <>
-                          <option value="lunch">{t("driver.pauseReasons.lunch")}</option>
-                          <option value="break">{t("driver.pauseReasons.break")}</option>
-                          <option value="private">{t("driver.pauseReasons.private")}</option>
-                          <option value="other">{t("driver.pauseReasons.other")}</option>
-                        </>
-                      ) : (
-                        <>
-                          <option value="repair">{t("driver.interruptionReasons.repair")}</option>
-                          <option value="maintenance">{t("driver.interruptionReasons.maintenance")}</option>
-                          <option value="waiting">{t("driver.interruptionReasons.waiting")}</option>
-                          <option value="warehouse">{t("driver.interruptionReasons.warehouse")}</option>
-                          <option value="other">{t("driver.interruptionReasons.other")}</option>
-                        </>
-                      )}
-                    </select>
-                  </label>
-                  <input placeholder={t("driver.timeNotePlaceholder")} value={timeNote} onChange={(event) => setTimeNote(event.target.value)} />
-                  <button className="driver-main-button" onClick={confirmTimeChange} type="button">
-                    <Check size={18} /> {t(timeActionKind === "pause" ? "driver.confirmPause" : "driver.confirmInterruption")}
-                  </button>
-                  <button className="secondary-action wide" onClick={() => setTimeActionKind(null)} type="button">
-                    {t("actions.cancel")}
-                  </button>
+              <div className="driver-time-two-column">
+                <div className="driver-time-actions-panel">
+                  <div className={`driver-time-status ${activeTimeEntry?.kind ?? "idle"}`}>
+                    <span>{t("driver.currentTimeStatus")}</span>
+                    <strong>{t(activeTimeEntry ? `driver.timeStatus.${activeTimeEntry.kind}` : "driver.timeStatus.idle")}</strong>
+                  </div>
+                  {timeActionKind && (
+                    <div className="driver-time-form driver-time-reason-form">
+                      <label>
+                        <span>{t(timeActionKind === "pause" ? "driver.selectPauseReason" : "driver.selectInterruptionReason")}</span>
+                        <select value={timeReason} onChange={(event) => setTimeReason(event.target.value)}>
+                          {timeActionKind === "pause" ? (
+                            <>
+                              <option value="lunch">{t("driver.pauseReasons.lunch")}</option>
+                              <option value="break">{t("driver.pauseReasons.break")}</option>
+                              <option value="private">{t("driver.pauseReasons.private")}</option>
+                              <option value="other">{t("driver.pauseReasons.other")}</option>
+                            </>
+                          ) : (
+                            <>
+                              <option value="repair">{t("driver.interruptionReasons.repair")}</option>
+                              <option value="maintenance">{t("driver.interruptionReasons.maintenance")}</option>
+                              <option value="waiting">{t("driver.interruptionReasons.waiting")}</option>
+                              <option value="warehouse">{t("driver.interruptionReasons.warehouse")}</option>
+                              <option value="other">{t("driver.interruptionReasons.other")}</option>
+                            </>
+                          )}
+                        </select>
+                      </label>
+                      <input placeholder={t("driver.timeNotePlaceholder")} value={timeNote} onChange={(event) => setTimeNote(event.target.value)} />
+                      <div className="tracking-actions">
+                        <button className="driver-main-button" onClick={confirmTimeChange} type="button">
+                          <Check size={18} /> {t(timeActionKind === "pause" ? "driver.confirmPause" : "driver.confirmInterruption")}
+                        </button>
+                        <button className="secondary-action wide" onClick={() => setTimeActionKind(null)} type="button">
+                          {t("actions.cancel")}
+                        </button>
+                      </div>
+                    </div>
+                  )}
+                  <div className="tracking-actions">
+                    {!activeTimeEntry ? (
+                      <button className="driver-main-button" onClick={() => startTimeEntry("work")} type="button"><Play size={18} /> {t("driver.startWorkTime")}</button>
+                    ) : activeTimeEntry.kind === "work" ? (
+                      <>
+                        <button className="secondary-action wide" onClick={() => requestTimeChange("pause")} type="button"><Pause size={18} /> {t("driver.startPause")}</button>
+                        <button className="secondary-action wide" onClick={() => requestTimeChange("interruption")} type="button"><TriangleAlert size={18} /> {t("driver.startInterruption")}</button>
+                        <button className="driver-main-button" onClick={stopTimeEntry} type="button"><Check size={18} /> {t("driver.endWorkTime")}</button>
+                      </>
+                    ) : (
+                      <button className="driver-main-button" onClick={resumeWork} type="button"><Play size={18} /> {t("driver.resumeWork")}</button>
+                    )}
+                  </div>
                 </div>
-              )}
-              <div className="tracking-actions">
-                {!activeTimeEntry ? (
-                  <button className="driver-main-button" onClick={() => startTimeEntry("work")} type="button"><Play size={18} /> {t("driver.startWorkTime")}</button>
-                ) : activeTimeEntry.kind === "work" ? (
-                  <>
-                    <button className="secondary-action wide" onClick={() => requestTimeChange("pause")} type="button"><Pause size={18} /> {t("driver.startPause")}</button>
-                    <button className="secondary-action wide" onClick={() => requestTimeChange("interruption")} type="button"><TriangleAlert size={18} /> {t("driver.startInterruption")}</button>
-                    <button className="driver-main-button" onClick={stopTimeEntry} type="button"><Check size={18} /> {t("driver.endWorkTime")}</button>
-                  </>
-                ) : (
-                  <button className="driver-main-button" onClick={resumeWork} type="button"><Play size={18} /> {t("driver.resumeWork")}</button>
-                )}
-              </div>
-              {closedMonthEntries.length > 0 && (
-                <div className="driver-time-log">
-                  {closedMonthEntries.slice(0, 4).map((entry) => (
-                    <small key={entry.id}>
-                      {t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")} · {formatTravelMinutes(entry.minutes ?? 0)}
-                      {entry.reason ? ` · ${t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}` : ""}
-                      {entry.jobNumber ? ` · ${entry.jobNumber}` : ""}
-                    </small>
-                  ))}
+                <div className="driver-today-panel">
+                  <div className="driver-today-panel-head">
+                    <strong>{t("driver.todayOverview")}</strong>
+                    <small>{new Date(`${currentDayKey}T00:00:00`).toLocaleDateString("de-DE", { weekday: "short", day: "2-digit", month: "2-digit" })}</small>
+                  </div>
+                  <div className="driver-time-summary">
+                    <span>{t("driver.workTime")}: <b>{formatTravelMinutes(todayWorkMinutes)}</b></span>
+                    <span>{t("driver.pause")}: <b>{formatTravelMinutes(todayPauseMinutes)}</b></span>
+                    <span>{t("driver.interruption")}: <b>{formatTravelMinutes(todayInterruptionMinutes)}</b></span>
+                  </div>
+                  {todayTimeEntries.length > 0 ? (
+                    <div className="driver-time-log driver-today-log">
+                      {todayTimeEntries.slice(-5).reverse().map((entry) => (
+                        <small key={entry.id}>
+                          {t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")} · {entry.minutes ? formatTravelMinutes(entry.minutes) : t("driver.running")}
+                          {entry.reason ? ` · ${t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}` : ""}
+                          {entry.jobNumber ? ` · ${entry.jobNumber}` : ""}
+                        </small>
+                      ))}
+                    </div>
+                  ) : (
+                    <small className="driver-today-empty">{t("driver.todayNoEntries")}</small>
+                  )}
                 </div>
-              )}
+              </div>
             </section>
           </div>
           {accessibleSubtasks.length === 0 && <p className="driver-slot-note">{t("driver.noVisibleJobs")}</p>}
