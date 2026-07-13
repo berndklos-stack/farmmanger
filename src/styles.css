@@ -3987,9 +3987,10 @@ select {
 
 .driver-header-actions {
   display: grid;
-  grid-template-columns: repeat(4, minmax(88px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 6px;
   width: 100%;
+  min-width: 0;
 }
 
 .driver-yard-open {
@@ -4006,6 +4007,67 @@ select {
   min-width: 0;
   padding: 5px 7px;
   text-align: center;
+  position: relative;
+}
+
+.driver-header-live {
+  padding: 0;
+}
+
+.driver-header-live summary {
+  align-items: center;
+  cursor: pointer;
+  display: grid;
+  gap: 3px;
+  grid-template-columns: 1fr;
+  justify-items: center;
+  list-style: none;
+  min-height: 44px;
+  padding: 5px 7px;
+}
+
+.driver-header-live summary::-webkit-details-marker {
+  display: none;
+}
+
+.driver-header-live-menu {
+  background: #f8fbf6;
+  border: 1px solid #bed0b6;
+  border-radius: 10px;
+  box-shadow: 0 12px 30px rgba(18, 36, 24, .22);
+  color: #1c3024;
+  display: grid;
+  gap: 7px;
+  min-width: min(280px, 82vw);
+  padding: 9px;
+  position: absolute;
+  right: 0;
+  top: calc(100% + 6px);
+  z-index: 60;
+}
+
+.driver-header-live-menu button {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #c9d9c2;
+  border-radius: 8px;
+  color: #1f3c2b;
+  display: inline-flex;
+  font-weight: 900;
+  gap: 7px;
+  justify-content: center;
+  min-height: 38px;
+  padding: 0 9px;
+}
+
+.driver-header-live-menu button:disabled {
+  opacity: .55;
+}
+
+.driver-header-live-menu small {
+  color: #617268;
+  font-size: .76rem;
+  font-weight: 800;
 }
 
 .driver-yard-open.secondary-driver-action {
@@ -7709,7 +7771,7 @@ select {
 }
 
 .driver-header-actions {
-  grid-template-columns: repeat(4, minmax(96px, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   width: 100%;
   gap: 6px;
 }
@@ -7793,6 +7855,20 @@ select {
   padding: 14px;
   background: #fff;
   box-shadow: var(--ui-shadow);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.driver-detail-card > * {
+  min-width: 0;
+}
+
+.driver-detail-card button,
+.driver-travel-box,
+.driver-travel-fields,
+.tracking-actions {
+  max-width: 100%;
 }
 
 .driver-card-head {
@@ -7851,7 +7927,10 @@ select {
   align-items: stretch;
   display: grid;
   gap: 10px;
-  grid-template-columns: auto minmax(420px, 1fr) minmax(500px, .9fr);
+  grid-template-columns: auto minmax(0, 1fr);
+  max-width: 100%;
+  min-width: 0;
+  overflow: hidden;
 }
 
 .compact-driver-head .compact-action {
@@ -7914,7 +7993,9 @@ select {
 .driver-head-contacts {
   display: grid;
   gap: 6px;
+  grid-column: 1 / -1;
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  max-width: 100%;
   min-width: 0;
 }
 
@@ -7961,6 +8042,8 @@ select {
   display: grid;
   gap: 10px;
   grid-template-columns: minmax(150px, .35fr) minmax(220px, 1fr);
+  max-width: 100%;
+  min-width: 0;
   min-height: 38px;
   padding: 7px 10px;
 }

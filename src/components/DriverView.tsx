@@ -1288,6 +1288,30 @@ export function DriverView({
               <UserRound size={20} />
               <span>{t("driver.personalData")}</span>
             </button>
+            <details className="driver-yard-open driver-header-live">
+              <summary>
+                <RadioTower size={20} />
+                <span>
+                  {t("liveLocation.driverPanelTitle")}
+                  <small>{trackingSubtaskId ? t("liveLocation.trackingActive") : selectedSubtask ? t("liveLocation.ready") : t("liveLocation.selectJobFirst")}</small>
+                </span>
+              </summary>
+              <div className="driver-header-live-menu">
+                <button disabled={!selectedSubtask} onClick={() => selectedSubtask && sendLocation(selectedSubtask)} type="button">
+                  <Crosshair size={16} /> {t("liveLocation.sendNow")}
+                </button>
+                {trackingSubtaskId ? (
+                  <button onClick={() => setTrackingSubtaskId("")} type="button">
+                    <RadioTower size={16} /> {t("liveLocation.stopTracking")}
+                  </button>
+                ) : (
+                  <button disabled={!selectedSubtask} onClick={() => { if (selectedSubtask) { setTrackingSubtaskId(selectedSubtask.id); sendLocation(selectedSubtask); } }} type="button">
+                    <Radio size={16} /> {t("liveLocation.startTracking")}
+                  </button>
+                )}
+                {trackingNotice && <small>{trackingNotice}</small>}
+              </div>
+            </details>
             <button className="driver-yard-open secondary-driver-action" onClick={() => setIsEndShiftOpen(true)} type="button">
               <LogOut size={20} />
               <span>{t("driver.endShift")}</span>
@@ -1687,26 +1711,6 @@ export function DriverView({
                 <button className="driver-main-button wide" onClick={() => openDriverMap(subtask)} type="button">
                   <MapPinned size={18} /> {mapSubtaskId === subtask.id ? t("driver.hideMapRoute") : t("actions.openMapRoute")}
                 </button>
-                <details className="driver-live-location-panel">
-                  <summary>
-                    <RadioTower size={16} />
-                    <span>{t("liveLocation.driverPanelTitle")}</span>
-                  </summary>
-                  <div className="tracking-actions compact-tracking-actions">
-                    <button className="secondary-action wide" onClick={() => sendLocation(subtask)} type="button">
-                      <Crosshair size={18} /> {t("liveLocation.sendNow")}
-                    </button>
-                    {trackingSubtaskId === subtask.id ? (
-                      <button className="secondary-action wide" onClick={() => setTrackingSubtaskId("")} type="button">
-                        <RadioTower size={18} /> {t("liveLocation.stopTracking")}
-                      </button>
-                    ) : (
-                      <button className="driver-main-button" onClick={() => { setTrackingSubtaskId(subtask.id); sendLocation(subtask); }} type="button">
-                        <Radio size={20} /> {t("liveLocation.startTracking")}
-                      </button>
-                    )}
-                  </div>
-                </details>
                 {trackingNotice && noticeSubtaskId === subtask.id && <p className="driver-slot-note">{trackingNotice}</p>}
                 <div className="driver-travel-box">
                   <div>
