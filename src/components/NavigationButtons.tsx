@@ -1,8 +1,8 @@
-import { Copy, ExternalLink, Navigation } from "lucide-react";
+import { Copy, ExternalLink, MapPinned, Navigation } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 import type { GeoPoint } from "../types";
-import { appleMapsUrl, formatCoordinates, googleMapsUrl, hittaMapsUrl, lantmaterietMapsUrl, openStreetMapUrl } from "../utils/geo";
+import { appleMapsNativeUrl, appleMapsUrl, formatCoordinates, googleMapsNativeUrl, googleMapsUrl, hittaMapsUrl, lantmaterietMapsUrl, openStreetMapUrl } from "../utils/geo";
 
 export function NavigationButtons({ point }: { point: GeoPoint }) {
   const { t } = useTranslation();
@@ -15,6 +15,26 @@ export function NavigationButtons({ point }: { point: GeoPoint }) {
     window.setTimeout(() => setCopied(false), 1600);
   }
 
+  function openNativeNavigation(nativeUrl: string, fallbackUrl: string) {
+    let didLeavePage = false;
+    const markLeft = () => {
+      didLeavePage = true;
+      window.removeEventListener("pagehide", markLeft);
+      document.removeEventListener("visibilitychange", handleVisibilityChange);
+    };
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === "hidden") markLeft();
+    };
+    window.addEventListener("pagehide", markLeft);
+    document.addEventListener("visibilitychange", handleVisibilityChange);
+    window.setTimeout(() => {
+      if (!didLeavePage && document.visibilityState === "visible") {
+        window.location.assign(fallbackUrl);
+      }
+    }, 900);
+    window.location.href = nativeUrl;
+  }
+
   return (
     <div className="navigation-buttons">
       <button className="primary-action wide" onClick={() => setIsOpen((current) => !current)} type="button">
@@ -22,12 +42,12 @@ export function NavigationButtons({ point }: { point: GeoPoint }) {
       </button>
       {isOpen && (
         <div className="navigation-choice-grid">
-          <a href={googleMapsUrl(point)} rel="noreferrer" target="_blank">
-            <ExternalLink size={18} /> {t("actions.googleMaps")}
-          </a>
-          <a href={appleMapsUrl(point)} rel="noreferrer" target="_blank">
-            <ExternalLink size={18} /> {t("actions.appleMaps")}
-          </a>
+          <button onClick={() => openNativeNavigation(googleMapsNativeUrl(point), googleMapsUrl(point))} type="button">
+            <MapPinned size={18} /> {t("actions.googleMaps")}
+          </button>
+          <button onClick={() => openNativeNavigation(appleMapsNativeUrl(point), appleMapsUrl(point))} type="button">
+            <MapPinned size={18} /> {t("actions.appleMaps")}
+          </button>
           <a href={openStreetMapUrl(point)} rel="noreferrer" target="_blank">
             <ExternalLink size={18} /> {t("actions.openStreetMap")}
           </a>

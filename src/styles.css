@@ -4846,7 +4846,8 @@ select {
   gap: 8px;
 }
 
-.navigation-choice-grid a {
+.navigation-choice-grid a,
+.navigation-choice-grid button {
   min-height: 44px;
   border-radius: 8px;
   border: 1px solid #cbd7c8;

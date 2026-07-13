@@ -4,12 +4,20 @@ export function googleMapsUrl(point: GeoPoint) {
   return `https://www.google.com/maps/dir/?api=1&destination=${point.lat},${point.lng}`;
 }
 
+export function googleMapsNativeUrl(point: GeoPoint) {
+  return `comgooglemaps://?daddr=${point.lat},${point.lng}&directionsmode=driving`;
+}
+
 export function googleMapsSearchUrl(point: GeoPoint) {
   return `https://www.google.com/maps/search/?api=1&query=${point.lat},${point.lng}`;
 }
 
 export function appleMapsUrl(point: GeoPoint) {
   return `https://maps.apple.com/?daddr=${point.lat},${point.lng}`;
+}
+
+export function appleMapsNativeUrl(point: GeoPoint) {
+  return `maps://?daddr=${point.lat},${point.lng}&dirflg=d`;
 }
 
 export function openStreetMapUrl(point: GeoPoint) {
