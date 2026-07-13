@@ -7800,20 +7800,44 @@ select {
 .compact-driver-head {
   align-items: stretch;
   display: grid;
-  gap: 8px;
-  grid-template-columns: auto minmax(360px, 1fr) minmax(430px, .95fr);
+  gap: 10px;
+  grid-template-columns: auto minmax(420px, 1fr) minmax(500px, .9fr);
 }
 
 .compact-driver-head .compact-action {
   align-self: start;
   min-height: 40px;
+  white-space: nowrap;
 }
 
 .driver-job-summary {
   align-content: start;
   display: grid;
-  gap: 5px;
+  gap: 6px;
   min-width: 0;
+}
+
+.compact-driver-head .driver-job-meta-row {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px 10px;
+}
+
+.compact-driver-head .driver-job-meta-row small {
+  background: #f3f8f0;
+  border: 1px solid #d6e4d1;
+  border-radius: 999px;
+  color: #344a3a;
+  font-size: .78rem;
+  font-weight: 850;
+  line-height: 1.15;
+  max-width: none;
+  overflow: visible;
+  padding: 4px 8px;
+  text-align: left;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .driver-job-title-line {
@@ -7834,7 +7858,7 @@ select {
   color: #617268;
   display: inline;
   margin: 0;
-  white-space: nowrap;
+  white-space: normal;
 }
 
 .driver-head-contacts {
@@ -7847,7 +7871,7 @@ select {
 .compact-contact-card {
   gap: 4px;
   min-height: 0;
-  padding: 8px 10px;
+  padding: 7px 9px;
 }
 
 .compact-contact-card > span {
@@ -7874,9 +7898,9 @@ select {
 .compact-contact-card .driver-contact-links span {
   font-size: .78rem;
   line-height: 1.12;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  overflow: visible;
+  text-overflow: clip;
+  white-space: normal;
 }
 
 .driver-work-status-row {
@@ -7886,8 +7910,8 @@ select {
   border-radius: 10px;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(150px, .45fr) minmax(180px, .75fr) minmax(240px, 1fr);
-  min-height: 44px;
+  grid-template-columns: minmax(150px, .35fr) minmax(220px, 1fr);
+  min-height: 38px;
   padding: 7px 10px;
 }
 
@@ -7921,6 +7945,16 @@ select {
 
   .driver-work-status-row {
     grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 1380px) {
+  .compact-driver-head {
+    grid-template-columns: auto minmax(0, 1fr);
+  }
+
+  .driver-head-contacts {
+    grid-column: 1 / -1;
   }
 }
 

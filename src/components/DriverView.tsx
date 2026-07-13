@@ -1642,6 +1642,7 @@ export function DriverView({
                       <strong>{task?.name}</strong>
                       <span><FieldName id={subtask.fieldId} /></span>
                       <span>{t("driver.estimatedTime", { time: formatDriverHours(estimatedHours) })}</span>
+                      <span>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</span>
                     </div>
                   </div>
                   <div className="driver-head-contacts">
@@ -1661,7 +1662,6 @@ export function DriverView({
                     <strong>{t(`status.${subtask.status}`)}</strong>
                   </div>
                   <ProgressBar value={subtask.progress} />
-                  <small>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</small>
                 </div>
                 <button className="driver-main-button wide" onClick={() => openDriverMap(subtask)} type="button">
                   <MapPinned size={18} /> {mapSubtaskId === subtask.id ? t("driver.hideMapRoute") : t("actions.openMapRoute")}
