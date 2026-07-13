@@ -5862,7 +5862,8 @@ select {
 .driver-time-two-column {
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(320px, .9fr) minmax(340px, 1.1fr);
+  grid-template-columns: minmax(0, 2fr) minmax(220px, 1fr);
+  min-width: 0;
 }
 
 .driver-time-actions-panel,
@@ -5877,6 +5878,7 @@ select {
   border: 1px solid #dbe6dc;
   border-radius: 8px;
   padding: 8px;
+  min-width: 0;
 }
 
 .driver-today-panel-head {
@@ -5939,11 +5941,18 @@ select {
 }
 
 .driver-time-card-compact .tracking-actions {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-columns: repeat(3, minmax(120px, 1fr));
 }
 
 .driver-time-card-compact .tracking-actions > button:only-child {
   grid-column: 1 / -1;
+}
+
+.driver-time-card-compact .tracking-actions button {
+  min-height: 56px;
+  padding: 8px 10px;
+  white-space: normal;
+  line-height: 1.16;
 }
 
 .driver-time-card-compact .driver-time-reason-form {
@@ -5963,12 +5972,15 @@ select {
 }
 
 .driver-today-panel .driver-time-summary {
-  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 6px;
+  grid-template-columns: 1fr;
 }
 
-.driver-today-log {
-  border-top: 1px solid #dbe6dc;
-  padding-top: 7px;
+.driver-today-panel .driver-time-summary span {
+  align-items: baseline;
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
 }
 
 .driver-time-list-toggle {

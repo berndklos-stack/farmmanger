@@ -1581,19 +1581,7 @@ export function DriverView({
                     <span>{t("driver.pause")}: <b>{formatTravelMinutes(todayPauseMinutes)}</b></span>
                     <span>{t("driver.interruption")}: <b>{formatTravelMinutes(todayInterruptionMinutes)}</b></span>
                   </div>
-                  {todayTimeEntries.length > 0 ? (
-                    <div className="driver-time-log driver-today-log">
-                      {todayTimeEntries.slice(-5).reverse().map((entry) => (
-                        <small key={entry.id}>
-                          {t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")} · {entry.minutes ? formatTravelMinutes(entry.minutes) : t("driver.running")}
-                          {entry.reason ? ` · ${t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`)}` : ""}
-                          {entry.jobNumber ? ` · ${entry.jobNumber}` : ""}
-                        </small>
-                      ))}
-                    </div>
-                  ) : (
-                    <small className="driver-today-empty">{t("driver.todayNoEntries")}</small>
-                  )}
+                  <small className="driver-today-empty">{todayTimeEntries.length} {t("driver.timeEntries")}</small>
                 </div>
               </div>
             </section>
