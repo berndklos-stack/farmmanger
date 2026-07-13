@@ -688,8 +688,11 @@ export function DriverView({
     const startedAt = draft.startedAt ?? endedAt;
     const elapsedMinutes = Math.max(1, Math.round((new Date(endedAt).getTime() - new Date(startedAt).getTime()) / 60000));
     const minutes = parseOptionalNumber(draft.minutes) ?? elapsedMinutes;
-    const km = parseOptionalNumber(draft.km) ?? 0;
-    if (km <= 0 || minutes <= 0) {
+    const parsedKm = parseOptionalNumber(draft.km);
+    const km = parsedKm ?? 0;
+    if ((draft.km.trim() && parsedKm === undefined) || km < 0 || minutes <= 0) {
+      setNoticeSubtaskId(subtask.id);
+      setTrackingNotice(t("driver.travelMissingValues"));
       setEquipmentNotice(t("driver.travelMissingValues"));
       return;
     }
@@ -714,6 +717,8 @@ export function DriverView({
       statusEvents: [...(subtask.statusEvents ?? []), { id: event.id, message, createdAt: endedAt }],
     });
     updateTravelDraft(subtask.id, { startedAt: undefined, km: "", minutes: "" });
+    setNoticeSubtaskId(subtask.id);
+    setTrackingNotice(t("driver.travelSaved"));
     setEquipmentNotice(t("driver.travelSaved"));
     sendTravelLocationFromSubtask(subtask, true);
   }
