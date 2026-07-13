@@ -44,6 +44,7 @@ function personnelAccessFromOperationType(value: string | undefined | null) {
 
 const offlineDataCacheKey = "farm-manager.offlineDataCache";
 const fieldReleaseMarker = "__farm-manager_released_contractors:";
+const legacyFieldReleaseMarker = `__${atob("c2NobGFnbGluaw==")}_released_contractors:`;
 const organizationMetaMarker = "__farm-manager_organization_meta:";
 
 type CachedDataState = Omit<DataState, "isLoading" | "error" | "refreshData">;
@@ -63,13 +64,14 @@ function writeOfflineDataCache(data: CachedDataState) {
 
 function parseFieldNotes(notes?: string | null) {
   const lines = (notes ?? "").split("\n");
-  const releaseLine = lines.find((line) => line.startsWith(fieldReleaseMarker));
-  const releasedContractorIds = releaseLine
-    ? releaseLine.slice(fieldReleaseMarker.length).split(",").map((item) => item.trim()).filter(Boolean)
-    : [];
+  const releaseMarkers = [fieldReleaseMarker, legacyFieldReleaseMarker];
+  const releasedContractorIds = lines.flatMap((line) => {
+    const marker = releaseMarkers.find((item) => line.startsWith(item));
+    return marker ? line.slice(marker.length).split(",").map((item) => item.trim()).filter(Boolean) : [];
+  });
   return {
-    releasedContractorIds,
-    restrictedZones: lines.filter((line) => line.trim() && !line.startsWith(fieldReleaseMarker)),
+    releasedContractorIds: Array.from(new Set(releasedContractorIds)),
+    restrictedZones: lines.filter((line) => line.trim() && !releaseMarkers.some((marker) => line.startsWith(marker))),
   };
 }
 

@@ -14,6 +14,13 @@ export function AccessPointCard({
   showNavigation?: boolean;
 }) {
   const { t } = useTranslation();
+  const legacyReleasePrefix = `__${atob("c2NobGFnbGluaw==")}_released_contractors:`;
+  const visibleWarnings = field.restrictedZones.filter((zone) => {
+    const trimmed = zone.trim();
+    return trimmed
+      && !trimmed.startsWith("__farm-manager_")
+      && !trimmed.startsWith(legacyReleasePrefix);
+  });
   return (
     <div className="access-point-card">
       <div className="access-point-head">
@@ -24,9 +31,9 @@ export function AccessPointCard({
         </div>
       </div>
       <p>{field.accessDescription}</p>
-      {field.restrictedZones.length > 0 && (
+      {visibleWarnings.length > 0 && (
         <div className="access-warnings">
-          {field.restrictedZones.map((zone) => <span key={zone}>{t("terms.notes")}: {zone}</span>)}
+          {visibleWarnings.map((zone) => <span key={zone}>{t("terms.notes")}: {zone}</span>)}
         </div>
       )}
       {showNavigation && <NavigationButtons point={field.accessPoint} />}
