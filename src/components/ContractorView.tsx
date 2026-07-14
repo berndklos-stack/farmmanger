@@ -1,4 +1,4 @@
-import { Archive, Boxes, Building2, CalendarDays, Camera, CheckCircle, ChevronDown, ClipboardList, Clock, Eye, EyeOff, Factory, FileArchive, Mail, MessageSquare, Package, Plus, Printer, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
+import { Archive, Boxes, Building2, CalendarDays, Camera, CheckCircle, ChevronDown, ClipboardList, Clock, Eye, EyeOff, Factory, FileArchive, Lock, Mail, MessageSquare, Package, Plus, Printer, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, Unlock, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
@@ -2089,6 +2089,14 @@ export function ContractorView({
     if (!Number.isFinite(started)) return false;
     const maxAgeMs = employeeTimeEditWindowDays * 86400000;
     return Date.now() - started <= maxAgeMs;
+  }
+
+  function timeEntryLockMeta(entry: DriverTimeEntry) {
+    if (!entry.lockedAt) return t("masterData.notLockedYet");
+    return [
+      new Date(entry.lockedAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" }),
+      entry.lockedByName ? t("masterData.lockedBy", { name: entry.lockedByName }) : "",
+    ].filter(Boolean).join(" · ");
   }
 
   function payrollReportLines(driverId?: string) {
@@ -4632,11 +4640,16 @@ export function ContractorView({
                       {row.entries.length > 0 ? (
                         <div className="payroll-time-table">
                           {row.entries.map((entry) => (
-                            <div className={`payroll-time-row ${entry.kind}`} key={entry.id}>
+                            <div className={`payroll-time-row ${entry.kind} ${entry.lockedAt ? "locked" : "unlocked"}`} key={entry.id}>
                               <strong>{t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
-                              <span>{new Date(entry.startedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                              <span>{new Date(entry.startedAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
                               <span>{entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running")}</span>
-                              <span>{[entry.jobNumber, entry.note, entry.lockedAt ? `${t("masterData.lockedAt")} ${new Date(entry.lockedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}` : employeeCanEditTimeEntry(entry) ? t("masterData.employeeCanStillEdit") : t("masterData.employeeEditWindowClosed")].filter(Boolean).join(" · ") || "-"}</span>
+                              <span>{[entry.jobNumber, entry.note].filter(Boolean).join(" · ") || "-"}</span>
+                              <div className={`payroll-time-lock-state ${entry.lockedAt ? "locked" : "open"}`}>
+                                {entry.lockedAt ? <Lock size={15} /> : <Unlock size={15} />}
+                                <strong>{t(entry.lockedAt ? "masterData.timeEntryStatusLocked" : "masterData.timeEntryStatusOpen")}</strong>
+                                <small>{entry.lockedAt ? timeEntryLockMeta(entry) : (employeeCanEditTimeEntry(entry) ? t("masterData.employeeCanStillEdit") : t("masterData.employeeEditWindowClosed"))}</small>
+                              </div>
                               <div className="payroll-row-actions">
                                 <button className="secondary-action compact-action" disabled={Boolean(entry.lockedAt)} onClick={() => editDriverTimeEntry(entry)} type="button">{t("masterData.editTimeEntry")}</button>
                                 <button className="secondary-action compact-action" disabled={Boolean(entry.lockedAt)} onClick={() => lockDriverTimeEntries([entry])} type="button">{t("masterData.lockTimeEntry")}</button>
