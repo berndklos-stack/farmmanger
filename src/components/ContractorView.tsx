@@ -4,6 +4,7 @@ import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, writeDriverTimeEntries } from "../lib/driverTimeEntries";
+import { openHtmlPreview } from "../lib/printPreview";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
@@ -2056,9 +2057,7 @@ export function ContractorView({
         </section>
       `;
     }).join("");
-    const printWindow = window.open("about:blank", "_blank");
-    if (!printWindow) return;
-    printWindow.document.write(`
+    openHtmlPreview(`
       <html>
         <head>
           <title>${escapeReportHtml(report.title)}</title>
@@ -2116,8 +2115,6 @@ export function ContractorView({
         </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
   }
 
   function printProductInventoryReport(product = selectedProduct) {
@@ -2156,9 +2153,7 @@ export function ContractorView({
       price !== undefined ? formatMoneyValue(price, product.currency ?? "SEK") : "-",
       from || to ? `${from || "-"}-${to || "-"}` : "",
     ].filter(Boolean).join(" · ");
-    const printWindow = window.open("about:blank", "_blank");
-    if (!printWindow) return;
-    printWindow.document.write(`
+    openHtmlPreview(`
       <html>
         <head>
           <title>${escapeReportHtml(t("products.inventoryReport"))} ${escapeReportHtml(product.name)}</title>
@@ -2241,8 +2236,6 @@ export function ContractorView({
         </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
   }
 
   function activeResourceHistory() {

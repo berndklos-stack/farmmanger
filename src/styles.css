@@ -6076,6 +6076,117 @@ select {
   grid-column: span 1;
 }
 
+.driver-dialog-heading {
+  align-items: flex-start;
+  background: #eef6e9;
+  border-bottom: 1px solid #cbdcc8;
+  margin: -18px -18px 14px;
+  padding: 14px 18px;
+  position: sticky;
+  top: 0;
+  z-index: 3;
+}
+
+.driver-dialog-actions {
+  align-items: center;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.driver-time-entry-edit-list {
+  display: grid;
+  gap: 10px;
+}
+
+.driver-time-entry-edit-card {
+  background: #fbfdf9;
+  border: 1px solid #d8e5d5;
+  border-left: 6px solid #6fa35f;
+  border-radius: 10px;
+  display: grid;
+  gap: 10px;
+  grid-template-columns: minmax(140px, .8fr) minmax(170px, 1fr) minmax(170px, 1fr) minmax(105px, .6fr);
+  padding: 12px;
+}
+
+.driver-time-entry-edit-card.pause {
+  background: #fffaf0;
+  border-left-color: #d0a425;
+}
+
+.driver-time-entry-edit-card.interruption {
+  background: #fff4ee;
+  border-left-color: #b8613d;
+}
+
+.driver-time-entry-edit-card label,
+.driver-time-entry-duration {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.driver-time-entry-edit-card label.wide {
+  grid-column: 1 / -1;
+}
+
+.driver-time-entry-edit-card label span,
+.driver-time-entry-duration span {
+  color: #617268;
+  font-size: .72rem;
+  font-weight: 900;
+  text-transform: uppercase;
+}
+
+.driver-time-entry-edit-card input,
+.driver-time-entry-edit-card select,
+.driver-time-entry-duration strong {
+  align-items: center;
+  background: #fff;
+  border: 1px solid #9eb79a;
+  border-radius: 8px;
+  color: #14221a;
+  display: flex;
+  font-size: .9rem;
+  font-weight: 900;
+  min-height: 38px;
+  min-width: 0;
+  padding: 7px 9px;
+  width: 100%;
+}
+
+.driver-time-entry-edit-card input::placeholder {
+  color: #8a978e;
+  font-weight: 700;
+}
+
+@media (max-width: 900px) {
+  .driver-time-entry-edit-card {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .driver-dialog-heading {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .driver-dialog-actions {
+    justify-content: stretch;
+  }
+
+  .driver-dialog-actions .driver-main-button {
+    flex: 1 1 auto;
+  }
+
+  .driver-time-entry-edit-card {
+    grid-template-columns: 1fr;
+  }
+}
+
 .driver-time-card-compact .driver-time-log {
   border-top: 1px solid #dbe6dc;
   display: flex;

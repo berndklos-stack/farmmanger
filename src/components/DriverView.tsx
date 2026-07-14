@@ -5,6 +5,7 @@ import { useAppData } from "../data/DataContext";
 import { claimJobTask } from "../services/tasks";
 import { APP_RELEASE_LABEL } from "../lib/appVersion";
 import { loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, type DriverTimeEntryKind, writeDriverTimeEntries } from "../lib/driverTimeEntries";
+import { openHtmlPreview } from "../lib/printPreview";
 import { loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest, writeVacationRequests } from "../lib/vacationRequests";
 import type { DriverLocation, Job, Organization, Subtask } from "../types";
 import { DriverFieldMap } from "./DriverFieldMap";
@@ -39,6 +40,14 @@ type TravelDraft = {
   startedAt?: string;
   km: string;
   minutes: string;
+};
+type TimeEntryEditDraft = {
+  kind: DriverTimeEntryKind;
+  startedAt: string;
+  endedAt: string;
+  reason: string;
+  jobNumber: string;
+  note: string;
 };
 const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
@@ -103,6 +112,29 @@ function dateInputValue(offsetDays = 0) {
   const date = new Date();
   date.setDate(date.getDate() + offsetDays);
   return date.toISOString().slice(0, 10);
+}
+
+function toDateTimeInputValue(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function fromDateTimeInputValue(value: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return undefined;
+  return date.toISOString();
+}
+
+function minutesBetween(startedAt?: string, endedAt?: string) {
+  if (!startedAt || !endedAt) return undefined;
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return undefined;
+  return Math.max(1, Math.round((end - start) / 60000));
 }
 
 function inclusiveVacationDays(from: string, to: string) {
@@ -270,6 +302,7 @@ export function DriverView({
   const [selectedTimeMonth, setSelectedTimeMonth] = useState("");
   const [selectedTimeDay, setSelectedTimeDay] = useState("");
   const [isTodayTimeDialogOpen, setIsTodayTimeDialogOpen] = useState(false);
+  const [todayTimeDrafts, setTodayTimeDrafts] = useState<Record<string, TimeEntryEditDraft>>({});
   const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
@@ -469,7 +502,7 @@ export function DriverView({
   }
 
   function timeEntryReason(entry: DriverTimeEntry) {
-    return entry.reason ? t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`) : "";
+    return entry.reason ? t(`${entry.kind === "pause" ? "driver.pauseReasons" : "driver.interruptionReasons"}.${entry.reason}`, { defaultValue: entry.reason }) : "";
   }
 
   function escapeReportHtml(value: string) {
@@ -553,9 +586,7 @@ export function DriverView({
         </tr>
       `;
     }).join("");
-    const printWindow = window.open("about:blank", "_blank");
-    if (!printWindow) return;
-    printWindow.document.write(`
+    openHtmlPreview(`
       <html>
         <head>
           <title>${escapeReportHtml(report.title)}</title>
@@ -615,8 +646,6 @@ export function DriverView({
         </body>
       </html>
     `);
-    printWindow.document.close();
-    printWindow.focus();
   }
 
   function openMailTimeReport(scope: "month" | "day", key: string) {
@@ -727,6 +756,68 @@ export function DriverView({
   function persistTimeEntries(next: DriverTimeEntry[]) {
     setTimeEntries(next);
     void writeDriverTimeEntries(next).then(setTimeEntries);
+  }
+
+  function draftFromTimeEntry(entry: DriverTimeEntry): TimeEntryEditDraft {
+    return {
+      kind: entry.kind,
+      startedAt: toDateTimeInputValue(entry.startedAt),
+      endedAt: toDateTimeInputValue(entry.endedAt),
+      reason: entry.reason ?? "",
+      jobNumber: entry.jobNumber ?? "",
+      note: entry.note ?? "",
+    };
+  }
+
+  function openTodayTimeDialog() {
+    setTodayTimeDrafts(Object.fromEntries(todayTimeEntries.map((entry) => [entry.id, draftFromTimeEntry(entry)])));
+    setIsTodayTimeDialogOpen(true);
+  }
+
+  function updateTodayTimeDraft(entryId: string, patch: Partial<TimeEntryEditDraft>) {
+    const entry = timeEntries.find((item) => item.id === entryId);
+    if (!entry) return;
+    setTodayTimeDrafts((current) => ({
+      ...current,
+      [entryId]: {
+        ...(current[entryId] ?? draftFromTimeEntry(entry)),
+        ...patch,
+      },
+    }));
+  }
+
+  function saveTodayTimeEntries() {
+    const invalidDraft = Object.values(todayTimeDrafts).some((draft) => {
+      const startedAt = fromDateTimeInputValue(draft.startedAt);
+      const endedAt = fromDateTimeInputValue(draft.endedAt);
+      return Boolean(startedAt && endedAt && !minutesBetween(startedAt, endedAt));
+    });
+    if (invalidDraft) {
+      setEquipmentNotice(t("driver.timeEntryInvalidRange"));
+      return;
+    }
+
+    const next = timeEntries
+      .map((entry) => {
+        const draft = todayTimeDrafts[entry.id];
+        if (!draft) return entry;
+        const startedAt = fromDateTimeInputValue(draft.startedAt) ?? entry.startedAt;
+        const endedAt = fromDateTimeInputValue(draft.endedAt);
+        return {
+          ...entry,
+          kind: draft.kind,
+          reason: draft.reason.trim() || undefined,
+          jobNumber: draft.jobNumber.trim() || undefined,
+          note: draft.note.trim() || undefined,
+          startedAt,
+          endedAt,
+          minutes: minutesBetween(startedAt, endedAt),
+        };
+      })
+      .sort((a, b) => b.startedAt.localeCompare(a.startedAt));
+    persistTimeEntries(next);
+    setEquipmentNotice(t("driver.timeEntriesSaved"));
+    setIsTodayTimeDialogOpen(false);
   }
 
   function newTimeEntry(kind: DriverTimeEntryKind, startedAt = new Date().toISOString()): DriverTimeEntry {
@@ -1587,7 +1678,7 @@ export function DriverView({
                     <span>{t("driver.pause")}: <b>{formatTravelMinutes(todayPauseMinutes)}</b></span>
                     <span>{t("driver.interruption")}: <b>{formatTravelMinutes(todayInterruptionMinutes)}</b></span>
                   </div>
-                  <button className="driver-today-entry-button" onClick={() => setIsTodayTimeDialogOpen(true)} type="button">
+                  <button className="driver-today-entry-button" onClick={openTodayTimeDialog} type="button">
                     {todayTimeEntries.length} {t("driver.timeEntries")}
                   </button>
                 </div>
@@ -1597,27 +1688,65 @@ export function DriverView({
           {isTodayTimeDialogOpen && (
             <div className="modal-backdrop" role="presentation">
               <div className="driver-dialog-modal driver-day-dialog" role="dialog" aria-modal="true" aria-labelledby="driver-today-report-title">
-                <div className="section-heading">
+                <div className="section-heading driver-dialog-heading">
                   <div>
                     <h2 id="driver-today-report-title">{t("driver.todayEntriesTitle")}</h2>
                     <p>{t("driver.workTime")}: {formatTravelMinutes(todayWorkMinutes)} · {t("driver.pause")}: {formatTravelMinutes(todayPauseMinutes)} · {t("driver.interruption")}: {formatTravelMinutes(todayInterruptionMinutes)}</p>
                   </div>
-                  <button className="secondary-action icon-action" onClick={() => setIsTodayTimeDialogOpen(false)} type="button">
-                    <X size={18} />
-                  </button>
+                  <div className="driver-dialog-actions">
+                    <button className="driver-main-button" onClick={saveTodayTimeEntries} type="button">
+                      <Check size={18} />
+                      <span>{t("driver.saveTimeEntries")}</span>
+                    </button>
+                    <button className="secondary-action icon-action" onClick={() => setIsTodayTimeDialogOpen(false)} type="button">
+                      <X size={18} />
+                    </button>
+                  </div>
                 </div>
                 {todayTimeEntries.length > 0 ? (
-                  <div className="driver-time-entry-list">
-                    {todayTimeEntries.map((entry) => (
-                      <div className={`driver-time-entry-row ${entry.kind}`} key={entry.id}>
-                        <strong>{timeEntryTitle(entry)}</strong>
-                        <span>{new Date(entry.startedAt).toLocaleString("de-DE", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
-                        <span>{entry.minutes ? formatTravelMinutes(entry.minutes) : t("driver.running")}</span>
-                        {entry.reason && <small>{timeEntryReason(entry)}</small>}
-                        {entry.jobNumber && <small>{entry.jobNumber}</small>}
-                        {entry.note && <small>{entry.note}</small>}
-                      </div>
-                    ))}
+                  <div className="driver-time-entry-edit-list">
+                    {todayTimeEntries.map((entry) => {
+                      const draft = todayTimeDrafts[entry.id] ?? draftFromTimeEntry(entry);
+                      const draftStartedAt = fromDateTimeInputValue(draft.startedAt);
+                      const draftEndedAt = fromDateTimeInputValue(draft.endedAt);
+                      const draftMinutes = minutesBetween(draftStartedAt, draftEndedAt);
+                      return (
+                        <div className={`driver-time-entry-edit-card ${draft.kind}`} key={entry.id}>
+                          <label>
+                            <span>{t("driver.bookingType")}</span>
+                            <select value={draft.kind} onChange={(event) => updateTodayTimeDraft(entry.id, { kind: event.target.value as DriverTimeEntryKind })}>
+                              <option value="work">{t("driver.workTime")}</option>
+                              <option value="pause">{t("driver.pause")}</option>
+                              <option value="interruption">{t("driver.interruption")}</option>
+                            </select>
+                          </label>
+                          <label>
+                            <span>{t("driver.startTime")}</span>
+                            <input type="datetime-local" value={draft.startedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { startedAt: event.target.value })} />
+                          </label>
+                          <label>
+                            <span>{t("driver.endTime")}</span>
+                            <input type="datetime-local" value={draft.endedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { endedAt: event.target.value })} />
+                          </label>
+                          <div className="driver-time-entry-duration">
+                            <span>{t("driver.duration")}</span>
+                            <strong>{draftMinutes ? formatTravelMinutes(draftMinutes) : t("driver.running")}</strong>
+                          </div>
+                          <label>
+                            <span>{t("driver.reason")}</span>
+                            <input value={draft.reason} onChange={(event) => updateTodayTimeDraft(entry.id, { reason: event.target.value })} placeholder={t("driver.reasonPlaceholder")} />
+                          </label>
+                          <label>
+                            <span>{t("driver.jobReference")}</span>
+                            <input value={draft.jobNumber} onChange={(event) => updateTodayTimeDraft(entry.id, { jobNumber: event.target.value })} placeholder={t("driver.jobReferencePlaceholder")} />
+                          </label>
+                          <label className="wide">
+                            <span>{t("masterData.notes")}</span>
+                            <input value={draft.note} onChange={(event) => updateTodayTimeDraft(entry.id, { note: event.target.value })} placeholder={t("driver.timeNotePlaceholder")} />
+                          </label>
+                        </div>
+                      );
+                    })}
                   </div>
                 ) : (
                   <p className="driver-slot-note">{t("driver.noTimeEntriesForDay")}</p>
