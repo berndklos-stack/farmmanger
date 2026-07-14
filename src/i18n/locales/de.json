@@ -222,6 +222,7 @@
     "personnelTimeVacationHint": "Arbeitszeiten, Pausen und offene Urlaubsanträge zentral je Mitarbeiter prüfen.",
     "payrollPreparation": "Zeiterfassung & Lohnbuchhaltung",
     "payrollPreparationHint": "Monatsdaten je Mitarbeiter prüfen, Zeitbuchungen korrigieren und als PDF für die Lohnbuchhaltung ausgeben.",
+    "reportPreviewHint": "Vorschau bleibt im Farm-Manager. Drucken öffnet nur den Druckdialog für diesen Bericht.",
     "payrollMonth": "Lohnmonat",
     "payrollReport": "Lohnbuchhaltungsrapport",
     "payrollReportAll": "Lohnbuchhaltungsrapport alle Mitarbeiter",
@@ -482,7 +483,8 @@
     "deletePermanent": "Endgültig löschen",
     "delete": "Löschen",
     "hittaMaps": "Hitta.se",
-    "lantmaterietMaps": "Lantmäteriet"
+    "lantmaterietMaps": "Lantmäteriet",
+    "print": "Drucken"
   },
   "tasks": {
     "slurry": "Gülle ausbringen",

@@ -222,6 +222,7 @@
     "personnelTimeVacationHint": "Granska arbetstider, pauser och öppna semesteransökningar centralt per medarbetare.",
     "payrollPreparation": "Tidsregistrering & lön",
     "payrollPreparationHint": "Granska månadsdata per medarbetare, korrigera tidsregistreringar och exportera PDF-rapporter till lön.",
+    "reportPreviewHint": "Förhandsvisningen stannar i Farm-Manager. Skriv ut öppnar bara utskriftsdialogen för rapporten.",
     "payrollMonth": "Lönemånad",
     "payrollReport": "Lönerapport",
     "payrollReportAll": "Lönerapport alla medarbetare",
@@ -482,7 +483,8 @@
     "deletePermanent": "Radera permanent",
     "delete": "Ta bort",
     "hittaMaps": "Hitta.se",
-    "lantmaterietMaps": "Lantmäteriet"
+    "lantmaterietMaps": "Lantmäteriet",
+    "print": "Skriv ut"
   },
   "tasks": {
     "slurry": "Sprida flytgödsel",

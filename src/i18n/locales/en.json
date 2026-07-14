@@ -222,6 +222,7 @@
     "personnelTimeVacationHint": "Review working times, breaks and open vacation requests centrally per employee.",
     "payrollPreparation": "Time tracking & payroll",
     "payrollPreparationHint": "Review monthly data per employee, correct time entries and export PDF reports for payroll.",
+    "reportPreviewHint": "The preview stays inside Farm-Manager. Print only opens the print dialog for this report.",
     "payrollMonth": "Payroll month",
     "payrollReport": "Payroll report",
     "payrollReportAll": "Payroll report all employees",
@@ -482,7 +483,8 @@
     "deletePermanent": "Delete permanently",
     "delete": "Delete",
     "hittaMaps": "Hitta.se",
-    "lantmaterietMaps": "Lantmäteriet"
+    "lantmaterietMaps": "Lantmäteriet",
+    "print": "Print"
   },
   "tasks": {
     "slurry": "Apply slurry",

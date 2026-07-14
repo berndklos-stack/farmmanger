@@ -1,10 +1,9 @@
-import { Archive, Boxes, Building2, CalendarDays, Camera, CheckCircle, ChevronDown, ClipboardList, Clock, Eye, EyeOff, Factory, FileArchive, Mail, MessageSquare, Package, Plus, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { Archive, Boxes, Building2, CalendarDays, Camera, CheckCircle, ChevronDown, ClipboardList, Clock, Eye, EyeOff, Factory, FileArchive, Mail, MessageSquare, Package, Plus, Printer, RadioTower, RotateCw, RotateCcw, Save, Settings, Tractor, Trash2, Truck, User, UserMinus, UserPlus, Users, Wrench, X } from "lucide-react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, writeDriverTimeEntries } from "../lib/driverTimeEntries";
-import { openHtmlPreview } from "../lib/printPreview";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
@@ -27,6 +26,10 @@ type TaskBillingCondition = {
 type CustomerConditionRow = TaskBillingCondition & {
   id: string;
   taskName: string;
+};
+type ReportPreview = {
+  title: string;
+  html: string;
 };
 const personnelViewOptions: ViewKey[] = ["dashboard", "fields", "jobs", "contractor", "masterData", "report", "driver"];
 const personnelPermissionOptions: PersonnelAppPermissionKey[] = ["canEditFields", "canCreateJobs", "canEditDrivers", "canAssignDrivers"];
@@ -557,6 +560,7 @@ export function ContractorView({
   const [vacationRequests, setVacationRequests] = useState<VacationRequest[]>(() => readVacationRequests());
   const [driverTimeEntries, setDriverTimeEntries] = useState<DriverTimeEntry[]>(() => readDriverTimeEntries());
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
+  const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [payrollMonth, setPayrollMonth] = useState(() => new Date().toISOString().slice(0, 7));
   const [organizationDirectoryMode, setOrganizationDirectoryMode] = useState<OrganizationDirectoryMode>("company");
   const [inactiveCollaborationIds, setInactiveCollaborationIds] = useState<Set<string>>(() => readStringSet(inactiveCollaborationsStorageKey));
@@ -612,6 +616,7 @@ export function ContractorView({
   const [selectedProductMovementId, setSelectedProductMovementId] = useState("");
   const [isProductBookingModalOpen, setIsProductBookingModalOpen] = useState(false);
   const [isProductMovementsModalOpen, setIsProductMovementsModalOpen] = useState(false);
+  const reportPreviewFrameRef = useRef<HTMLIFrameElement>(null);
   const [workTimeOverride, setWorkTimeOverride] = useState<{
     driverId: string;
     subtaskId: string;
@@ -1998,6 +2003,13 @@ export function ContractorView({
     return value.replace(/[<>&]/g, (char) => ({ "<": "&lt;", ">": "&gt;", "&": "&amp;" })[char] ?? char);
   }
 
+  function printReportPreview() {
+    const previewWindow = reportPreviewFrameRef.current?.contentWindow;
+    if (!previewWindow) return;
+    previewWindow.focus();
+    previewWindow.print();
+  }
+
   function printPayrollReport(driverId?: string) {
     const report = payrollReportLines(driverId);
     const rows = driverId ? payrollSummaries.filter((row) => row.driver.id === driverId) : payrollSummaries;
@@ -2057,7 +2069,9 @@ export function ContractorView({
         </section>
       `;
     }).join("");
-    openHtmlPreview(`
+    setReportPreview({
+      title: report.title,
+      html: `
       <html>
         <head>
           <title>${escapeReportHtml(report.title)}</title>
@@ -2114,7 +2128,8 @@ export function ContractorView({
           </main>
         </body>
       </html>
-    `);
+    `,
+    });
   }
 
   function printProductInventoryReport(product = selectedProduct) {
@@ -2153,7 +2168,9 @@ export function ContractorView({
       price !== undefined ? formatMoneyValue(price, product.currency ?? "SEK") : "-",
       from || to ? `${from || "-"}-${to || "-"}` : "",
     ].filter(Boolean).join(" · ");
-    openHtmlPreview(`
+    setReportPreview({
+      title: `${t("products.inventoryReport")} ${product.name}`,
+      html: `
       <html>
         <head>
           <title>${escapeReportHtml(t("products.inventoryReport"))} ${escapeReportHtml(product.name)}</title>
@@ -2235,7 +2252,8 @@ export function ContractorView({
           </main>
         </body>
       </html>
-    `);
+    `,
+    });
   }
 
   function activeResourceHistory() {
@@ -5980,6 +5998,32 @@ export function ContractorView({
             <div className="modal-actions">
               <button className="danger-action" onClick={confirmDeleteSelectedJobType} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
             </div>
+          </div>
+        </div>
+      )}
+      {reportPreview && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal report-preview-modal" role="dialog" aria-modal="true" aria-labelledby="report-preview-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="report-preview-title">{reportPreview.title}</h2>
+                <p>{t("masterData.reportPreviewHint")}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-action compact-action" onClick={printReportPreview} type="button">
+                  <Printer size={16} /> {t("actions.print")}
+                </button>
+                <button className="secondary-action icon-action" onClick={() => setReportPreview(null)} type="button">
+                  <X size={18} />
+                </button>
+              </div>
+            </div>
+            <iframe
+              className="report-preview-frame"
+              ref={reportPreviewFrameRef}
+              srcDoc={reportPreview.html}
+              title={reportPreview.title}
+            />
           </div>
         </div>
       )}

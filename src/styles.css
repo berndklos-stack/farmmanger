@@ -2034,6 +2034,35 @@ textarea:focus-visible {
   width: min(1320px, 100%);
 }
 
+.report-preview-modal {
+  height: min(92vh, 980px);
+  overflow: hidden;
+  padding: 0;
+  width: min(1180px, 96vw);
+}
+
+.report-preview-modal > .section-heading {
+  background: #eef6e9;
+  border-bottom: 1px solid #cbdcc8;
+  margin: 0;
+  padding: 14px 18px;
+}
+
+.report-preview-modal > .section-heading .modal-actions {
+  align-items: center;
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.report-preview-frame {
+  background: #fff;
+  border: 0;
+  height: calc(92vh - 112px);
+  min-height: 520px;
+  width: 100%;
+}
+
 .payroll-toolbar {
   align-items: end;
   display: grid;
