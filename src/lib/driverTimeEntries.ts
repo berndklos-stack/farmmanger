@@ -14,6 +14,9 @@ export type DriverTimeEntry = {
   startedAt: string;
   endedAt?: string;
   minutes?: number;
+  lockedAt?: string;
+  lockedById?: string;
+  lockedByName?: string;
 };
 
 export const driverTimeEntriesStorageKey = "farm-manager.driverTimeEntries";
@@ -31,6 +34,9 @@ type DriverTimeEntryRow = {
   started_at: string;
   ended_at: string | null;
   minutes: number | null;
+  locked_at?: string | null;
+  locked_by_id?: string | null;
+  locked_by_name?: string | null;
 };
 
 function readLocalDriverTimeEntries() {
@@ -61,10 +67,13 @@ function mapDriverTimeEntryRow(row: DriverTimeEntryRow): DriverTimeEntry {
     startedAt: row.started_at,
     endedAt: row.ended_at ?? undefined,
     minutes: row.minutes ?? undefined,
+    lockedAt: row.locked_at ?? undefined,
+    lockedById: row.locked_by_id ?? undefined,
+    lockedByName: row.locked_by_name ?? undefined,
   };
 }
 
-function driverTimeEntryPayload(entry: DriverTimeEntry) {
+function driverTimeEntryPayload(entry: DriverTimeEntry, includeLockFields = true) {
   return {
     id: entry.id,
     driver_id: entry.driverId,
@@ -77,6 +86,11 @@ function driverTimeEntryPayload(entry: DriverTimeEntry) {
     started_at: entry.startedAt,
     ended_at: entry.endedAt ?? null,
     minutes: entry.minutes ?? null,
+    ...(includeLockFields ? {
+      locked_at: entry.lockedAt ?? null,
+      locked_by_id: entry.lockedById ?? null,
+      locked_by_name: entry.lockedByName ?? null,
+    } : {}),
   };
 }
 
@@ -106,8 +120,13 @@ export async function writeDriverTimeEntries(entries: DriverTimeEntry[]) {
   if (!isSupabaseConfigured || !supabase) return entries;
   const { error } = await supabase
     .from("driver_time_entries")
-    .upsert(entries.map(driverTimeEntryPayload), { onConflict: "id" });
-  if (error) return entries;
+    .upsert(entries.map((entry) => driverTimeEntryPayload(entry)), { onConflict: "id" });
+  if (error) {
+    const { error: legacyError } = await supabase
+      .from("driver_time_entries")
+      .upsert(entries.map((entry) => driverTimeEntryPayload(entry, false)), { onConflict: "id" });
+    if (legacyError) return entries;
+  }
   return loadDriverTimeEntries();
 }
 

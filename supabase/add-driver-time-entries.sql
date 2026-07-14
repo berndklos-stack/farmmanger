@@ -10,13 +10,21 @@ create table if not exists driver_time_entries (
   started_at timestamptz not null,
   ended_at timestamptz,
   minutes integer,
+  locked_at timestamptz,
+  locked_by_id text,
+  locked_by_name text,
   created_at timestamptz not null default now(),
   updated_at timestamptz not null default now()
 );
 
+alter table driver_time_entries add column if not exists locked_at timestamptz;
+alter table driver_time_entries add column if not exists locked_by_id text;
+alter table driver_time_entries add column if not exists locked_by_name text;
+
 create index if not exists driver_time_entries_driver_id_idx on driver_time_entries(driver_id);
 create index if not exists driver_time_entries_started_at_idx on driver_time_entries(started_at);
 create index if not exists driver_time_entries_kind_idx on driver_time_entries(kind);
+create index if not exists driver_time_entries_locked_at_idx on driver_time_entries(locked_at);
 
 create or replace function set_driver_time_entries_updated_at()
 returns trigger

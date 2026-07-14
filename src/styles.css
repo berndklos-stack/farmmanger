@@ -2067,7 +2067,11 @@ textarea:focus-visible {
   align-items: end;
   display: grid;
   gap: 10px;
-  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto;
+  grid-template-columns: minmax(180px, 240px) minmax(0, 1fr) auto auto;
+}
+
+.time-entry-admin-modal {
+  max-width: min(920px, 96vw);
 }
 
 .payroll-toolbar label {
@@ -6189,6 +6193,12 @@ select {
 .driver-time-entry-edit-card input::placeholder {
   color: #8a978e;
   font-weight: 700;
+}
+
+.driver-time-entry-edit-card input:disabled,
+.driver-time-entry-edit-card select:disabled {
+  background: #eef3ea;
+  color: #6d7a70;
 }
 
 @media (max-width: 900px) {

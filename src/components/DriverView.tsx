@@ -51,6 +51,7 @@ type TimeEntryEditDraft = {
 };
 const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
+const employeeTimeEditWindowStorageKey = "farm-manager.employeeTimeEditWindowDays";
 const automaticDriverLocationIntervalMs = 5 * 60 * 1000;
 
 function appendEquipmentLog(entry: Record<string, unknown>) {
@@ -135,6 +136,16 @@ function minutesBetween(startedAt?: string, endedAt?: string) {
   const end = new Date(endedAt).getTime();
   if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return undefined;
   return Math.max(1, Math.round((end - start) / 60000));
+}
+
+function readEmployeeTimeEditWindowDays() {
+  try {
+    const stored = window.localStorage.getItem(employeeTimeEditWindowStorageKey);
+    const parsed = stored ? Number(stored) : 3;
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 3;
+  } catch {
+    return 3;
+  }
 }
 
 function inclusiveVacationDays(from: string, to: string) {
@@ -303,6 +314,7 @@ export function DriverView({
   const [selectedTimeDay, setSelectedTimeDay] = useState("");
   const [isTodayTimeDialogOpen, setIsTodayTimeDialogOpen] = useState(false);
   const [todayTimeDrafts, setTodayTimeDrafts] = useState<Record<string, TimeEntryEditDraft>>({});
+  const [employeeTimeEditWindowDays] = useState(readEmployeeTimeEditWindowDays);
   const [completionDialog, setCompletionDialog] = useState<CompletionDialogState>(null);
   const [useTestLocation, setUseTestLocationState] = useState(() => {
     try {
@@ -787,6 +799,14 @@ export function DriverView({
   }
 
   function saveTodayTimeEntries() {
+    const blockedDraft = Object.keys(todayTimeDrafts).some((entryId) => {
+      const entry = timeEntries.find((item) => item.id === entryId);
+      return entry ? !employeeCanEditTimeEntry(entry) : false;
+    });
+    if (blockedDraft) {
+      setEquipmentNotice(t("masterData.timeEntryLockedNotice"));
+      return;
+    }
     const invalidDraft = Object.values(todayTimeDrafts).some((draft) => {
       const startedAt = fromDateTimeInputValue(draft.startedAt);
       const endedAt = fromDateTimeInputValue(draft.endedAt);
@@ -818,6 +838,13 @@ export function DriverView({
     persistTimeEntries(next);
     setEquipmentNotice(t("driver.timeEntriesSaved"));
     setIsTodayTimeDialogOpen(false);
+  }
+
+  function employeeCanEditTimeEntry(entry: DriverTimeEntry) {
+    if (entry.lockedAt) return false;
+    const started = new Date(entry.startedAt).getTime();
+    if (!Number.isFinite(started)) return false;
+    return Date.now() - started <= employeeTimeEditWindowDays * 86400000;
   }
 
   function newTimeEntry(kind: DriverTimeEntryKind, startedAt = new Date().toISOString()): DriverTimeEntry {
@@ -1710,11 +1737,12 @@ export function DriverView({
                       const draftStartedAt = fromDateTimeInputValue(draft.startedAt);
                       const draftEndedAt = fromDateTimeInputValue(draft.endedAt);
                       const draftMinutes = minutesBetween(draftStartedAt, draftEndedAt);
+                      const canEditEntry = employeeCanEditTimeEntry(entry);
                       return (
                         <div className={`driver-time-entry-edit-card ${draft.kind}`} key={entry.id}>
                           <label>
                             <span>{t("driver.bookingType")}</span>
-                            <select value={draft.kind} onChange={(event) => updateTodayTimeDraft(entry.id, { kind: event.target.value as DriverTimeEntryKind })}>
+                            <select disabled={!canEditEntry} value={draft.kind} onChange={(event) => updateTodayTimeDraft(entry.id, { kind: event.target.value as DriverTimeEntryKind })}>
                               <option value="work">{t("driver.workTime")}</option>
                               <option value="pause">{t("driver.pause")}</option>
                               <option value="interruption">{t("driver.interruption")}</option>
@@ -1722,11 +1750,11 @@ export function DriverView({
                           </label>
                           <label>
                             <span>{t("driver.startTime")}</span>
-                            <input type="datetime-local" value={draft.startedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { startedAt: event.target.value })} />
+                            <input disabled={!canEditEntry} type="datetime-local" value={draft.startedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { startedAt: event.target.value })} />
                           </label>
                           <label>
                             <span>{t("driver.endTime")}</span>
-                            <input type="datetime-local" value={draft.endedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { endedAt: event.target.value })} />
+                            <input disabled={!canEditEntry} type="datetime-local" value={draft.endedAt} onChange={(event) => updateTodayTimeDraft(entry.id, { endedAt: event.target.value })} />
                           </label>
                           <div className="driver-time-entry-duration">
                             <span>{t("driver.duration")}</span>
@@ -1734,15 +1762,15 @@ export function DriverView({
                           </div>
                           <label>
                             <span>{t("driver.reason")}</span>
-                            <input value={draft.reason} onChange={(event) => updateTodayTimeDraft(entry.id, { reason: event.target.value })} placeholder={t("driver.reasonPlaceholder")} />
+                            <input disabled={!canEditEntry} value={draft.reason} onChange={(event) => updateTodayTimeDraft(entry.id, { reason: event.target.value })} placeholder={t("driver.reasonPlaceholder")} />
                           </label>
                           <label>
                             <span>{t("driver.jobReference")}</span>
-                            <input value={draft.jobNumber} onChange={(event) => updateTodayTimeDraft(entry.id, { jobNumber: event.target.value })} placeholder={t("driver.jobReferencePlaceholder")} />
+                            <input disabled={!canEditEntry} value={draft.jobNumber} onChange={(event) => updateTodayTimeDraft(entry.id, { jobNumber: event.target.value })} placeholder={t("driver.jobReferencePlaceholder")} />
                           </label>
                           <label className="wide">
-                            <span>{t("masterData.notes")}</span>
-                            <input value={draft.note} onChange={(event) => updateTodayTimeDraft(entry.id, { note: event.target.value })} placeholder={t("driver.timeNotePlaceholder")} />
+                            <span>{canEditEntry ? t("masterData.notes") : entry.lockedAt ? t("masterData.timeEntryLockedNotice") : t("masterData.employeeEditWindowClosed")}</span>
+                            <input disabled={!canEditEntry} value={draft.note} onChange={(event) => updateTodayTimeDraft(entry.id, { note: event.target.value })} placeholder={t("driver.timeNotePlaceholder")} />
                           </label>
                         </div>
                       );

@@ -3,7 +3,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import type { DragEvent } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
-import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, writeDriverTimeEntries } from "../lib/driverTimeEntries";
+import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, type DriverTimeEntryKind, writeDriverTimeEntries } from "../lib/driverTimeEntries";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
@@ -30,6 +30,15 @@ type CustomerConditionRow = TaskBillingCondition & {
 type ReportPreview = {
   title: string;
   html: string;
+};
+type TimeEntryEditDraft = {
+  id: string;
+  kind: DriverTimeEntryKind;
+  startedAt: string;
+  endedAt: string;
+  reason: string;
+  jobNumber: string;
+  note: string;
 };
 const personnelViewOptions: ViewKey[] = ["dashboard", "fields", "jobs", "contractor", "masterData", "report", "driver"];
 const personnelPermissionOptions: PersonnelAppPermissionKey[] = ["canEditFields", "canCreateJobs", "canEditDrivers", "canAssignDrivers"];
@@ -369,6 +378,7 @@ const calendarColumnCount = 5;
 const taskModes: WorkMode[] = ["Einzelmodus", "Teammodus", "Rollenmodus", "Flächenteilung"];
 const taskMetrics: ProgressMetric[] = ["Fläche", "Menge", "Fuhren", "Zeit"];
 const mapPatterns: FieldMapPattern[] = ["none", "whiteDots"];
+const employeeTimeEditWindowStorageKey = "farm-manager.employeeTimeEditWindowDays";
 
 function normalizeEmail(value?: string) {
   return value?.trim().toLowerCase() ?? "";
@@ -395,6 +405,28 @@ function formatDurationMinutes(minutes: number) {
   const hours = Math.floor(minutes / 60);
   const rest = minutes % 60;
   return rest ? `${hours} h ${rest} min` : `${hours} h`;
+}
+
+function toDateTimeInputValue(value?: string) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+  const localDate = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+  return localDate.toISOString().slice(0, 16);
+}
+
+function fromDateTimeInputValue(value: string) {
+  if (!value) return undefined;
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
+}
+
+function minutesBetween(startedAt?: string, endedAt?: string) {
+  if (!startedAt || !endedAt) return undefined;
+  const start = new Date(startedAt).getTime();
+  const end = new Date(endedAt).getTime();
+  if (!Number.isFinite(start) || !Number.isFinite(end) || end < start) return undefined;
+  return Math.max(1, Math.round((end - start) / 60000));
 }
 
 function sortOpenBeforeDone(items: Subtask[]) {
@@ -562,6 +594,14 @@ export function ContractorView({
   const [isPayrollModalOpen, setIsPayrollModalOpen] = useState(false);
   const [reportPreview, setReportPreview] = useState<ReportPreview | null>(null);
   const [payrollMonth, setPayrollMonth] = useState(() => new Date().toISOString().slice(0, 7));
+  const [employeeTimeEditWindowDays, setEmployeeTimeEditWindowDays] = useState(() => {
+    const stored = window.localStorage.getItem(employeeTimeEditWindowStorageKey);
+    const parsed = stored ? Number(stored) : 3;
+    return Number.isFinite(parsed) && parsed >= 0 ? Math.round(parsed) : 3;
+  });
+  const [editingTimeEntryId, setEditingTimeEntryId] = useState("");
+  const [timeEntryEditDraft, setTimeEntryEditDraft] = useState<TimeEntryEditDraft | null>(null);
+  const [timeEntryEditNotice, setTimeEntryEditNotice] = useState("");
   const [organizationDirectoryMode, setOrganizationDirectoryMode] = useState<OrganizationDirectoryMode>("company");
   const [inactiveCollaborationIds, setInactiveCollaborationIds] = useState<Set<string>>(() => readStringSet(inactiveCollaborationsStorageKey));
   const [collaborationInviteForm, setCollaborationInviteForm] = useState({
@@ -1353,6 +1393,10 @@ export function ContractorView({
   }, [dispatchGroupingLevel]);
 
   useEffect(() => {
+    window.localStorage.setItem(employeeTimeEditWindowStorageKey, String(employeeTimeEditWindowDays));
+  }, [employeeTimeEditWindowDays]);
+
+  useEffect(() => {
     writeJsonArray(productInventoryStorageKey, products);
   }, [products]);
 
@@ -1957,20 +2001,94 @@ export function ContractorView({
     void writeDriverTimeEntries(next).then(setDriverTimeEntries);
   }
 
+  function draftFromDriverTimeEntry(entry: DriverTimeEntry): TimeEntryEditDraft {
+    return {
+      id: entry.id,
+      kind: entry.kind,
+      startedAt: toDateTimeInputValue(entry.startedAt),
+      endedAt: toDateTimeInputValue(entry.endedAt),
+      reason: entry.reason ?? "",
+      jobNumber: entry.jobNumber ?? "",
+      note: entry.note ?? "",
+    };
+  }
+
   function editDriverTimeEntry(entry: DriverTimeEntry) {
-    const minutesText = window.prompt(t("masterData.editTimeMinutesPrompt"), String(entry.minutes ?? 0));
-    if (minutesText === null) return;
-    const minutes = Math.max(0, Math.round(Number(minutesText.replace(",", ".")) || 0));
-    const note = window.prompt(t("masterData.editTimeNotePrompt"), entry.note ?? "");
-    if (note === null) return;
+    if (entry.lockedAt) {
+      setTimeEntryEditNotice(t("masterData.timeEntryLockedNotice"));
+      return;
+    }
+    setEditingTimeEntryId(entry.id);
+    setTimeEntryEditDraft(draftFromDriverTimeEntry(entry));
+    setTimeEntryEditNotice("");
+  }
+
+  function updateTimeEntryEditDraft(patch: Partial<TimeEntryEditDraft>) {
+    setTimeEntryEditDraft((current) => current ? { ...current, ...patch } : current);
+  }
+
+  function saveTimeEntryEditDraft() {
+    if (!timeEntryEditDraft) return;
+    const startedAt = fromDateTimeInputValue(timeEntryEditDraft.startedAt);
+    const endedAt = fromDateTimeInputValue(timeEntryEditDraft.endedAt);
+    if (!startedAt || (endedAt && !minutesBetween(startedAt, endedAt))) {
+      setTimeEntryEditNotice(t("masterData.timeEntryInvalidRange"));
+      return;
+    }
     persistDriverTimeEntries(driverTimeEntries.map((item) => (
-      item.id === entry.id ? { ...item, minutes, note: note.trim() || undefined } : item
+      item.id === timeEntryEditDraft.id ? {
+        ...item,
+        kind: timeEntryEditDraft.kind,
+        startedAt,
+        endedAt,
+        minutes: minutesBetween(startedAt, endedAt),
+        reason: timeEntryEditDraft.reason.trim() || undefined,
+        jobNumber: timeEntryEditDraft.jobNumber.trim() || undefined,
+        note: timeEntryEditDraft.note.trim() || undefined,
+      } : item
     )));
+    setEditingTimeEntryId("");
+    setTimeEntryEditDraft(null);
+    setTimeEntryEditNotice("");
   }
 
   function deleteDriverTimeEntry(entry: DriverTimeEntry) {
+    if (entry.lockedAt) {
+      setTimeEntryEditNotice(t("masterData.timeEntryLockedNotice"));
+      return;
+    }
     if (!window.confirm(t("masterData.deleteTimeEntryConfirm"))) return;
     void deleteStoredDriverTimeEntry(entry.id).then(setDriverTimeEntries);
+  }
+
+  function lockDriverTimeEntries(entries: DriverTimeEntry[]) {
+    const now = new Date().toISOString();
+    const actorName = authProfile?.fullName ?? authProfile?.email ?? t("report.systemUser");
+    const targetIds = new Set(entries.filter((entry) => !entry.lockedAt).map((entry) => entry.id));
+    if (targetIds.size === 0) return;
+    persistDriverTimeEntries(driverTimeEntries.map((entry) => (
+      targetIds.has(entry.id)
+        ? { ...entry, lockedAt: now, lockedById: authProfile?.id, lockedByName: actorName }
+        : entry
+    )));
+  }
+
+  function lockPayrollMonthForDriver(driverId?: string) {
+    const entries = driverTimeEntries.filter((entry) => (
+      (!driverId || entry.driverId === driverId)
+      && entry.startedAt.slice(0, 7) === payrollMonth
+      && entry.endedAt
+      && entry.minutes
+    ));
+    lockDriverTimeEntries(entries);
+  }
+
+  function employeeCanEditTimeEntry(entry: DriverTimeEntry) {
+    if (entry.lockedAt) return false;
+    const started = new Date(entry.startedAt).getTime();
+    if (!Number.isFinite(started)) return false;
+    const maxAgeMs = employeeTimeEditWindowDays * 86400000;
+    return Date.now() - started <= maxAgeMs;
   }
 
   function payrollReportLines(driverId?: string) {
@@ -4469,6 +4587,9 @@ export function ContractorView({
                   <button className="primary-action" onClick={() => printPayrollReport()} type="button">
                     <ClipboardList size={16} /> {t("masterData.exportAllPayrollPdf")}
                   </button>
+                  <button className="secondary-action" onClick={() => lockPayrollMonthForDriver()} type="button">
+                    <CheckCircle size={16} /> {t("masterData.lockPayrollMonth")}
+                  </button>
                 </div>
                 <div className="payroll-employee-list">
                   {payrollSummaries.map((row) => (
@@ -4485,6 +4606,9 @@ export function ContractorView({
                         </div>
                         <button className="secondary-action compact-action" onClick={() => printPayrollReport(row.driver.id)} type="button">
                           {t("masterData.exportEmployeePayrollPdf")}
+                        </button>
+                        <button className="secondary-action compact-action" onClick={() => lockPayrollMonthForDriver(row.driver.id)} type="button">
+                          {t("masterData.lockEmployeeMonth")}
                         </button>
                       </div>
                       {row.vacationRequests.length > 0 && (
@@ -4512,10 +4636,11 @@ export function ContractorView({
                               <strong>{t(entry.kind === "work" ? "driver.workTime" : entry.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
                               <span>{new Date(entry.startedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}{entry.endedAt ? `-${new Date(entry.endedAt).toLocaleTimeString("de-DE", { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
                               <span>{entry.minutes ? formatDurationMinutes(entry.minutes) : t("driver.running")}</span>
-                              <span>{[entry.jobNumber, entry.note].filter(Boolean).join(" · ") || "-"}</span>
+                              <span>{[entry.jobNumber, entry.note, entry.lockedAt ? `${t("masterData.lockedAt")} ${new Date(entry.lockedAt).toLocaleString("de-DE", { dateStyle: "short", timeStyle: "short" })}` : employeeCanEditTimeEntry(entry) ? t("masterData.employeeCanStillEdit") : t("masterData.employeeEditWindowClosed")].filter(Boolean).join(" · ") || "-"}</span>
                               <div className="payroll-row-actions">
-                                <button className="secondary-action compact-action" onClick={() => editDriverTimeEntry(entry)} type="button">{t("masterData.editTimeEntry")}</button>
-                                <button className="danger-action compact-action" onClick={() => deleteDriverTimeEntry(entry)} type="button">{t("masterData.deleteTimeEntry")}</button>
+                                <button className="secondary-action compact-action" disabled={Boolean(entry.lockedAt)} onClick={() => editDriverTimeEntry(entry)} type="button">{t("masterData.editTimeEntry")}</button>
+                                <button className="secondary-action compact-action" disabled={Boolean(entry.lockedAt)} onClick={() => lockDriverTimeEntries([entry])} type="button">{t("masterData.lockTimeEntry")}</button>
+                                <button className="danger-action compact-action" disabled={Boolean(entry.lockedAt)} onClick={() => deleteDriverTimeEntry(entry)} type="button">{t("masterData.deleteTimeEntry")}</button>
                               </div>
                             </div>
                           ))}
@@ -4525,6 +4650,61 @@ export function ContractorView({
                       )}
                     </section>
                   ))}
+                </div>
+              </div>
+            </div>
+          )}
+          {timeEntryEditDraft && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="resource-modal time-entry-admin-modal" role="dialog" aria-modal="true" aria-labelledby="time-entry-admin-title">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="time-entry-admin-title">{t("masterData.editTimeEntry")}</h2>
+                    <p>{t("masterData.editTimeEntryHint")}</p>
+                  </div>
+                  <button className="secondary-action icon-action" onClick={() => { setEditingTimeEntryId(""); setTimeEntryEditDraft(null); setTimeEntryEditNotice(""); }} type="button">
+                    <X size={18} />
+                  </button>
+                </div>
+                {timeEntryEditNotice && <p className="permission-note warning-note">{timeEntryEditNotice}</p>}
+                <div className={`driver-time-entry-edit-card ${timeEntryEditDraft.kind}`}>
+                  <label>
+                    <span>{t("driver.bookingType")}</span>
+                    <select value={timeEntryEditDraft.kind} onChange={(event) => updateTimeEntryEditDraft({ kind: event.target.value as DriverTimeEntryKind })}>
+                      <option value="work">{t("driver.workTime")}</option>
+                      <option value="pause">{t("driver.pause")}</option>
+                      <option value="interruption">{t("driver.interruption")}</option>
+                    </select>
+                  </label>
+                  <label>
+                    <span>{t("driver.startTime")}</span>
+                    <input type="datetime-local" value={timeEntryEditDraft.startedAt} onChange={(event) => updateTimeEntryEditDraft({ startedAt: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>{t("driver.endTime")}</span>
+                    <input type="datetime-local" value={timeEntryEditDraft.endedAt} onChange={(event) => updateTimeEntryEditDraft({ endedAt: event.target.value })} />
+                  </label>
+                  <div className="driver-time-entry-duration">
+                    <span>{t("driver.duration")}</span>
+                    <strong>{formatDurationMinutes(minutesBetween(fromDateTimeInputValue(timeEntryEditDraft.startedAt), fromDateTimeInputValue(timeEntryEditDraft.endedAt)) ?? 0)}</strong>
+                  </div>
+                  <label>
+                    <span>{t("driver.reason")}</span>
+                    <input value={timeEntryEditDraft.reason} onChange={(event) => updateTimeEntryEditDraft({ reason: event.target.value })} />
+                  </label>
+                  <label>
+                    <span>{t("driver.jobReference")}</span>
+                    <input value={timeEntryEditDraft.jobNumber} onChange={(event) => updateTimeEntryEditDraft({ jobNumber: event.target.value })} />
+                  </label>
+                  <label className="wide">
+                    <span>{t("masterData.notes")}</span>
+                    <input value={timeEntryEditDraft.note} onChange={(event) => updateTimeEntryEditDraft({ note: event.target.value })} />
+                  </label>
+                </div>
+                <div className="modal-actions">
+                  <button className="primary-action" onClick={saveTimeEntryEditDraft} type="button">
+                    <Save size={16} /> {t("masterData.saveChanges")}
+                  </button>
                 </div>
               </div>
             </div>
@@ -5578,10 +5758,22 @@ export function ContractorView({
 	                  <option value="job_task">{t("contractor.dispatchGroupingByJobTask")}</option>
 	                </select>
 	              </label>
+                <label>
+                  {t("masterData.employeeTimeEditWindowDays")}
+                  <input
+                    min={0}
+                    max={90}
+                    step={1}
+                    type="number"
+                    value={employeeTimeEditWindowDays}
+                    onChange={(event) => setEmployeeTimeEditWindowDays(Math.max(0, Math.round(Number(event.target.value) || 0)))}
+                  />
+                </label>
 	            </div>
 	            <p className="resource-editor-summary">{t("contractor.standardVehiclePlanningHint")}</p>
 	            <p className="resource-editor-summary">{t("contractor.dispatchGroupingHint")}</p>
 	            <p className="resource-editor-summary">{t("contractor.mapProviderHint")}</p>
+	            <p className="resource-editor-summary">{t("masterData.employeeTimeEditWindowHint", { days: employeeTimeEditWindowDays })}</p>
           </div>
           {currentRole === "support_admin" && (
             <div className="resource-editor-block">
