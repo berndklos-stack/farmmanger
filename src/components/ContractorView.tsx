@@ -2972,6 +2972,7 @@ export function ContractorView({
 
   function createOrganization() {
     setCreatingOrganization(true);
+    setShowArchivedOrganizations(false);
     setOrganizationLoginPassword("");
     setOrganizationLoginStatus("");
     setOrganizationForm({
@@ -3184,6 +3185,11 @@ export function ContractorView({
       const id = createLocalId("local");
       addOrganization({ id, ...payload });
       setSelectedOrganizationId(id);
+      setCreatingOrganization(false);
+      if (activeSection === "userManagement") {
+        setOrganizationLoginStatus(t("masterData.organizationSavedCreateLogin"));
+        return;
+      }
     } else if (selectedOrganization) {
       updateOrganization(selectedOrganization.id, payload);
     }
@@ -4081,7 +4087,12 @@ export function ContractorView({
             <h2><Users size={20} /> {t("contractor.userManagement")}</h2>
             <p>{t("contractor.userManagementHint")}</p>
           </div>
-          <span>{managedOrganizations.length}</span>
+          <div className="modal-actions">
+            <span>{managedOrganizations.length}</span>
+            <button className="primary-action compact-action" onClick={createOrganization} type="button">
+              <Plus size={16} /> {t("contractor.newUser")}
+            </button>
+          </div>
         </div>
         <div className="user-management-list">
           {managedOrganizations.map((organization) => {
@@ -6116,7 +6127,7 @@ export function ContractorView({
                 ))}
               </div>
             </div>
-            {!creatingOrganization && ["farmer", "contractor"].includes(organizationForm.kind) && (
+            {!creatingOrganization && selectedOrganization && ["farmer", "contractor"].includes(organizationForm.kind) && (
               <div className="resource-editor-block contact-editor-block">
                 <div className="section-heading">
                   <h2>{t("masterData.organizationLoginTitle")}</h2>
