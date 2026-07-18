@@ -6,7 +6,7 @@ import { useAppData } from "../data/DataContext";
 import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, type DriverTimeEntryKind, writeDriverTimeEntries } from "../lib/driverTimeEntries";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
-import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
+import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, OrganizationResetArea, OrganizationResetMode, OrganizationResetOptions, OrganizationResetResult, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 import { LiveLocationMap } from "./LiveLocationMap";
 
@@ -504,7 +504,7 @@ export function ContractorView({
   masterDataFocus?: MasterDataFocus | null;
   onOpenMasterData?: (focus: { group: MasterResourceGroup; id: string }) => void;
   onOpenJob?: (jobId: string) => void;
-  onResetOrganizationOperationalData?: (organizationId: string) => Promise<{ ok: boolean; deletedJobs: number; deletedSubtasks: number; error?: string }>;
+  onResetOrganizationOperationalData?: (organizationId: string, options?: OrganizationResetOptions) => Promise<OrganizationResetResult>;
 }) {
   const { t, i18n } = useTranslation();
   const {
@@ -569,6 +569,8 @@ export function ContractorView({
   const [deleteOrganizationConfirm, setDeleteOrganizationConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteTaskTemplateConfirm, setDeleteTaskTemplateConfirm] = useState<{ id: string; name: string } | null>(null);
   const [deleteJobTypeConfirm, setDeleteJobTypeConfirm] = useState<{ id: string; name: string } | null>(null);
+  const [resetOrganizationMode, setResetOrganizationMode] = useState<OrganizationResetMode>("archive");
+  const [resetOrganizationAreas, setResetOrganizationAreas] = useState<OrganizationResetArea[]>(["operational"]);
   const [showArchivedTaskTemplates, setShowArchivedTaskTemplates] = useState(false);
   const [showArchivedJobTypes, setShowArchivedJobTypes] = useState(false);
   const [showArchivedOrganizations, setShowArchivedOrganizations] = useState(false);
@@ -4060,21 +4062,64 @@ export function ContractorView({
     };
   }
 
+  function organizationResetAreaCounts(organizationId: string) {
+    const operational = organizationOperationalCounts(organizationId);
+    return {
+      operational: operational.jobs,
+      fields: fields.filter((field) => field.organizationId === organizationId).length,
+      personnel: allDrivers.filter((driver) => driver.organizationId === organizationId).length,
+      vehicles: allVehicles.filter((vehicle) => vehicle.organizationId === organizationId).length,
+      implements: allImplementsList.filter((implement) => implement.organizationId === organizationId).length,
+      templates: taskTemplates.filter((template) => template.organizationId === organizationId && !template.isSystemTemplate).length
+        + jobTypes.filter((jobType) => jobType.organizationId === organizationId && !jobType.isSystemTemplate).length,
+      jobs: operational.jobs,
+      subtasks: operational.subtasks,
+    };
+  }
+
+  function toggleResetOrganizationArea(area: OrganizationResetArea) {
+    setResetOrganizationAreas((current) => (
+      current.includes(area) ? current.filter((item) => item !== area) : [...current, area]
+    ));
+  }
+
+  function openResetOrganizationDialog(organization: Organization) {
+    setResetOrganizationConfirm(organization);
+    setResetOrganizationMode("archive");
+    setResetOrganizationAreas(["operational"]);
+  }
+
   async function confirmResetOrganizationOperationalData() {
     if (!resetOrganizationConfirm || !onResetOrganizationOperationalData) return;
     const organization = resetOrganizationConfirm;
-    const result = await onResetOrganizationOperationalData(organization.id);
+    if (resetOrganizationAreas.length === 0) {
+      setResetOrganizationStatus(t("contractor.resetOrganizationNoSelection"));
+      return;
+    }
+    const result = await onResetOrganizationOperationalData(organization.id, {
+      mode: resetOrganizationMode,
+      areas: resetOrganizationAreas,
+    });
     setResetOrganizationConfirm(null);
     setResetOrganizationStatus(result.ok
-      ? t("contractor.resetOrganizationSuccess", {
+      ? t(result.mode === "archive" ? "contractor.resetOrganizationArchiveSuccess" : "contractor.resetOrganizationDeleteSuccess", {
           organization: organization.name,
-          jobs: result.deletedJobs,
-          subtasks: result.deletedSubtasks,
+          summary: resetResultSummary(result),
         })
       : t("contractor.resetOrganizationError", {
           organization: organization.name,
           error: result.error ?? t("contractor.resetOrganizationUnknownError"),
         }));
+  }
+
+  function resetResultSummary(result: OrganizationResetResult) {
+    const labels: string[] = [];
+    const counts = result.counts;
+    if (counts.jobs !== undefined || counts.subtasks !== undefined) labels.push(t("contractor.resetAreaSummary.operational", { jobs: counts.jobs ?? 0, subtasks: counts.subtasks ?? 0 }));
+    (["fields", "personnel", "vehicles", "implements", "templates"] as OrganizationResetArea[]).forEach((area) => {
+      if (counts[area] !== undefined) labels.push(t(`contractor.resetAreaSummary.${area}`, { count: counts[area] ?? 0 }));
+    });
+    return labels.join(" · ") || t("contractor.resetAreaSummary.none");
   }
 
   function renderSupportUserManagementBlock() {
@@ -4111,7 +4156,7 @@ export function ContractorView({
                   <button
                     className="danger-action compact-action"
                     disabled={!onResetOrganizationOperationalData}
-                    onClick={() => setResetOrganizationConfirm(organization)}
+                    onClick={() => openResetOrganizationDialog(organization)}
                     title={counts.jobs === 0 && counts.subtasks === 0 ? t("contractor.resetOrganizationPossibleHiddenData") : undefined}
                     type="button"
                   >
@@ -6337,18 +6382,59 @@ export function ContractorView({
             </div>
             {(() => {
               const counts = organizationOperationalCounts(resetOrganizationConfirm.id);
+              const areaCounts = organizationResetAreaCounts(resetOrganizationConfirm.id);
+              const resetAreaOptions: OrganizationResetArea[] = ["operational", "fields", "personnel", "vehicles", "implements", "templates"];
               return (
-                <div className="reset-organization-summary">
-                  <strong>{resetOrganizationConfirm.name}</strong>
-                  <span>{t(`masterData.organizationKinds.${resetOrganizationConfirm.kind}`)}</span>
-                  <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
-                  <small>{t("contractor.resetOrganizationKeepsMasterData")}</small>
+                <div className="reset-organization-panel">
+                  <div className="reset-organization-summary">
+                    <strong>{resetOrganizationConfirm.name}</strong>
+                    <span>{t(`masterData.organizationKinds.${resetOrganizationConfirm.kind}`)}</span>
+                    <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
+                    <small>{t("contractor.resetOrganizationKeepsShell")}</small>
+                  </div>
+                  <div className="segmented-control reset-mode-toggle">
+                    <button className={resetOrganizationMode === "archive" ? "active" : ""} onClick={() => setResetOrganizationMode("archive")} type="button">
+                      {t("contractor.resetModeArchive")}
+                    </button>
+                    <button className={resetOrganizationMode === "delete" ? "active danger-tab" : "danger-tab"} onClick={() => setResetOrganizationMode("delete")} type="button">
+                      {t("contractor.resetModeDelete")}
+                    </button>
+                  </div>
+                  <div className="reset-area-grid">
+                    {resetAreaOptions.map((area) => (
+                      <button
+                        className={resetOrganizationAreas.includes(area) ? "reset-area-option active" : "reset-area-option"}
+                        key={area}
+                        onClick={() => toggleResetOrganizationArea(area)}
+                        type="button"
+                      >
+                        <span className="custom-checkbox" aria-hidden="true">{resetOrganizationAreas.includes(area) ? "✓" : ""}</span>
+                        <span>
+                          <strong>{t(`contractor.resetAreas.${area}`)}</strong>
+                          <small>{t(`contractor.resetAreaDescriptions.${area}`, {
+                            count: areaCounts[area],
+                            jobs: areaCounts.jobs,
+                            subtasks: areaCounts.subtasks,
+                          })}</small>
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                  <p className="permission-note">
+                    {resetOrganizationMode === "archive" ? t("contractor.resetArchiveHint") : t("contractor.resetDeleteHint")}
+                  </p>
                 </div>
               );
             })()}
             <div className="modal-actions">
-              <button className="danger-action" onClick={() => { void confirmResetOrganizationOperationalData(); }} type="button">
-                <Trash2 size={16} /> {t("contractor.resetOrganizationDataConfirm")}
+              <button
+                className={resetOrganizationMode === "archive" ? "primary-action" : "danger-action"}
+                disabled={resetOrganizationAreas.length === 0}
+                onClick={() => { void confirmResetOrganizationOperationalData(); }}
+                type="button"
+              >
+                {resetOrganizationMode === "archive" ? <Archive size={16} /> : <Trash2 size={16} />}
+                {resetOrganizationMode === "archive" ? t("contractor.resetOrganizationArchiveConfirm") : t("contractor.resetOrganizationDeleteConfirm")}
               </button>
             </div>
           </div>

@@ -31,7 +31,7 @@ import { contractor as mockContractor, farmer as mockFarmer, jobTypes as mockJob
 import { useFarmManagerData } from "./hooks/useFarmManagerData";
 import { isSupabaseConfigured, supabase } from "./lib/supabase";
 import { APP_RELEASE_LABEL } from "./lib/appVersion";
-import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, ExternalContact, Field, Implement, Job, JobType, Organization, OrganizationRelationship, PersonnelAppAccess, PersonnelEmployeeType, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
+import type { AuthProfile, Driver, DriverLocation, DriverLocationStatus, ExternalContact, Field, Implement, Job, JobType, Organization, OrganizationRelationship, OrganizationResetOptions, OrganizationResetResult, PersonnelAppAccess, PersonnelEmployeeType, ProgressMetric, Status, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "./types";
 
 const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
   { key: "dashboard", labelKey: "nav.dashboard", icon: BarChart3 },
@@ -2340,10 +2340,13 @@ export function App() {
     }
   }
 
-  async function resetOrganizationOperationalData(organizationId: string) {
+  async function resetOrganizationOperationalData(organizationId: string, options: OrganizationResetOptions = { mode: "delete", areas: ["operational"] }): Promise<OrganizationResetResult> {
     if (currentRole !== "support_admin") {
-      return { ok: false, deletedJobs: 0, deletedSubtasks: 0, error: t("permissions.readOnly") };
+      return { ok: false, mode: options.mode, counts: {}, error: t("permissions.readOnly") };
     }
+    const areas = new Set(options.areas);
+    const archivedAt = new Date().toISOString();
+    const counts: OrganizationResetResult["counts"] = {};
     const organizationFieldIds = new Set(fieldRecords.filter((field) => field.organizationId === organizationId).map((field) => field.id));
     const jobsToDelete = jobs.filter((job) => (
       job.farmerOrganizationId === organizationId
@@ -2352,7 +2355,7 @@ export function App() {
     ));
     const jobIds = new Set(jobsToDelete.map((job) => job.id));
 
-    if (isSupabaseConfigured && supabase) {
+    if (areas.has("operational") && isSupabaseConfigured && supabase) {
       const remoteErrors: string[] = [];
       const addRemoteJobIds = (rows: { id?: string | null; job_id?: string | null }[] | null) => {
         (rows ?? []).forEach((row) => {
@@ -2373,62 +2376,204 @@ export function App() {
         else addRemoteJobIds(fieldJobResult.data as { job_id?: string | null }[]);
       }
       if (remoteErrors.length > 0) {
-        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: 0, error: remoteErrors.join(" · ") };
+        return { ok: false, mode: options.mode, counts: { ...counts, jobs: jobIds.size, subtasks: 0 }, error: remoteErrors.join(" · ") };
       }
     }
 
     const subtasksToDelete = subtasks.filter((subtask) => jobIds.has(subtask.jobId));
     const subtaskIds = new Set(subtasksToDelete.map((subtask) => subtask.id));
-    if (isSupabaseConfigured && supabase && jobIds.size > 0) {
+    if (areas.has("operational") && isSupabaseConfigured && supabase && jobIds.size > 0) {
       const remoteTaskResult = await supabase.from("job_tasks").select("id").in("job_id", Array.from(jobIds));
       if (remoteTaskResult.error) {
-        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size, error: `job_tasks: ${remoteTaskResult.error.message}` };
+        return { ok: false, mode: options.mode, counts: { ...counts, jobs: jobIds.size, subtasks: subtaskIds.size }, error: `job_tasks: ${remoteTaskResult.error.message}` };
       }
       ((remoteTaskResult.data ?? []) as { id?: string | null }[]).forEach((row) => {
         if (row.id) subtaskIds.add(row.id);
       });
     }
-    if (jobIds.size === 0 && subtaskIds.size === 0) return { ok: true, deletedJobs: 0, deletedSubtasks: 0 };
 
-    setLocalArchivedJobs((current) => {
-      const next = { ...current };
-      jobIds.forEach((id) => { delete next[id]; });
-      saveLocalArchivedJobs(next);
-      return next;
-    });
-    setLocalJobs((current) => {
-      const next = { ...current };
-      jobIds.forEach((id) => { delete next[id]; });
-      saveLocalJobs(next);
-      return next;
-    });
-    setLocalSubtasks((current) => {
-      const next = { ...current };
-      jobIds.forEach((id) => { delete next[id]; });
-      saveLocalSubtasks(next);
-      return next;
-    });
-    setDispatchAssignmentOverrides((current) => {
-      const next = { ...current };
-      subtaskIds.forEach((id) => { delete next[id]; });
-      saveDispatchAssignmentOverrides(next);
-      return next;
-    });
-    setJobs((current) => current.filter((job) => !jobIds.has(job.id)));
-    setSubtasks((current) => current.filter((subtask) => !subtaskIds.has(subtask.id)));
-    setDriverLocations((current) => {
-      const next = current.filter((location) => !location.subtaskId || !subtaskIds.has(location.subtaskId));
-      saveDriverLocations(next);
-      return next;
-    });
-    if (selectedJobId && jobIds.has(selectedJobId)) setSelectedJobId("");
-    if (dispatchEditJobId && jobIds.has(dispatchEditJobId)) setDispatchEditJobId("");
+    if (areas.has("operational")) {
+      counts.jobs = jobIds.size;
+      counts.subtasks = subtaskIds.size;
+      if (options.mode === "archive") {
+        setLocalArchivedJobs((current) => {
+          const next = { ...current };
+          jobsToDelete.forEach((job) => { next[job.id] = archivedAt; });
+          saveLocalArchivedJobs(next);
+          return next;
+        });
+        setJobs((current) => current.map((job) => jobIds.has(job.id) ? { ...job, archivedAt } : job));
+      } else {
+        setLocalArchivedJobs((current) => {
+          const next = { ...current };
+          jobIds.forEach((id) => { delete next[id]; });
+          saveLocalArchivedJobs(next);
+          return next;
+        });
+        setLocalJobs((current) => {
+          const next = { ...current };
+          jobIds.forEach((id) => { delete next[id]; });
+          saveLocalJobs(next);
+          return next;
+        });
+        setLocalSubtasks((current) => {
+          const next = { ...current };
+          jobIds.forEach((id) => { delete next[id]; });
+          saveLocalSubtasks(next);
+          return next;
+        });
+        setDispatchAssignmentOverrides((current) => {
+          const next = { ...current };
+          subtaskIds.forEach((id) => { delete next[id]; });
+          saveDispatchAssignmentOverrides(next);
+          return next;
+        });
+        setJobs((current) => current.filter((job) => !jobIds.has(job.id)));
+        setSubtasks((current) => current.filter((subtask) => !subtaskIds.has(subtask.id)));
+        setDriverLocations((current) => {
+          const next = current.filter((location) => !location.subtaskId || !subtaskIds.has(location.subtaskId));
+          saveDriverLocations(next);
+          return next;
+        });
+      }
+      if (selectedJobId && jobIds.has(selectedJobId)) setSelectedJobId("");
+      if (dispatchEditJobId && jobIds.has(dispatchEditJobId)) setDispatchEditJobId("");
+    }
+
+    const fieldIds = new Set(fieldRecords.filter((field) => field.organizationId === organizationId).map((field) => field.id));
+    const driverIds = new Set(driverRecords.filter((driver) => driver.organizationId === organizationId).map((driver) => driver.id));
+    const vehicleIds = new Set(vehicleRecords.filter((vehicle) => vehicle.organizationId === organizationId).map((vehicle) => vehicle.id));
+    const implementIds = new Set(implementRecords.filter((implement) => implement.organizationId === organizationId).map((implement) => implement.id));
+    const taskTemplateIds = new Set(taskTemplateRecords.filter((template) => template.organizationId === organizationId && !isSystemTemplate(template)).map((template) => template.id));
+    const jobTypeIds = new Set(jobTypeRecords.filter((jobType) => jobType.organizationId === organizationId && !isSystemTemplate(jobType)).map((jobType) => jobType.id));
+
+    if (areas.has("fields")) {
+      counts.fields = fieldIds.size;
+      if (options.mode === "archive") {
+        setFieldRecords((current) => current.map((field) => fieldIds.has(field.id) ? { ...field, archivedAt } : field));
+        setLocalFields((current) => {
+          const next = { ...current };
+          fieldRecords.filter((field) => fieldIds.has(field.id)).forEach((field) => { next[field.id] = { ...field, archivedAt }; });
+          saveLocalFields(next);
+          return next;
+        });
+      } else {
+        setFieldRecords((current) => current.filter((field) => !fieldIds.has(field.id)));
+        setLocalFields((current) => {
+          const next = { ...current };
+          fieldIds.forEach((id) => { delete next[id]; });
+          saveLocalFields(next);
+          return next;
+        });
+        setDeletedFieldIds((current) => {
+          const next = Array.from(new Set([...current, ...Array.from(fieldIds)]));
+          saveDeletedFieldIds(next);
+          return next;
+        });
+        setJobs((current) => current.map((job) => ({ ...job, fieldIds: job.fieldIds.filter((fieldId) => !fieldIds.has(fieldId)) })));
+        setSubtasks((current) => current.filter((subtask) => !fieldIds.has(subtask.fieldId)));
+      }
+      if (selectedFieldId && fieldIds.has(selectedFieldId)) setSelectedFieldId("");
+    }
+
+    if (areas.has("personnel")) {
+      counts.personnel = driverIds.size;
+      if (options.mode === "archive") {
+        setDriverRecords((current) => current.map((driver) => driverIds.has(driver.id) ? { ...driver, archivedAt } : driver));
+        setLocalDrivers((current) => {
+          const next = { ...current };
+          driverRecords.filter((driver) => driverIds.has(driver.id)).forEach((driver) => { next[driver.id] = { ...driver, archivedAt }; });
+          saveLocalDrivers(next);
+          return next;
+        });
+      } else {
+        setDriverRecords((current) => current.filter((driver) => !driverIds.has(driver.id)));
+        setLocalDrivers((current) => {
+          const next = { ...current };
+          driverIds.forEach((id) => { delete next[id]; });
+          saveLocalDrivers(next);
+          return next;
+        });
+        setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeDriverIds: subtask.activeDriverIds.filter((driverId) => !driverIds.has(driverId)) })));
+      }
+    }
+
+    if (areas.has("vehicles")) {
+      counts.vehicles = vehicleIds.size;
+      if (options.mode === "archive") {
+        setVehicleRecords((current) => current.map((vehicle) => vehicleIds.has(vehicle.id) ? { ...vehicle, archivedAt } : vehicle));
+        setLocalVehicles((current) => {
+          const next = { ...current };
+          vehicleRecords.filter((vehicle) => vehicleIds.has(vehicle.id)).forEach((vehicle) => { next[vehicle.id] = { ...vehicle, archivedAt }; });
+          saveLocalVehicles(next);
+          return next;
+        });
+      } else {
+        setVehicleRecords((current) => current.filter((vehicle) => !vehicleIds.has(vehicle.id)));
+        setLocalVehicles((current) => {
+          const next = { ...current };
+          vehicleIds.forEach((id) => { delete next[id]; });
+          saveLocalVehicles(next);
+          return next;
+        });
+        setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeVehicleIds: (subtask.activeVehicleIds ?? []).filter((vehicleId) => !vehicleIds.has(vehicleId)) })));
+      }
+    }
+
+    if (areas.has("implements")) {
+      counts.implements = implementIds.size;
+      if (options.mode === "archive") {
+        setImplementRecords((current) => current.map((implement) => implementIds.has(implement.id) ? { ...implement, archivedAt } : implement));
+      } else {
+        setImplementRecords((current) => current.filter((implement) => !implementIds.has(implement.id)));
+        setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeImplementIds: (subtask.activeImplementIds ?? []).filter((implementId) => !implementIds.has(implementId)) })));
+      }
+    }
+
+    if (areas.has("templates")) {
+      counts.templates = taskTemplateIds.size + jobTypeIds.size;
+      if (options.mode === "archive") {
+        setTaskTemplateRecords((current) => current.map((template) => taskTemplateIds.has(template.id) ? { ...template, archivedAt } : template));
+        setLocalTaskTemplates((current) => {
+          const next = { ...current };
+          taskTemplateRecords.filter((template) => taskTemplateIds.has(template.id)).forEach((template) => { next[template.id] = { ...template, archivedAt }; });
+          saveLocalTaskTemplates(next);
+          return next;
+        });
+        setJobTypeRecords((current) => current.map((jobType) => jobTypeIds.has(jobType.id) ? { ...jobType, archivedAt } : jobType));
+        setLocalJobTypes((current) => {
+          const next = { ...current };
+          jobTypeRecords.filter((jobType) => jobTypeIds.has(jobType.id)).forEach((jobType) => { next[jobType.id] = { ...jobType, archivedAt }; });
+          saveLocalJobTypes(next);
+          return next;
+        });
+      } else {
+        setTaskTemplateRecords((current) => current.filter((template) => !taskTemplateIds.has(template.id)));
+        setLocalTaskTemplates((current) => {
+          const next = { ...current };
+          taskTemplateIds.forEach((id) => { delete next[id]; });
+          saveLocalTaskTemplates(next);
+          return next;
+        });
+        setJobTypeRecords((current) => current.filter((jobType) => !jobTypeIds.has(jobType.id)));
+        setLocalJobTypes((current) => {
+          const next = { ...current };
+          jobTypeIds.forEach((id) => { delete next[id]; });
+          saveLocalJobTypes(next);
+          return next;
+        });
+      }
+    }
 
     if (isSupabaseConfigured && supabase) {
       const jobIdList = Array.from(jobIds);
       const subtaskIdList = Array.from(subtaskIds);
       const errors: string[] = [];
-      if (subtaskIdList.length > 0) {
+      if (areas.has("operational") && options.mode === "archive" && jobIdList.length > 0) {
+        const { error } = await supabase.from("jobs").update({ archived_at: archivedAt }).in("id", jobIdList);
+        if (error) errors.push(`jobs/archive: ${error.message}`);
+      }
+      if (areas.has("operational") && options.mode === "delete" && subtaskIdList.length > 0) {
         const tables = ["driver_locations", "task_reports", "task_assignments", "job_tasks"];
         for (const table of tables) {
           const column = table === "driver_locations" ? "subtask_id" : table === "job_tasks" ? "id" : "job_task_id";
@@ -2436,19 +2581,57 @@ export function App() {
           if (error) errors.push(`${table}: ${error.message}`);
         }
       }
-      if (jobIdList.length > 0) {
+      if (areas.has("operational") && options.mode === "delete" && jobIdList.length > 0) {
         const jobFieldResult = await supabase.from("job_fields").delete().in("job_id", jobIdList);
         if (jobFieldResult.error) errors.push(`job_fields: ${jobFieldResult.error.message}`);
         const jobResult = await supabase.from("jobs").delete().in("id", jobIdList);
         if (jobResult.error) errors.push(`jobs: ${jobResult.error.message}`);
       }
+      if (areas.has("fields") && fieldIds.size > 0) {
+        if (options.mode === "archive") {
+          const { error } = await supabase.from("fields").update({ archived_at: archivedAt }).in("id", Array.from(fieldIds));
+          if (error) errors.push(`fields/archive: ${error.message}`);
+        } else {
+          const fieldList = Array.from(fieldIds);
+          const boundaryResult = await supabase.from("field_boundaries").delete().in("field_id", fieldList);
+          if (boundaryResult.error) errors.push(`field_boundaries: ${boundaryResult.error.message}`);
+          const hazardResult = await supabase.from("field_hazards").delete().in("field_id", fieldList);
+          if (hazardResult.error) errors.push(`field_hazards: ${hazardResult.error.message}`);
+          const fieldResult = await supabase.from("fields").delete().in("id", fieldList);
+          if (fieldResult.error) errors.push(`fields: ${fieldResult.error.message}`);
+        }
+      }
+      if (areas.has("personnel") && driverIds.size > 0) {
+        const { error } = options.mode === "archive"
+          ? await supabase.from("personnel_resources").update({ archived_at: archivedAt }).in("id", Array.from(driverIds))
+          : await supabase.from("personnel_resources").delete().in("id", Array.from(driverIds));
+        if (error) errors.push(`personnel_resources: ${error.message}`);
+      }
+      if (areas.has("vehicles") && vehicleIds.size > 0) {
+        const { error } = options.mode === "archive"
+          ? await supabase.from("vehicles").update({ archived_at: archivedAt }).in("id", Array.from(vehicleIds))
+          : await supabase.from("vehicles").delete().in("id", Array.from(vehicleIds));
+        if (error) errors.push(`vehicles: ${error.message}`);
+      }
+      if (areas.has("implements") && implementIds.size > 0) {
+        const { error } = options.mode === "archive"
+          ? await supabase.from("implements").update({ archived_at: archivedAt }).in("id", Array.from(implementIds))
+          : await supabase.from("implements").delete().in("id", Array.from(implementIds));
+        if (error) errors.push(`implements: ${error.message}`);
+      }
+      if (areas.has("templates") && taskTemplateIds.size > 0) {
+        const { error } = options.mode === "archive"
+          ? await supabase.from("task_templates").update({ archived_at: archivedAt }).in("id", Array.from(taskTemplateIds))
+          : await supabase.from("task_templates").delete().in("id", Array.from(taskTemplateIds));
+        if (error) errors.push(`task_templates: ${error.message}`);
+      }
       if (errors.length > 0) {
         console.error("Betriebsdaten konnten nicht vollständig in Supabase gelöscht werden", errors);
-        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size, error: errors.join(" · ") };
+        return { ok: false, mode: options.mode, counts, error: errors.join(" · ") };
       }
     }
 
-    return { ok: true, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size };
+    return { ok: true, mode: options.mode, counts };
   }
 
   async function syncFieldBoundary(field: Field) {

@@ -32,6 +32,23 @@ export type PersonnelAppAccess = {
 };
 
 export type JobCompletionStatus = "review" | "checked" | "billable" | "invoiced";
+export type OrganizationResetArea = "operational" | "fields" | "personnel" | "vehicles" | "implements" | "templates";
+export type OrganizationResetMode = "archive" | "delete";
+
+export type OrganizationResetOptions = {
+  mode: OrganizationResetMode;
+  areas: OrganizationResetArea[];
+};
+
+export type OrganizationResetResult = {
+  ok: boolean;
+  mode: OrganizationResetMode;
+  counts: Partial<Record<OrganizationResetArea, number>> & {
+    jobs?: number;
+    subtasks?: number;
+  };
+  error?: string;
+};
 
 export type OrganizationKind = "farmer" | "contractor" | "advisor" | "supplier" | "other";
 export type DriverJobVisibility = "contractor_all" | "organization_internal" | "organization_all" | "assigned_only";
