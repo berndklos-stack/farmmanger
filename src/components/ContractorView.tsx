@@ -601,6 +601,7 @@ export function ContractorView({
   });
   const [editingTimeEntryId, setEditingTimeEntryId] = useState("");
   const [timeEntryEditDraft, setTimeEntryEditDraft] = useState<TimeEntryEditDraft | null>(null);
+  const [deleteTimeEntryConfirm, setDeleteTimeEntryConfirm] = useState<DriverTimeEntry | null>(null);
   const [timeEntryEditNotice, setTimeEntryEditNotice] = useState("");
   const [organizationDirectoryMode, setOrganizationDirectoryMode] = useState<OrganizationDirectoryMode>("company");
   const [inactiveCollaborationIds, setInactiveCollaborationIds] = useState<Set<string>>(() => readStringSet(inactiveCollaborationsStorageKey));
@@ -2057,8 +2058,21 @@ export function ContractorView({
       setTimeEntryEditNotice(t("masterData.timeEntryLockedNotice"));
       return;
     }
-    if (!window.confirm(t("masterData.deleteTimeEntryConfirm"))) return;
-    void deleteStoredDriverTimeEntry(entry.id).then(setDriverTimeEntries);
+    setDeleteTimeEntryConfirm(entry);
+  }
+
+  function confirmDeleteDriverTimeEntry() {
+    if (!deleteTimeEntryConfirm) return;
+    const entryId = deleteTimeEntryConfirm.id;
+    setDeleteTimeEntryConfirm(null);
+    setTimeEntryEditNotice("");
+    setDriverTimeEntries((current) => current.filter((entry) => entry.id !== entryId));
+    void deleteStoredDriverTimeEntry(entryId).then(setDriverTimeEntries);
+  }
+
+  function cancelDeleteDriverTimeEntry() {
+    setDeleteTimeEntryConfirm(null);
+    setTimeEntryEditNotice("");
   }
 
   function lockDriverTimeEntries(entries: DriverTimeEntry[]) {
@@ -4717,6 +4731,32 @@ export function ContractorView({
                 <div className="modal-actions">
                   <button className="primary-action" onClick={saveTimeEntryEditDraft} type="button">
                     <Save size={16} /> {t("masterData.saveChanges")}
+                  </button>
+                </div>
+              </div>
+            </div>
+          )}
+          {deleteTimeEntryConfirm && (
+            <div className="modal-backdrop" role="presentation">
+              <div className="resource-modal warning-modal" role="dialog" aria-modal="true" aria-labelledby="delete-time-entry-title">
+                <div className="section-heading">
+                  <div>
+                    <h2 id="delete-time-entry-title">{t("masterData.deleteTimeEntryTitle")}</h2>
+                    <p>{t("masterData.deleteTimeEntryConfirm")}</p>
+                  </div>
+                  <button className="secondary-action icon-action" onClick={cancelDeleteDriverTimeEntry} type="button">
+                    <X size={18} />
+                  </button>
+                </div>
+                <div className={`driver-time-entry-edit-card ${deleteTimeEntryConfirm.kind}`}>
+                  <strong>{t(deleteTimeEntryConfirm.kind === "work" ? "driver.workTime" : deleteTimeEntryConfirm.kind === "pause" ? "driver.pause" : "driver.interruption")}</strong>
+                  <span>{new Date(deleteTimeEntryConfirm.startedAt).toLocaleString(i18n.language, { dateStyle: "short", timeStyle: "short" })}{deleteTimeEntryConfirm.endedAt ? `-${new Date(deleteTimeEntryConfirm.endedAt).toLocaleTimeString(i18n.language, { hour: "2-digit", minute: "2-digit" })}` : ` · ${t("driver.running")}`}</span>
+                  <span>{deleteTimeEntryConfirm.minutes ? formatDurationMinutes(deleteTimeEntryConfirm.minutes) : t("driver.running")}</span>
+                  <span>{[deleteTimeEntryConfirm.reason, deleteTimeEntryConfirm.note].filter(Boolean).join(" · ") || "-"}</span>
+                </div>
+                <div className="modal-actions">
+                  <button className="danger-action" onClick={confirmDeleteDriverTimeEntry} type="button">
+                    <Trash2 size={16} /> {t("masterData.deleteTimeEntry")}
                   </button>
                 </div>
               </div>

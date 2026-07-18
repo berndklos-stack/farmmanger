@@ -232,6 +232,7 @@
     "editTimeEntry": "Redigera",
     "editTimeEntryHint": "Korrigera start, slut, typ och koppling för tidsregistreringen.",
     "deleteTimeEntry": "Ta bort",
+    "deleteTimeEntryTitle": "Ta bort tidsregistrering",
     "lockTimeEntry": "Lås",
     "lockPayrollMonth": "Lås månad",
     "lockEmployeeMonth": "Lås medarbetare",

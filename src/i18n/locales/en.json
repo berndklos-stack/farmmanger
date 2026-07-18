@@ -232,6 +232,7 @@
     "editTimeEntry": "Edit",
     "editTimeEntryHint": "Correct start, end, type and assignment of the time entry.",
     "deleteTimeEntry": "Delete",
+    "deleteTimeEntryTitle": "Delete time entry",
     "lockTimeEntry": "Lock",
     "lockPayrollMonth": "Lock month",
     "lockEmployeeMonth": "Lock employee",

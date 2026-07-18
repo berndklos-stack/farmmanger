@@ -109,7 +109,17 @@ export async function loadDriverTimeEntries() {
   const remoteRows = ((data ?? []) as DriverTimeEntryRow[]).map(mapDriverTimeEntryRow);
   const merged = new Map<string, DriverTimeEntry>();
   localRows.forEach((entry) => merged.set(entry.id, entry));
-  remoteRows.forEach((entry) => merged.set(entry.id, entry));
+  remoteRows.forEach((entry) => {
+    const localEntry = merged.get(entry.id);
+    merged.set(entry.id, localEntry?.lockedAt && !entry.lockedAt
+      ? {
+          ...entry,
+          lockedAt: localEntry.lockedAt,
+          lockedById: localEntry.lockedById,
+          lockedByName: localEntry.lockedByName,
+        }
+      : entry);
+  });
   const next = Array.from(merged.values()).sort((a, b) => b.startedAt.localeCompare(a.startedAt));
   writeLocalDriverTimeEntries(next);
   return next;

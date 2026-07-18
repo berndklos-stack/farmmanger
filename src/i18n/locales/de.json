@@ -232,6 +232,7 @@
     "editTimeEntry": "Bearbeiten",
     "editTimeEntryHint": "Start, Ende, Art und Zuordnung der Zeitbuchung korrigieren.",
     "deleteTimeEntry": "Löschen",
+    "deleteTimeEntryTitle": "Zeitbuchung löschen",
     "lockTimeEntry": "Festschreiben",
     "lockPayrollMonth": "Monat festschreiben",
     "lockEmployeeMonth": "Mitarbeiter festschreiben",
