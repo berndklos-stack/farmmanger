@@ -10,10 +10,10 @@ import type { Driver, DriverLocation, ExternalContact, ExternalContactType, Fiel
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 import { LiveLocationMap } from "./LiveLocationMap";
 
-type ContractorSection = "overview" | "masterOverview" | "masterData" | "organizations" | "products" | "taskTemplates" | "jobTypes" | "programSettings";
+type ContractorSection = "overview" | "masterOverview" | "masterData" | "organizations" | "products" | "taskTemplates" | "jobTypes" | "programSettings" | "userManagement";
 type OrganizationDirectoryMode = "company" | "contacts" | "collaboration";
 type MasterResourceGroup = "personnel" | "vehicles" | "implements";
-type MasterDataFocus = { group: MasterResourceGroup; id: string } | { section: "programSettings" };
+type MasterDataFocus = { group: MasterResourceGroup; id: string } | { section: "programSettings" | "userManagement" };
 type DragResourceKind = "driver" | "vehicle" | "implement";
 type BillingUnit = "ha" | "hour" | "trip" | "quantity" | "flat";
 type TaskBillingCondition = {
@@ -4071,6 +4071,54 @@ export function ContractorView({
         }));
   }
 
+  function renderSupportUserManagementBlock() {
+    if (currentRole !== "support_admin") return null;
+    const managedOrganizations = activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor");
+    return (
+      <div className="resource-editor-block support-user-management-block">
+        <div className="section-heading compact-heading">
+          <div>
+            <h2><Users size={20} /> {t("contractor.userManagement")}</h2>
+            <p>{t("contractor.userManagementHint")}</p>
+          </div>
+          <span>{managedOrganizations.length}</span>
+        </div>
+        <div className="user-management-list">
+          {managedOrganizations.map((organization) => {
+            const counts = organizationOperationalCounts(organization.id);
+            return (
+              <article className="user-management-row" key={organization.id}>
+                <span className="user-management-kind">{t(`masterData.organizationKinds.${organization.kind}`)}</span>
+                <strong>{organization.name}</strong>
+                <span>{organization.email || t("masterData.noContactData")}</span>
+                <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
+                <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
+                <span className="user-management-actions">
+                  <button className="secondary-action compact-action" onClick={() => openOrganizationEditor(organization)} type="button">
+                    <UserPlus size={16} /> {t("contractor.manageLogin")}
+                  </button>
+                  <button
+                    className="danger-action compact-action"
+                    disabled={!onResetOrganizationOperationalData}
+                    onClick={() => setResetOrganizationConfirm(organization)}
+                    title={counts.jobs === 0 && counts.subtasks === 0 ? t("contractor.resetOrganizationPossibleHiddenData") : undefined}
+                    type="button"
+                  >
+                    <Trash2 size={16} /> {t("contractor.resetOrganizationData")}
+                  </button>
+                </span>
+              </article>
+            );
+          })}
+        </div>
+        {resetOrganizationStatus && <p className="permission-note">{resetOrganizationStatus}</p>}
+        {managedOrganizations.length === 0 && (
+          <p className="permission-note">{t("masterData.organizationDirectoryEmpty.contacts")}</p>
+        )}
+      </div>
+    );
+  }
+
   return (
     <section className="view-stack">
       {activeSection === "masterOverview" && (
@@ -5863,51 +5911,18 @@ export function ContractorView({
 	            <p className="resource-editor-summary">{t("contractor.mapProviderHint")}</p>
 	            <p className="resource-editor-summary">{t("masterData.employeeTimeEditWindowHint", { days: employeeTimeEditWindowDays })}</p>
           </div>
-          {currentRole === "support_admin" && (
-            <div className="resource-editor-block support-user-management-block">
-              <div className="section-heading compact-heading">
-                <div>
-                  <h2><Users size={20} /> {t("contractor.userManagement")}</h2>
-                  <p>{t("contractor.userManagementHint")}</p>
-                </div>
-                <span>{activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length}</span>
-              </div>
-              <div className="user-management-list">
-                {activeOrganizations
-                  .filter((organization) => organization.kind === "farmer" || organization.kind === "contractor")
-                  .map((organization) => {
-                    const counts = organizationOperationalCounts(organization.id);
-                    return (
-                      <article className="user-management-row" key={organization.id}>
-                        <span className="user-management-kind">{t(`masterData.organizationKinds.${organization.kind}`)}</span>
-                        <strong>{organization.name}</strong>
-                        <span>{organization.email || t("masterData.noContactData")}</span>
-                        <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
-                        <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
-                        <span className="user-management-actions">
-                          <button className="secondary-action compact-action" onClick={() => openOrganizationEditor(organization)} type="button">
-                            <UserPlus size={16} /> {t("contractor.manageLogin")}
-                          </button>
-                          <button
-                            className="danger-action compact-action"
-                            disabled={!onResetOrganizationOperationalData}
-                            onClick={() => setResetOrganizationConfirm(organization)}
-                            title={counts.jobs === 0 && counts.subtasks === 0 ? t("contractor.resetOrganizationPossibleHiddenData") : undefined}
-                            type="button"
-                          >
-                            <Trash2 size={16} /> {t("contractor.resetOrganizationData")}
-                          </button>
-                        </span>
-                      </article>
-                    );
-                  })}
-              </div>
-              {resetOrganizationStatus && <p className="permission-note">{resetOrganizationStatus}</p>}
-              {activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length === 0 && (
-                <p className="permission-note">{t("masterData.organizationDirectoryEmpty.contacts")}</p>
-              )}
+          {renderSupportUserManagementBlock()}
+        </div>
+      )}
+      {activeSection === "userManagement" && (
+        <div className="panel resource-master-page user-management-page">
+          <div className="section-heading master-detail-heading">
+            <h2>{t("contractor.userManagement")}</h2>
+            <div className="modal-actions">
+              <span>{activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length}</span>
             </div>
-          )}
+          </div>
+          {renderSupportUserManagementBlock()}
         </div>
       )}
       {isOrganizationModalOpen && (

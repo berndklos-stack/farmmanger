@@ -101,6 +101,7 @@
     "driver": "Fahrer",
     "contractor": "Einsatzleitung",
     "masterData": "Stammdaten",
+    "userManagement": "Benutzerverwaltung",
     "report": "Abschluss"
   },
   "terms": {

@@ -6,6 +6,7 @@ export type ViewKey =
   | "driver"
   | "contractor"
   | "masterData"
+  | "userManagement"
   | "report";
 
 export type UserRole =

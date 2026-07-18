@@ -9481,6 +9481,52 @@ select {
   max-width: min(62vw, 720px);
 }
 
+/* Program settings and support user management need one reliable page scrollbar;
+   the generic master-data layout otherwise hides overflow before long lists can finish. */
+.content > .view-stack:has(> .program-settings-page),
+.content > .view-stack:has(> .user-management-page) {
+  min-height: 0;
+  overflow: hidden;
+  padding-bottom: 0;
+}
+
+.view-stack > .program-settings-page,
+.view-stack > .user-management-page {
+  align-content: start;
+  display: grid;
+  height: calc(100dvh - 122px);
+  max-height: calc(100dvh - 122px);
+  overflow-x: hidden;
+  overflow-y: scroll;
+  padding-bottom: 56px;
+  scrollbar-color: #8fa584 #eef5e9;
+  scrollbar-gutter: stable;
+  scrollbar-width: thin;
+}
+
+.view-stack > .program-settings-page::-webkit-scrollbar,
+.view-stack > .user-management-page::-webkit-scrollbar {
+  width: 12px;
+}
+
+.view-stack > .program-settings-page::-webkit-scrollbar-track,
+.view-stack > .user-management-page::-webkit-scrollbar-track {
+  background: #eef5e9;
+}
+
+.view-stack > .program-settings-page::-webkit-scrollbar-thumb,
+.view-stack > .user-management-page::-webkit-scrollbar-thumb {
+  background: #8fa584;
+  border: 3px solid #eef5e9;
+  border-radius: 999px;
+}
+
+.program-settings-page .user-management-list,
+.user-management-page .user-management-list {
+  max-height: none;
+  overflow: visible;
+}
+
 @media (max-width: 760px) {
   .content > .view-stack:has(> .resource-master-page) {
     overflow: visible;

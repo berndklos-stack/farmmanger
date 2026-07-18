@@ -101,6 +101,7 @@
     "driver": "Driver",
     "contractor": "Dispatch",
     "masterData": "Master data",
+    "userManagement": "User management",
     "report": "Completion"
   },
   "terms": {

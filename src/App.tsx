@@ -40,11 +40,12 @@ const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
   { key: "driver", labelKey: "nav.driver", icon: Smartphone },
   { key: "contractor", labelKey: "nav.contractor", icon: Users },
   { key: "masterData", labelKey: "nav.masterData", icon: Database },
+  { key: "userManagement", labelKey: "nav.userManagement", icon: Users },
   { key: "report", labelKey: "nav.report", icon: FileText },
 ];
 
 type AppMode = "admin" | "driver" | "auto";
-type MasterDataFocus = { group: "personnel" | "vehicles" | "implements"; id: string } | { section: "programSettings" };
+type MasterDataFocus = { group: "personnel" | "vehicles" | "implements"; id: string } | { section: "programSettings" | "userManagement" };
 
 function getAppModeFromPath(pathname = window.location.pathname): AppMode {
   const normalized = pathname.toLowerCase();
@@ -1311,7 +1312,7 @@ export function App() {
       return navItems.filter((item) => allowed.has(item.key));
     }
     if (currentRole === "driver") return navItems.filter((item) => item.key === "driver");
-    if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
+    if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "userManagement", "report"].includes(item.key));
     if (currentRole === "contractor_admin") return navItems.filter((item) => ["dashboard", "fields", "contractor", "masterData", "jobs", "report"].includes(item.key));
     if (currentRole === "farmer_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
     if (currentRole === "farmer_employee") return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
@@ -3922,6 +3923,19 @@ async function addDriver(driver: Driver) {
             onUpdateJob={updateJob}
             variant="masterData"
             masterDataFocus={masterDataFocus}
+            onResetOrganizationOperationalData={resetOrganizationOperationalData}
+          />
+        )}
+        {activeView === "userManagement" && (
+          <ContractorView
+            subtasks={subtasks}
+            jobs={[...activeJobs, ...archivedJobs]}
+            driverLocations={driverLocations}
+            onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
+            onUpdateSubtask={updateSubtask}
+            onUpdateJob={updateJob}
+            variant="masterData"
+            masterDataFocus={{ section: "userManagement" }}
             onResetOrganizationOperationalData={resetOrganizationOperationalData}
           />
         )}
