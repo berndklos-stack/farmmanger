@@ -1176,6 +1176,7 @@
     "resetOrganizationSuccess": "{{organization}} zurückgesetzt: {{jobs}} Aufträge und {{subtasks}} Teilaufträge gelöscht.",
     "resetOrganizationError": "{{organization}} konnte nicht vollständig zurückgesetzt werden: {{error}}",
     "resetOrganizationUnknownError": "Unbekannter Fehler",
+    "resetOrganizationPossibleHiddenData": "Auch bei 0 sichtbaren Aufträgen werden Supabase-Reste dieses Betriebs geprüft.",
     "standardVehiclePlanning": "Standardmaschine bei Personalplanung",
     "standardVehicleNever": "Nicht automatisch mitplanen",
     "standardVehicleAutomatic": "Standardmaschine automatisch mitplanen",

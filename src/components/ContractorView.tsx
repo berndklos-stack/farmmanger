@@ -5864,7 +5864,7 @@ export function ContractorView({
 	            <p className="resource-editor-summary">{t("masterData.employeeTimeEditWindowHint", { days: employeeTimeEditWindowDays })}</p>
           </div>
           {currentRole === "support_admin" && (
-            <div className="resource-editor-block">
+            <div className="resource-editor-block support-user-management-block">
               <div className="section-heading compact-heading">
                 <div>
                   <h2><Users size={20} /> {t("contractor.userManagement")}</h2>
@@ -5890,8 +5890,9 @@ export function ContractorView({
                           </button>
                           <button
                             className="danger-action compact-action"
-                            disabled={!onResetOrganizationOperationalData || (counts.jobs === 0 && counts.subtasks === 0)}
+                            disabled={!onResetOrganizationOperationalData}
                             onClick={() => setResetOrganizationConfirm(organization)}
+                            title={counts.jobs === 0 && counts.subtasks === 0 ? t("contractor.resetOrganizationPossibleHiddenData") : undefined}
                             type="button"
                           >
                             <Trash2 size={16} /> {t("contractor.resetOrganizationData")}

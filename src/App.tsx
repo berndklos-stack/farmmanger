@@ -2350,8 +2350,43 @@ export function App() {
       || job.fieldIds.some((fieldId) => organizationFieldIds.has(fieldId))
     ));
     const jobIds = new Set(jobsToDelete.map((job) => job.id));
+
+    if (isSupabaseConfigured && supabase) {
+      const remoteErrors: string[] = [];
+      const addRemoteJobIds = (rows: { id?: string | null; job_id?: string | null }[] | null) => {
+        (rows ?? []).forEach((row) => {
+          const id = row.id ?? row.job_id;
+          if (id) jobIds.add(id);
+        });
+      };
+      const farmerResult = await supabase.from("jobs").select("id").eq("farmer_organization_id", organizationId);
+      if (farmerResult.error) remoteErrors.push(`jobs/farmer: ${farmerResult.error.message}`);
+      else addRemoteJobIds(farmerResult.data as { id?: string | null }[]);
+      const contractorResult = await supabase.from("jobs").select("id").eq("contractor_organization_id", organizationId);
+      if (contractorResult.error) remoteErrors.push(`jobs/contractor: ${contractorResult.error.message}`);
+      else addRemoteJobIds(contractorResult.data as { id?: string | null }[]);
+      const organizationFieldIdList = Array.from(organizationFieldIds);
+      if (organizationFieldIdList.length > 0) {
+        const fieldJobResult = await supabase.from("job_fields").select("job_id").in("field_id", organizationFieldIdList);
+        if (fieldJobResult.error) remoteErrors.push(`job_fields: ${fieldJobResult.error.message}`);
+        else addRemoteJobIds(fieldJobResult.data as { job_id?: string | null }[]);
+      }
+      if (remoteErrors.length > 0) {
+        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: 0, error: remoteErrors.join(" · ") };
+      }
+    }
+
     const subtasksToDelete = subtasks.filter((subtask) => jobIds.has(subtask.jobId));
     const subtaskIds = new Set(subtasksToDelete.map((subtask) => subtask.id));
+    if (isSupabaseConfigured && supabase && jobIds.size > 0) {
+      const remoteTaskResult = await supabase.from("job_tasks").select("id").in("job_id", Array.from(jobIds));
+      if (remoteTaskResult.error) {
+        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size, error: `job_tasks: ${remoteTaskResult.error.message}` };
+      }
+      ((remoteTaskResult.data ?? []) as { id?: string | null }[]).forEach((row) => {
+        if (row.id) subtaskIds.add(row.id);
+      });
+    }
     if (jobIds.size === 0 && subtaskIds.size === 0) return { ok: true, deletedJobs: 0, deletedSubtasks: 0 };
 
     setLocalArchivedJobs((current) => {

@@ -1176,6 +1176,7 @@
     "resetOrganizationSuccess": "{{organization}} återställt: {{jobs}} uppdrag och {{subtasks}} deluppdrag togs bort.",
     "resetOrganizationError": "{{organization}} kunde inte återställas helt: {{error}}",
     "resetOrganizationUnknownError": "Okänt fel",
+    "resetOrganizationPossibleHiddenData": "Även vid 0 synliga uppdrag kontrolleras dolda Supabase-rester för företaget.",
     "standardVehiclePlanning": "Standardmaskin vid personalplanering",
     "standardVehicleNever": "Planera inte automatiskt",
     "standardVehicleAutomatic": "Planera standardmaskin automatiskt",

@@ -2504,7 +2504,9 @@ textarea:focus-visible {
 .user-management-list {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  overflow: hidden;
+  max-height: min(42dvh, 520px);
+  overflow: auto;
+  scrollbar-gutter: stable;
 }
 
 .user-management-row {
@@ -2572,6 +2574,16 @@ textarea:focus-visible {
 .reset-organization-summary small {
   color: var(--color-muted);
   font-weight: 800;
+}
+
+.support-user-management-block {
+  min-height: 0;
+}
+
+.support-user-management-block .section-heading {
+  position: sticky;
+  top: 67px;
+  z-index: 24;
 }
 
 .organization-login-row {

@@ -1175,6 +1175,7 @@
     "resetOrganizationSuccess": "{{organization}} reset: {{jobs}} jobs and {{subtasks}} subtasks deleted.",
     "resetOrganizationError": "{{organization}} could not be fully reset: {{error}}",
     "resetOrganizationUnknownError": "Unknown error",
+    "resetOrganizationPossibleHiddenData": "Even with 0 visible jobs, hidden Supabase remnants for this business are checked.",
     "standardVehiclePlanning": "Default machine when planning personnel",
     "standardVehicleNever": "Do not plan automatically",
     "standardVehicleAutomatic": "Plan default machine automatically",
