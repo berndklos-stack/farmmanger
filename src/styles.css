@@ -2510,13 +2510,11 @@ textarea:focus-visible {
 .user-management-row {
   align-items: center;
   background: var(--color-panel);
-  border: 0;
   border-bottom: 1px solid var(--color-border);
   color: var(--color-text);
-  cursor: pointer;
   display: grid;
   gap: 12px;
-  grid-template-columns: 140px minmax(180px, 1.3fr) minmax(180px, 1fr) minmax(220px, 1.4fr) max-content;
+  grid-template-columns: 130px minmax(160px, 1.2fr) minmax(170px, 1fr) minmax(200px, 1.2fr) minmax(150px, .8fr) max-content;
   padding: 12px 14px;
   text-align: left;
   width: 100%;
@@ -2552,6 +2550,28 @@ textarea:focus-visible {
   font-weight: 800;
   gap: 6px;
   justify-content: flex-end;
+}
+
+.user-management-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.reset-organization-summary {
+  background: #fff8d8;
+  border: 1px solid #eadb94;
+  border-radius: 8px;
+  display: grid;
+  gap: 6px;
+  padding: 12px;
+}
+
+.reset-organization-summary span,
+.reset-organization-summary small {
+  color: var(--color-muted);
+  font-weight: 800;
 }
 
 .organization-login-row {
@@ -2603,6 +2623,10 @@ textarea:focus-visible {
   }
 
   .user-management-action {
+    justify-content: flex-start;
+  }
+
+  .user-management-actions {
     justify-content: flex-start;
   }
 

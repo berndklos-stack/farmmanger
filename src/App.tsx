@@ -2339,6 +2339,82 @@ export function App() {
     }
   }
 
+  async function resetOrganizationOperationalData(organizationId: string) {
+    if (currentRole !== "support_admin") {
+      return { ok: false, deletedJobs: 0, deletedSubtasks: 0, error: t("permissions.readOnly") };
+    }
+    const organizationFieldIds = new Set(fieldRecords.filter((field) => field.organizationId === organizationId).map((field) => field.id));
+    const jobsToDelete = jobs.filter((job) => (
+      job.farmerOrganizationId === organizationId
+      || job.contractorOrganizationId === organizationId
+      || job.fieldIds.some((fieldId) => organizationFieldIds.has(fieldId))
+    ));
+    const jobIds = new Set(jobsToDelete.map((job) => job.id));
+    const subtasksToDelete = subtasks.filter((subtask) => jobIds.has(subtask.jobId));
+    const subtaskIds = new Set(subtasksToDelete.map((subtask) => subtask.id));
+    if (jobIds.size === 0 && subtaskIds.size === 0) return { ok: true, deletedJobs: 0, deletedSubtasks: 0 };
+
+    setLocalArchivedJobs((current) => {
+      const next = { ...current };
+      jobIds.forEach((id) => { delete next[id]; });
+      saveLocalArchivedJobs(next);
+      return next;
+    });
+    setLocalJobs((current) => {
+      const next = { ...current };
+      jobIds.forEach((id) => { delete next[id]; });
+      saveLocalJobs(next);
+      return next;
+    });
+    setLocalSubtasks((current) => {
+      const next = { ...current };
+      jobIds.forEach((id) => { delete next[id]; });
+      saveLocalSubtasks(next);
+      return next;
+    });
+    setDispatchAssignmentOverrides((current) => {
+      const next = { ...current };
+      subtaskIds.forEach((id) => { delete next[id]; });
+      saveDispatchAssignmentOverrides(next);
+      return next;
+    });
+    setJobs((current) => current.filter((job) => !jobIds.has(job.id)));
+    setSubtasks((current) => current.filter((subtask) => !subtaskIds.has(subtask.id)));
+    setDriverLocations((current) => {
+      const next = current.filter((location) => !location.subtaskId || !subtaskIds.has(location.subtaskId));
+      saveDriverLocations(next);
+      return next;
+    });
+    if (selectedJobId && jobIds.has(selectedJobId)) setSelectedJobId("");
+    if (dispatchEditJobId && jobIds.has(dispatchEditJobId)) setDispatchEditJobId("");
+
+    if (isSupabaseConfigured && supabase) {
+      const jobIdList = Array.from(jobIds);
+      const subtaskIdList = Array.from(subtaskIds);
+      const errors: string[] = [];
+      if (subtaskIdList.length > 0) {
+        const tables = ["driver_locations", "task_reports", "task_assignments", "job_tasks"];
+        for (const table of tables) {
+          const column = table === "driver_locations" ? "subtask_id" : table === "job_tasks" ? "id" : "job_task_id";
+          const { error } = await supabase.from(table).delete().in(column, subtaskIdList);
+          if (error) errors.push(`${table}: ${error.message}`);
+        }
+      }
+      if (jobIdList.length > 0) {
+        const jobFieldResult = await supabase.from("job_fields").delete().in("job_id", jobIdList);
+        if (jobFieldResult.error) errors.push(`job_fields: ${jobFieldResult.error.message}`);
+        const jobResult = await supabase.from("jobs").delete().in("id", jobIdList);
+        if (jobResult.error) errors.push(`jobs: ${jobResult.error.message}`);
+      }
+      if (errors.length > 0) {
+        console.error("Betriebsdaten konnten nicht vollständig in Supabase gelöscht werden", errors);
+        return { ok: false, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size, error: errors.join(" · ") };
+      }
+    }
+
+    return { ok: true, deletedJobs: jobIds.size, deletedSubtasks: subtaskIds.size };
+  }
+
   async function syncFieldBoundary(field: Field) {
     if (!isSupabaseConfigured || !supabase) return;
     const { error: deleteError } = await supabase.from("field_boundaries").delete().eq("field_id", field.id);
@@ -3803,14 +3879,15 @@ async function addDriver(driver: Driver) {
         )}
         {activeView === "masterData" && (
           <ContractorView
-            subtasks={activeSubtasks}
-            jobs={activeJobs}
+            subtasks={subtasks}
+            jobs={[...activeJobs, ...archivedJobs]}
             driverLocations={driverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
             onUpdateJob={updateJob}
             variant="masterData"
             masterDataFocus={masterDataFocus}
+            onResetOrganizationOperationalData={resetOrganizationOperationalData}
           />
         )}
         {activeView === "report" && (

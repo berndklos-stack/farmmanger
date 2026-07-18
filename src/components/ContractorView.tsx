@@ -492,6 +492,7 @@ export function ContractorView({
   masterDataFocus,
   onOpenMasterData,
   onOpenJob,
+  onResetOrganizationOperationalData,
 }: {
   subtasks: Subtask[];
   jobs: Job[];
@@ -503,6 +504,7 @@ export function ContractorView({
   masterDataFocus?: MasterDataFocus | null;
   onOpenMasterData?: (focus: { group: MasterResourceGroup; id: string }) => void;
   onOpenJob?: (jobId: string) => void;
+  onResetOrganizationOperationalData?: (organizationId: string) => Promise<{ ok: boolean; deletedJobs: number; deletedSubtasks: number; error?: string }>;
 }) {
   const { t, i18n } = useTranslation();
   const {
@@ -603,6 +605,8 @@ export function ContractorView({
   const [timeEntryEditDraft, setTimeEntryEditDraft] = useState<TimeEntryEditDraft | null>(null);
   const [deleteTimeEntryConfirm, setDeleteTimeEntryConfirm] = useState<DriverTimeEntry | null>(null);
   const [timeEntryEditNotice, setTimeEntryEditNotice] = useState("");
+  const [resetOrganizationConfirm, setResetOrganizationConfirm] = useState<Organization | null>(null);
+  const [resetOrganizationStatus, setResetOrganizationStatus] = useState("");
   const [organizationDirectoryMode, setOrganizationDirectoryMode] = useState<OrganizationDirectoryMode>("company");
   const [inactiveCollaborationIds, setInactiveCollaborationIds] = useState<Set<string>>(() => readStringSet(inactiveCollaborationsStorageKey));
   const [collaborationInviteForm, setCollaborationInviteForm] = useState({
@@ -4036,6 +4040,37 @@ export function ContractorView({
     );
   }
 
+  function organizationOperationalCounts(organizationId: string) {
+    const organizationFieldIds = new Set(fields.filter((field) => field.organizationId === organizationId).map((field) => field.id));
+    const organizationJobs = jobs.filter((job) => (
+      job.farmerOrganizationId === organizationId
+      || job.contractorOrganizationId === organizationId
+      || job.fieldIds.some((fieldId) => organizationFieldIds.has(fieldId))
+    ));
+    const jobIds = new Set(organizationJobs.map((job) => job.id));
+    return {
+      jobs: organizationJobs.length,
+      subtasks: subtasks.filter((subtask) => jobIds.has(subtask.jobId)).length,
+    };
+  }
+
+  async function confirmResetOrganizationOperationalData() {
+    if (!resetOrganizationConfirm || !onResetOrganizationOperationalData) return;
+    const organization = resetOrganizationConfirm;
+    const result = await onResetOrganizationOperationalData(organization.id);
+    setResetOrganizationConfirm(null);
+    setResetOrganizationStatus(result.ok
+      ? t("contractor.resetOrganizationSuccess", {
+          organization: organization.name,
+          jobs: result.deletedJobs,
+          subtasks: result.deletedSubtasks,
+        })
+      : t("contractor.resetOrganizationError", {
+          organization: organization.name,
+          error: result.error ?? t("contractor.resetOrganizationUnknownError"),
+        }));
+  }
+
   return (
     <section className="view-stack">
       {activeSection === "masterOverview" && (
@@ -5840,18 +5875,33 @@ export function ContractorView({
               <div className="user-management-list">
                 {activeOrganizations
                   .filter((organization) => organization.kind === "farmer" || organization.kind === "contractor")
-                  .map((organization) => (
-                    <button className="user-management-row" key={organization.id} onClick={() => openOrganizationEditor(organization)} type="button">
-                      <span className="user-management-kind">{t(`masterData.organizationKinds.${organization.kind}`)}</span>
-                      <strong>{organization.name}</strong>
-                      <span>{organization.email || t("masterData.noContactData")}</span>
-                      <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
-                      <span className="user-management-action">
-                        <UserPlus size={16} /> {t("contractor.manageLogin")}
-                      </span>
-                    </button>
-                  ))}
+                  .map((organization) => {
+                    const counts = organizationOperationalCounts(organization.id);
+                    return (
+                      <article className="user-management-row" key={organization.id}>
+                        <span className="user-management-kind">{t(`masterData.organizationKinds.${organization.kind}`)}</span>
+                        <strong>{organization.name}</strong>
+                        <span>{organization.email || t("masterData.noContactData")}</span>
+                        <span>{formatOrganizationAddress(organization) || t("masterData.noAddress")}</span>
+                        <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
+                        <span className="user-management-actions">
+                          <button className="secondary-action compact-action" onClick={() => openOrganizationEditor(organization)} type="button">
+                            <UserPlus size={16} /> {t("contractor.manageLogin")}
+                          </button>
+                          <button
+                            className="danger-action compact-action"
+                            disabled={!onResetOrganizationOperationalData || (counts.jobs === 0 && counts.subtasks === 0)}
+                            onClick={() => setResetOrganizationConfirm(organization)}
+                            type="button"
+                          >
+                            <Trash2 size={16} /> {t("contractor.resetOrganizationData")}
+                          </button>
+                        </span>
+                      </article>
+                    );
+                  })}
               </div>
+              {resetOrganizationStatus && <p className="permission-note">{resetOrganizationStatus}</p>}
               {activeOrganizations.filter((organization) => organization.kind === "farmer" || organization.kind === "contractor").length === 0 && (
                 <p className="permission-note">{t("masterData.organizationDirectoryEmpty.contacts")}</p>
               )}
@@ -6242,6 +6292,37 @@ export function ContractorView({
             <p>{t("archive.confirmPermanentDelete", { item: deleteJobTypeConfirm.name })}</p>
             <div className="modal-actions">
               <button className="danger-action" onClick={confirmDeleteSelectedJobType} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>
+            </div>
+          </div>
+        </div>
+      )}
+      {resetOrganizationConfirm && (
+        <div className="modal-backdrop" role="presentation">
+          <div className="resource-modal warning-modal" role="dialog" aria-modal="true" aria-labelledby="reset-organization-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="reset-organization-title">{t("contractor.resetOrganizationDataTitle")}</h2>
+                <p>{t("contractor.resetOrganizationDataHint", { organization: resetOrganizationConfirm.name })}</p>
+              </div>
+              <button className="secondary-action icon-action" onClick={() => setResetOrganizationConfirm(null)} type="button">
+                <X size={18} />
+              </button>
+            </div>
+            {(() => {
+              const counts = organizationOperationalCounts(resetOrganizationConfirm.id);
+              return (
+                <div className="reset-organization-summary">
+                  <strong>{resetOrganizationConfirm.name}</strong>
+                  <span>{t(`masterData.organizationKinds.${resetOrganizationConfirm.kind}`)}</span>
+                  <span>{t("contractor.operationalDataCount", { jobs: counts.jobs, subtasks: counts.subtasks })}</span>
+                  <small>{t("contractor.resetOrganizationKeepsMasterData")}</small>
+                </div>
+              );
+            })()}
+            <div className="modal-actions">
+              <button className="danger-action" onClick={() => { void confirmResetOrganizationOperationalData(); }} type="button">
+                <Trash2 size={16} /> {t("contractor.resetOrganizationDataConfirm")}
+              </button>
             </div>
           </div>
         </div>
