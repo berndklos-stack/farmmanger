@@ -2504,7 +2504,7 @@ textarea:focus-visible {
 .user-management-list {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
-  max-height: min(42dvh, 520px);
+  max-height: min(52dvh, 680px);
   overflow: auto;
   scrollbar-gutter: stable;
 }
@@ -2584,6 +2584,21 @@ textarea:focus-visible {
   position: sticky;
   top: 67px;
   z-index: 24;
+}
+
+.view-stack > .program-settings-page {
+  align-content: start;
+  overflow: auto;
+  scrollbar-gutter: stable;
+}
+
+.program-settings-page .support-user-management-block {
+  padding-bottom: 20px;
+}
+
+.program-settings-page .user-management-list {
+  max-height: none;
+  overflow: visible;
 }
 
 .organization-login-row {

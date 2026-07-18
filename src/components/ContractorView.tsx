@@ -5810,7 +5810,7 @@ export function ContractorView({
         </div>
       )}
       {activeSection === "programSettings" && (
-        <div className="panel resource-master-page">
+        <div className="panel resource-master-page program-settings-page">
           <div className="section-heading master-detail-heading">
             <h2>{t("contractor.programSettings")}</h2>
             <div className="modal-actions">
