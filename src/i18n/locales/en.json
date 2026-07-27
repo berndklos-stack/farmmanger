@@ -58,6 +58,7 @@
     "demoDriverOlof": "Driver Olof",
     "demoDriverTobias": "Driver Tobias",
     "profileMissing": "No profile was found for the signed-in user.",
+    "loginTimeout": "Sign-in is taking too long. Please check your internet connection and try again.",
     "supabaseRequired": "Supabase must be configured for real sign-in.",
     "driverAppRequired": "This account belongs to the driver app. Please open /fahrer.",
     "adminAppRequired": "This account belongs to the admin app. Please open /admin.",

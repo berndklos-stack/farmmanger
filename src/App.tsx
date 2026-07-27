@@ -201,6 +201,15 @@ function withMarkerJson(value: string | undefined | null, marker: string, data: 
   return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
 }
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+}
+
 function personnelAccessFromOperationType(value: string | undefined | null) {
   return parseMarkerJson<Partial<PersonnelAppAccess> & { employeeType?: PersonnelEmployeeType }>(value, personnelAccessMarker, {});
 }
@@ -1039,11 +1048,27 @@ export function App() {
       setAuthLoading(false);
       return;
     }
-    const { data, error } = await supabase
-      .from("profiles")
-      .select("*")
-      .eq("id", session.user.id)
-      .maybeSingle();
+    let profileResult: { data: unknown; error: { message?: string } | null };
+    try {
+      profileResult = await withTimeout(
+        Promise.resolve(
+          supabase
+            .from("profiles")
+            .select("*")
+            .eq("id", session.user.id)
+            .maybeSingle(),
+        ),
+        10000,
+        t("auth.loginTimeout"),
+      );
+    } catch (loadError) {
+      setAuthError(loadError instanceof Error ? loadError.message : t("auth.loginTimeout"));
+      setAuthProfile(null);
+      setAuthSession(null);
+      setAuthLoading(false);
+      return;
+    }
+    const { data, error } = profileResult;
     if (error || !data) {
       setAuthError(error?.message ?? t("auth.profileMissing"));
       setAuthProfile(null);
@@ -3652,7 +3677,19 @@ async function addDriver(driver: Driver) {
     }
     setAuthLoading(true);
     setAuthError("");
-    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
+    let signInResult: Awaited<ReturnType<typeof supabase.auth.signInWithPassword>>;
+    try {
+      signInResult = await withTimeout(
+        supabase.auth.signInWithPassword({ email: authEmail, password }),
+        12000,
+        t("auth.loginTimeout"),
+      );
+    } catch (signInError) {
+      setAuthError(signInError instanceof Error ? signInError.message : t("auth.loginTimeout"));
+      setAuthLoading(false);
+      return;
+    }
+    const { data: signInData, error } = signInResult;
     if (error) {
       let accessDriver = matchingDriver;
       if (!accessDriver) {
@@ -3729,14 +3766,21 @@ async function addDriver(driver: Driver) {
 
   async function signOut(options: { releaseAssignments?: boolean } = {}) {
     const releaseAssignments = options.releaseAssignments ?? true;
-    await sendCurrentDriverLocationBeforeSignOut();
+    setAuthLoading(false);
+    void sendCurrentDriverLocationBeforeSignOut().catch((error) => {
+      console.error("Abmelde-Standort konnte nicht gesendet werden", error);
+    });
     if (releaseAssignments) releaseCurrentDriverAssignmentsBeforeSignOut();
-    if (supabase) await supabase.auth.signOut();
     setAuthSession(null);
     setAuthProfile(null);
     setCurrentRoleState("farmer_admin");
     window.localStorage.setItem("farm-manager.role", "farmer_admin");
     setActiveView(initialViewForAppMode(appMode));
+    if (supabase) {
+      void withTimeout(supabase.auth.signOut(), 5000, "Abmeldung dauert zu lange").catch((error) => {
+        console.error("Supabase-Abmeldung konnte nicht abgeschlossen werden", error);
+      });
+    }
   }
 
   async function handoverCurrentDriverAssignments(nextDriverId: string) {

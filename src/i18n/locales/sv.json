@@ -58,6 +58,7 @@
     "demoDriverOlof": "Förare Olof",
     "demoDriverTobias": "Förare Tobias",
     "profileMissing": "Ingen profil hittades för den inloggade användaren.",
+    "loginTimeout": "Inloggningen tar för lång tid. Kontrollera internetanslutningen och försök igen.",
     "supabaseRequired": "Supabase måste vara konfigurerat för riktig inloggning.",
     "driverAppRequired": "Detta konto hör till förarappen. Öppna /fahrer.",
     "adminAppRequired": "Detta konto hör till adminappen. Öppna /admin.",
