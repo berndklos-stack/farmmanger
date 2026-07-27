@@ -1036,6 +1036,7 @@ export function App() {
   async function loadAuthProfile(session: Session | null) {
     if (!session || !supabase) {
       setAuthProfile(null);
+      setAuthLoading(false);
       return;
     }
     const { data, error } = await supabase
@@ -1047,6 +1048,7 @@ export function App() {
       setAuthError(error?.message ?? t("auth.profileMissing"));
       setAuthProfile(null);
       await supabase.auth.signOut();
+      setAuthLoading(false);
       return;
     }
     const profile = profileFromRow(data as ProfileRow);
@@ -1078,6 +1080,7 @@ export function App() {
       setActiveView(initialViewForAppMode(appMode));
       setAuthError(t(appMode === "driver" ? "auth.driverLoginRequired" : "auth.adminLoginRequired"));
       await supabase.auth.signOut();
+      setAuthLoading(false);
       return;
     }
     setAuthProfile(profileWithAccess);
@@ -1086,6 +1089,7 @@ export function App() {
     setAuthError("");
     if (profileWithAccess.role === "driver") setActiveView("driver");
     if (profileWithAccess.role !== "driver" && appMode !== "driver") setActiveView(profileWithAccess.allowedViews?.[0] ?? "dashboard");
+    setAuthLoading(false);
   }
 
   useEffect(() => {
@@ -3648,7 +3652,7 @@ async function addDriver(driver: Driver) {
     }
     setAuthLoading(true);
     setAuthError("");
-    const { error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
+    const { data: signInData, error } = await supabase.auth.signInWithPassword({ email: authEmail, password });
     if (error) {
       let accessDriver = matchingDriver;
       if (!accessDriver) {
@@ -3711,7 +3715,16 @@ async function addDriver(driver: Driver) {
         setAuthError(error.message);
       }
       setAuthLoading(false);
+      return;
     }
+    if (signInData.session) {
+      setAuthSession(signInData.session);
+      await loadAuthProfile(signInData.session);
+      return;
+    }
+    const { data: sessionData } = await supabase.auth.getSession();
+    setAuthSession(sessionData.session);
+    await loadAuthProfile(sessionData.session);
   }
 
   async function signOut(options: { releaseAssignments?: boolean } = {}) {
