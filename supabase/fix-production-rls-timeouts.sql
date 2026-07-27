@@ -65,7 +65,10 @@ end $$;
 -- Keep these helpers harmless if older policies or functions still reference them.
 -- The policies above no longer depend on them, but replacing them prevents old
 -- recursive helper definitions from continuing to hurt future changes.
-create or replace function public.current_organization_id()
+drop function if exists public.current_organization_id();
+drop function if exists public.current_user_role();
+
+create function public.current_organization_id()
 returns uuid
 language sql
 stable
@@ -75,7 +78,7 @@ as $$
   select nullif(current_setting('request.jwt.claims', true)::jsonb ->> 'organization_id', '')::uuid
 $$;
 
-create or replace function public.current_user_role()
+create function public.current_user_role()
 returns text
 language sql
 stable
