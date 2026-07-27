@@ -1138,6 +1138,7 @@ export function ContractorView({
   const [selectedOrganizationId, setSelectedOrganizationId] = useState(activeOrganizations[0]?.id ?? "");
   const selectedOrganization = organizations.find((organization) => organization.id === selectedOrganizationId) ?? visibleOrganizations[0];
   const canManageContactOrganizations = organizationDirectoryMode === "contacts" && (currentRole === "farmer_admin" || currentRole === "contractor_admin" || currentRole === "support_admin");
+  const canManageOrganizationLogin = activeSection === "userManagement" && currentRole === "support_admin";
   const canEditOrganizationRecord = (organization?: Organization) => (
     currentRole === "support_admin"
     || Boolean(organization?.id && authProfile?.organizationId && organization.id === authProfile.organizationId)
@@ -6182,7 +6183,7 @@ export function ContractorView({
                 ))}
               </div>
             </div>
-            {!creatingOrganization && selectedOrganization && ["farmer", "contractor"].includes(organizationForm.kind) && (
+            {canManageOrganizationLogin && !creatingOrganization && selectedOrganization && ["farmer", "contractor"].includes(organizationForm.kind) && (
               <div className="resource-editor-block contact-editor-block">
                 <div className="section-heading">
                   <h2>{t("masterData.organizationLoginTitle")}</h2>
