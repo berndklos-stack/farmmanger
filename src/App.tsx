@@ -1046,6 +1046,7 @@ export function App() {
     if (error || !data) {
       setAuthError(error?.message ?? t("auth.profileMissing"));
       setAuthProfile(null);
+      await supabase.auth.signOut();
       return;
     }
     const profile = profileFromRow(data as ProfileRow);
@@ -3779,7 +3780,7 @@ async function addDriver(driver: Driver) {
     }
     : basePermissions;
 
-  if ((appMode === "driver" && (!authProfile || authProfile.role !== "driver")) || (isSupabaseConfigured && !authSession && !authProfile)) {
+  if ((appMode === "driver" && (!authProfile || authProfile.role !== "driver")) || (isSupabaseConfigured && !authProfile)) {
     return <AuthLogin appMode={appMode} error={authError} isLoading={authLoading} onSignIn={signIn} />;
   }
 
