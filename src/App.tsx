@@ -926,8 +926,7 @@ function isSystemTemplate(item: TaskTemplate | JobType) {
 function visibleTemplateItems<T extends TaskTemplate | JobType>(items: T[], role: UserRole, organizationId?: string | null) {
   if (role === "support_admin") return items;
   if (!organizationId) return items.filter(isSystemTemplate);
-  const organizationItems = items.filter((item) => item.organizationId === organizationId);
-  return organizationItems.length > 0 ? organizationItems : items.filter(isSystemTemplate);
+  return items.filter((item) => item.organizationId === organizationId);
 }
 
 function cloneTaskTemplateForOrganization(template: TaskTemplate, organizationId: string): TaskTemplate {
@@ -1249,6 +1248,16 @@ export function App() {
   const dispatchEditJob = activeJobs.find((job) => job.id === dispatchEditJobId);
   const activeJobIds = useMemo(() => new Set(activeJobs.map((job) => job.id)), [activeJobs]);
   const activeSubtasks = useMemo(() => subtasks.filter((subtask) => activeJobIds.has(subtask.jobId)), [activeJobIds, subtasks]);
+  const visibleDriverLocations = useMemo(() => {
+    if (currentRole === "support_admin" || !authProfile?.organizationId) return driverLocations;
+    const scopedJobIds = new Set(scopedJobs.map((job) => job.id));
+    const scopedSubtaskIds = new Set(subtasks.filter((subtask) => scopedJobIds.has(subtask.jobId)).map((subtask) => subtask.id));
+    const scopedFieldIds = new Set(visibleFieldRecords.map((field) => field.id));
+    return driverLocations.filter((location) => (
+      (location.subtaskId && scopedSubtaskIds.has(location.subtaskId))
+      || (!location.subtaskId && location.fieldId && scopedFieldIds.has(location.fieldId))
+    ));
+  }, [authProfile?.organizationId, currentRole, driverLocations, scopedJobs, subtasks, visibleFieldRecords]);
   const visibleTaskTemplateRecords = useMemo(
     () => visibleTemplateItems(taskTemplateRecords, currentRole, authProfile?.organizationId),
     [authProfile?.organizationId, currentRole, taskTemplateRecords],
@@ -4082,7 +4091,7 @@ async function addDriver(driver: Driver) {
           <ContractorView
             subtasks={activeSubtasks}
             jobs={activeJobs}
-            driverLocations={driverLocations}
+            driverLocations={visibleDriverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
             onUpdateJob={updateJob}
@@ -4100,7 +4109,7 @@ async function addDriver(driver: Driver) {
           <ContractorView
             subtasks={subtasks}
             jobs={[...activeJobs, ...archivedJobs]}
-            driverLocations={driverLocations}
+            driverLocations={visibleDriverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
             onUpdateJob={updateJob}
@@ -4113,7 +4122,7 @@ async function addDriver(driver: Driver) {
           <ContractorView
             subtasks={subtasks}
             jobs={[...activeJobs, ...archivedJobs]}
-            driverLocations={driverLocations}
+            driverLocations={visibleDriverLocations}
             onRefreshDriverLocations={() => { void refreshDriverLocations(); }}
             onUpdateSubtask={updateSubtask}
             onUpdateJob={updateJob}

@@ -982,8 +982,18 @@ export function ContractorView({
   const farmerOrganizations = useMemo(() => visibleOrganizations.filter((organization) => organization.kind === "farmer"), [visibleOrganizations]);
   const contractorOrganizations = useMemo(() => visibleOrganizations.filter((organization) => organization.kind === "contractor"), [visibleOrganizations]);
   const partnerOrganizations = useMemo(() => visibleOrganizations.filter((organization) => !["farmer", "contractor"].includes(organization.kind)), [visibleOrganizations]);
-  const activeContactOrganizations = useMemo(() => activeOrganizations.filter((organization) => organization.id !== authProfile?.organizationId), [activeOrganizations, authProfile?.organizationId]);
-  const archivedContactOrganizations = useMemo(() => archivedOrganizations.filter((organization) => organization.id !== authProfile?.organizationId), [archivedOrganizations, authProfile?.organizationId]);
+  const ownContactOrganizationIds = useMemo(() => (
+    new Set([
+      ...ownExternalContacts.map((contact) => contact.linkedOrganizationId).filter((id): id is string => Boolean(id)),
+      ...collaborationOrganizationIds,
+    ])
+  ), [collaborationOrganizationIds, ownExternalContacts]);
+  const activeContactOrganizations = useMemo(() => activeOrganizations.filter((organization) => (
+    organization.id !== authProfile?.organizationId && ownContactOrganizationIds.has(organization.id)
+  )), [activeOrganizations, authProfile?.organizationId, ownContactOrganizationIds]);
+  const archivedContactOrganizations = useMemo(() => archivedOrganizations.filter((organization) => (
+    organization.id !== authProfile?.organizationId && ownContactOrganizationIds.has(organization.id)
+  )), [archivedOrganizations, authProfile?.organizationId, ownContactOrganizationIds]);
   const contactOrganizations = showArchivedOrganizations ? archivedContactOrganizations : activeContactOrganizations;
   const collaborationOrganizations = useMemo(() => contactOrganizations.filter((organization) => collaborationOrganizationIds.has(organization.id)), [collaborationOrganizationIds, contactOrganizations]);
   const directoryOrganizations = useMemo(() => {
