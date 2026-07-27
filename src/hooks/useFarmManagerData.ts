@@ -24,6 +24,15 @@ type RefreshDataOptions = {
 
 const personnelAccessMarker = "FM_PERSONNEL_ACCESS:";
 
+function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string) {
+  return Promise.race([
+    promise,
+    new Promise<T>((_resolve, reject) => {
+      window.setTimeout(() => reject(new Error(message)), timeoutMs);
+    }),
+  ]);
+}
+
 function stripMarkerBlock(value: string | undefined | null, marker: string) {
   return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
 }
@@ -757,6 +766,51 @@ export function useFarmManagerData(): DataState {
     }
     if (!silent) setState((current) => ({ ...current, isLoading: true, isDemoMode: false, error: undefined }));
 
+    let results: Array<{ data: unknown; error: { message: string } | null }>;
+    try {
+      results = await withTimeout(Promise.all([
+        supabase.from("fields").select("*").order("name"),
+        supabase.from("profiles").select("*").in("role", ["driver", "farmer_employee", "contractor_admin", "advisor"]).order("full_name"),
+        supabase.from("personnel_resources").select("*").order("full_name"),
+        supabase.from("vehicles").select("*").order("name"),
+        supabase.from("implements").select("*").order("name"),
+        supabase.from("organizations").select("*").order("name"),
+        supabase.from("field_boundaries").select("*"),
+        supabase.from("field_hazards").select("*"),
+        supabase.from("documents").select("*"),
+        supabase.from("jobs").select("*").order("created_at", { ascending: false }),
+        supabase.from("job_fields").select("*"),
+        supabase.from("job_tasks").select("*"),
+        supabase.from("task_assignments").select("*"),
+        supabase.from("task_reports").select("*"),
+        supabase.from("task_templates").select("*").order("name"),
+      ]), 12000, "Supabase lädt zu lange.");
+    } catch (error) {
+      const fallbackCache = readOfflineDataCache();
+      if (fallbackCache) {
+        setState({
+          ...fallbackCache,
+          isLoading: false,
+          error: error instanceof Error ? error.message : "Supabase lädt zu lange.",
+        });
+        return;
+      }
+      setState({
+        fields: [],
+        drivers: [],
+        vehicles: [],
+        implementsList: [],
+        organizations: [],
+        taskTemplates: [],
+        jobs: [],
+        subtasks: [],
+        isDemoMode: false,
+        isLoading: false,
+        error: error instanceof Error ? error.message : "Supabase lädt zu lange.",
+      });
+      return;
+    }
+
     const [
       fieldsResult,
       driversResult,
@@ -773,23 +827,7 @@ export function useFarmManagerData(): DataState {
       assignmentsResult,
       taskReportsResult,
       taskTemplatesResult,
-    ] = await Promise.all([
-      supabase.from("fields").select("*").order("name"),
-      supabase.from("profiles").select("*").in("role", ["driver", "farmer_employee", "contractor_admin", "advisor"]).order("full_name"),
-      supabase.from("personnel_resources").select("*").order("full_name"),
-      supabase.from("vehicles").select("*").order("name"),
-      supabase.from("implements").select("*").order("name"),
-      supabase.from("organizations").select("*").order("name"),
-      supabase.from("field_boundaries").select("*"),
-      supabase.from("field_hazards").select("*"),
-      supabase.from("documents").select("*"),
-      supabase.from("jobs").select("*").order("created_at", { ascending: false }),
-      supabase.from("job_fields").select("*"),
-      supabase.from("job_tasks").select("*"),
-      supabase.from("task_assignments").select("*"),
-      supabase.from("task_reports").select("*"),
-      supabase.from("task_templates").select("*").order("name"),
-    ]);
+    ] = results;
 
     const firstError = [
       fieldsResult.error,
