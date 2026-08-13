@@ -751,20 +751,20 @@ function saveLocalSubtasks(subtasks: Record<string, Subtask[]>) {
 }
 
 function mergeLocalJobs(loadedJobs: Job[], localJobs: Record<string, Job>, localArchivedJobs: Record<string, string>) {
+  if (isSupabaseConfigured) return mergeLocalArchivedJobs(loadedJobs, localArchivedJobs);
   const merged = new globalThis.Map<string, Job>();
   mergeLocalArchivedJobs(loadedJobs, localArchivedJobs).forEach((job) => merged.set(job.id, job));
   Object.values(localJobs).forEach((job) => {
-    if (isSupabaseConfigured && merged.has(job.id)) return;
     merged.set(job.id, localArchivedJobs[job.id] ? { ...job, archivedAt: localArchivedJobs[job.id] } : job);
   });
   return Array.from(merged.values());
 }
 
 function mergeLocalSubtasks(loadedSubtasks: Subtask[], localSubtasks: Record<string, Subtask[]>) {
+  if (isSupabaseConfigured) return loadedSubtasks;
   const merged = new globalThis.Map<string, Subtask>();
   loadedSubtasks.forEach((subtask) => merged.set(subtask.id, subtask));
   Object.values(localSubtasks).flat().forEach((subtask) => {
-    if (isSupabaseConfigured && merged.has(subtask.id)) return;
     merged.set(subtask.id, subtask);
   });
   return Array.from(merged.values());
@@ -1363,14 +1363,26 @@ export function App() {
   const activeSubtasks = useMemo(() => subtasks.filter((subtask) => activeJobIds.has(subtask.jobId)), [activeJobIds, subtasks]);
   const visibleDriverLocations = useMemo(() => {
     if (currentRole === "support_admin" || !authProfile?.organizationId) return driverLocations;
+    const organizationId = authProfile.organizationId;
     const scopedJobIds = new Set(scopedJobs.map((job) => job.id));
     const scopedSubtaskIds = new Set(subtasks.filter((subtask) => scopedJobIds.has(subtask.jobId)).map((subtask) => subtask.id));
     const scopedFieldIds = new Set(visibleFieldRecords.map((field) => field.id));
+    const ownDriverIds = new Set(driverRecords
+      .filter((driver) => driver.organizationId === organizationId)
+      .flatMap((driver) => [driver.id, driver.profileId].filter((id): id is string => Boolean(id))));
+    const ownDriverNames = new Set(driverRecords
+      .filter((driver) => driver.organizationId === organizationId)
+      .map((driver) => driver.name.trim().toLowerCase())
+      .filter(Boolean));
     return driverLocations.filter((location) => (
       (location.subtaskId && scopedSubtaskIds.has(location.subtaskId))
       || (!location.subtaskId && location.fieldId && scopedFieldIds.has(location.fieldId))
+      || (!location.subtaskId && !location.fieldId && (
+        ownDriverIds.has(location.driverId)
+        || ownDriverNames.has(location.driverName.trim().toLowerCase())
+      ))
     ));
-  }, [authProfile?.organizationId, currentRole, driverLocations, scopedJobs, subtasks, visibleFieldRecords]);
+  }, [authProfile?.organizationId, currentRole, driverLocations, driverRecords, scopedJobs, subtasks, visibleFieldRecords]);
   const visibleTaskTemplateRecords = useMemo(
     () => visibleTemplateItems(taskTemplateRecords, currentRole, authProfile?.organizationId),
     [authProfile?.organizationId, currentRole, taskTemplateRecords],
