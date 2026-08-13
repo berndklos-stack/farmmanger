@@ -1,8 +1,9 @@
-import { LogIn, Tractor } from "lucide-react";
+import { KeyRound, LogIn, Tractor } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
 
 type LoginAppMode = "admin" | "driver" | "auto";
+const DEMO_ACCESS_PASSWORD = "Nici1202";
 
 const demoAccounts = [
   { labelKey: "auth.demoSupport", email: "support@farm-manager.app", password: "1234", app: "admin" },
@@ -26,10 +27,12 @@ export function AuthLogin({
 }) {
   const { t } = useTranslation();
   const visibleDemoAccounts = demoAccounts.filter((account) => appMode === "auto" || account.app === appMode);
-  const defaultDemoAccount = visibleDemoAccounts[0] ?? demoAccounts[0];
   const showDemoAccounts = appMode !== "driver";
-  const [email, setEmail] = useState(appMode === "driver" ? "" : defaultDemoAccount.email);
-  const [password, setPassword] = useState(appMode === "driver" ? "" : defaultDemoAccount.password ?? "farm-manager-demo");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
+  const [demoAccessPassword, setDemoAccessPassword] = useState("");
+  const [demoUnlocked, setDemoUnlocked] = useState(false);
+  const [demoAccessError, setDemoAccessError] = useState("");
 
   async function submit() {
     await onSignIn(email.trim(), password);
@@ -39,6 +42,16 @@ export function AuthLogin({
     setEmail(nextEmail);
     setPassword(nextPassword);
     await onSignIn(nextEmail, nextPassword);
+  }
+
+  function unlockDemoAccounts() {
+    if (demoAccessPassword === DEMO_ACCESS_PASSWORD) {
+      setDemoUnlocked(true);
+      setDemoAccessError("");
+      return;
+    }
+
+    setDemoAccessError(t("auth.demoPasswordInvalid"));
   }
 
   return (
@@ -73,13 +86,42 @@ export function AuthLogin({
           </button>
         </div>
         {showDemoAccounts && (
-          <div className="demo-login-grid">
-            <span>{t("auth.demoAccounts")}</span>
-            {visibleDemoAccounts.map((account) => (
-              <button disabled={isLoading} key={account.email} onClick={() => useDemoAccount(account.email, account.password)} type="button">
-                {t(account.labelKey)}
-              </button>
-            ))}
+          <div className="demo-login-panel">
+            <div className="demo-login-lock">
+              <span>{t("auth.demoAccountsLocked")}</span>
+              {!demoUnlocked && (
+                <div className="demo-login-unlock-row">
+                  <input
+                    aria-label={t("auth.demoPassword")}
+                    autoComplete="off"
+                    onChange={(event) => {
+                      setDemoAccessPassword(event.target.value);
+                      setDemoAccessError("");
+                    }}
+                    onKeyDown={(event) => {
+                      if (event.key === "Enter") unlockDemoAccounts();
+                    }}
+                    placeholder={t("auth.demoPassword")}
+                    type="password"
+                    value={demoAccessPassword}
+                  />
+                  <button disabled={isLoading || !demoAccessPassword.trim()} onClick={unlockDemoAccounts} type="button">
+                    <KeyRound size={16} /> {t("auth.demoUnlock")}
+                  </button>
+                </div>
+              )}
+              {demoAccessError && <p className="auth-error">{demoAccessError}</p>}
+            </div>
+            {demoUnlocked && (
+              <div className="demo-login-grid">
+                <span>{t("auth.demoAccounts")}</span>
+                {visibleDemoAccounts.map((account) => (
+                  <button disabled={isLoading} key={account.email} onClick={() => useDemoAccount(account.email, account.password)} type="button">
+                    {t(account.labelKey)}
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
         )}
       </section>
