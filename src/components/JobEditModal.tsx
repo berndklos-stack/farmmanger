@@ -1,11 +1,24 @@
-import { Archive, RefreshCw, Save, Trash2, X } from "lucide-react";
-import { useEffect, useState } from "react";
+import { Archive, CheckCircle2, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
-import type { Job, Status, Subtask, SubtaskAssignment, WorkMode } from "../types";
+import { formatArea } from "../i18n/format";
+import type { Job, Status, Subtask, SubtaskAssignment, Task, TaskTemplate, WorkMode } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
 
 const nextStatuses: Status[] = ["offen", "reserviert", "in Arbeit", "pausiert", "teilweise erledigt", "erledigt", "Problem"];
+
+function parseEditTimeWindow(value: string) {
+  const dateMatch = value.match(/(\d{4}-\d{2}-\d{2})/);
+  const timeMatch = value.match(/(\d{2}:\d{2}|--:--)-(\d{2}:\d{2}|--:--)/);
+  const dateMode: "wish" | "fixed" | "" = value.includes("Fixtermin") || value.includes("Fixed") || value.includes("Fast") ? "fixed" : dateMatch ? "wish" : "";
+  return {
+    dateMode,
+    requestedDate: dateMatch?.[1] ?? "",
+    requestedStartTime: timeMatch?.[1] && timeMatch[1] !== "--:--" ? timeMatch[1] : "",
+    requestedEndTime: timeMatch?.[2] && timeMatch[2] !== "--:--" ? timeMatch[2] : "",
+  };
+}
 
 export function JobEditModal({
   job,
@@ -14,6 +27,7 @@ export function JobEditModal({
   showArchived = false,
   onClose,
   onUpdateJob,
+  onUpdateJobStructure,
   onUpdateSubtask,
   onSetStatus,
   onArchiveJob,
@@ -25,39 +39,247 @@ export function JobEditModal({
   showArchived?: boolean;
   onClose: () => void;
   onUpdateJob: (id: string, patch: Partial<Job>) => void | Promise<void>;
+  onUpdateJobStructure?: (id: string, job: Job, subtasks: Subtask[]) => void | Promise<void>;
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void | Promise<void>;
   onSetStatus: (id: string, status: Status) => void;
   onArchiveJob: (id: string) => void;
   onDeleteJob: (id: string) => void;
 }) {
-  const { t } = useTranslation();
-  const { drivers, vehicles, implementsList } = useAppData();
+  const { t, i18n } = useTranslation();
+  const { authProfile, currentRole, drivers, fields, jobTypes, organizations, organizationRelationships, taskTemplates, vehicles, implementsList } = useAppData();
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
+  const parsedInitialTimeWindow = parseEditTimeWindow(job.timeWindow);
   const [jobForm, setJobForm] = useState({
     title: job.title,
-    timeWindow: job.timeWindow,
+    selectedFarmerOrganizationId: job.farmerOrganizationId ?? "",
+    selectedContractorOrganizationId: job.contractorOrganizationId ?? "",
+    selectedJobTypeId: job.jobTypeId ?? "",
+    selectedFields: job.fieldIds,
+    selectedTasks: [] as string[],
+    taskToAdd: "",
+    dateMode: parsedInitialTimeWindow.dateMode,
+    requestedDate: parsedInitialTimeWindow.requestedDate,
+    requestedStartTime: parsedInitialTimeWindow.requestedStartTime,
+    requestedEndTime: parsedInitialTimeWindow.requestedEndTime,
     priority: job.priority ?? "normal",
     notes: job.notes,
     estimatedHours: job.estimatedHours ?? 0,
     plannedCrews: job.plannedCrews ?? 1,
   });
   const related = subtasks.filter((subtask) => subtask.jobId === job.id);
+  const activeRelationshipPartnerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (!authProfile?.organizationId) return ids;
+    organizationRelationships
+      .filter((relationship) => relationship.status === "active")
+      .forEach((relationship) => {
+        if (relationship.farmerOrganizationId === authProfile.organizationId) ids.add(relationship.contractorOrganizationId);
+        if (relationship.contractorOrganizationId === authProfile.organizationId) ids.add(relationship.farmerOrganizationId);
+      });
+    return ids;
+  }, [authProfile?.organizationId, organizationRelationships]);
+  const farmerOrganizations = organizations.filter((organization) => (
+    organization.kind === "farmer"
+    && !organization.archivedAt
+    && (
+      !(currentRole === "farmer_admin" || currentRole === "farmer_employee")
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+    )
+    && (
+      currentRole !== "contractor_admin"
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+      || activeRelationshipPartnerIds.has(organization.id)
+    )
+  ));
+  const contractorOrganizations = organizations.filter((organization) => (
+    organization.kind === "contractor"
+    && !organization.archivedAt
+    && (
+      currentRole !== "farmer_admin"
+      || !authProfile?.organizationId
+      || organization.id === authProfile.organizationId
+      || activeRelationshipPartnerIds.has(organization.id)
+    )
+  ));
+  const selectedFarmerOrganization = farmerOrganizations.find((organization) => organization.id === jobForm.selectedFarmerOrganizationId);
+  const selectedContractorOrganization = contractorOrganizations.find((organization) => organization.id === jobForm.selectedContractorOrganizationId);
+  const selectedJobType = jobTypes.find((jobType) => jobType.id === jobForm.selectedJobTypeId);
+  const selectedTaskOptions = jobForm.selectedTasks
+    .map((taskId) => taskTemplates.find((task) => task.id === taskId))
+    .filter((task): task is TaskTemplate => Boolean(task));
+  const dateLabel = jobForm.dateMode === "fixed" ? t("createJob.fixedDate") : t("createJob.requestedDate");
+  const plannedTimeWindow = jobForm.dateMode && jobForm.requestedDate
+    ? `${dateLabel}: ${jobForm.requestedDate}${jobForm.requestedStartTime || jobForm.requestedEndTime ? `, ${jobForm.requestedStartTime || "--:--"}-${jobForm.requestedEndTime || "--:--"}` : ""}`
+    : "";
+  const fieldsForSelectedFarmer = useMemo(() => (
+    jobForm.selectedFarmerOrganizationId
+      ? fields.filter((field) => field.organizationId === jobForm.selectedFarmerOrganizationId && !field.archivedAt)
+      : []
+  ), [fields, jobForm.selectedFarmerOrganizationId]);
+  const selectedFieldSet = useMemo(() => new Set(jobForm.selectedFields), [jobForm.selectedFields]);
+  const selectedAreaHa = jobForm.selectedFields.reduce((sum, fieldId) => sum + (fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0), 0);
 
   useEffect(() => {
+    const parsedTimeWindow = parseEditTimeWindow(job.timeWindow);
+    const jobTypeTaskIds = new Set((job.jobTypeId ? jobTypes.find((jobType) => jobType.id === job.jobTypeId)?.tasks ?? [] : []).map((task) => task.name));
+    const matchingTaskTemplateIds = job.tasks
+      .filter((task) => !jobTypeTaskIds.has(task.name))
+      .map((task) => taskTemplates.find((template) => template.name === task.name)?.id)
+      .filter((taskId): taskId is string => Boolean(taskId));
     setJobForm({
       title: job.title,
-      timeWindow: job.timeWindow,
+      selectedFarmerOrganizationId: job.farmerOrganizationId ?? "",
+      selectedContractorOrganizationId: job.contractorOrganizationId ?? "",
+      selectedJobTypeId: job.jobTypeId ?? "",
+      selectedFields: job.fieldIds,
+      selectedTasks: Array.from(new Set(matchingTaskTemplateIds)),
+      taskToAdd: "",
+      dateMode: parsedTimeWindow.dateMode,
+      requestedDate: parsedTimeWindow.requestedDate,
+      requestedStartTime: parsedTimeWindow.requestedStartTime,
+      requestedEndTime: parsedTimeWindow.requestedEndTime,
       priority: job.priority ?? "normal",
       notes: job.notes,
       estimatedHours: job.estimatedHours ?? 0,
       plannedCrews: job.plannedCrews ?? 1,
     });
-  }, [job]);
+  }, [job, jobTypes, taskTemplates]);
+
+  useEffect(() => {
+    setJobForm((current) => ({
+      ...current,
+      selectedFields: current.selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId)),
+    }));
+  }, [fieldsForSelectedFarmer]);
+
+  function addSelectedTask() {
+    if (!jobForm.taskToAdd) return;
+    setJobForm((current) => ({
+      ...current,
+      selectedTasks: current.selectedTasks.includes(current.taskToAdd) ? current.selectedTasks : [...current.selectedTasks, current.taskToAdd],
+      taskToAdd: "",
+    }));
+  }
+
+  function removeSelectedTask(taskId: string) {
+    setJobForm((current) => ({ ...current, selectedTasks: current.selectedTasks.filter((id) => id !== taskId) }));
+  }
+
+  function toggleSelectedField(fieldId: string) {
+    if (!fieldsForSelectedFarmer.some((field) => field.id === fieldId)) return;
+    setJobForm((current) => ({
+      ...current,
+      selectedFields: current.selectedFields.includes(fieldId)
+        ? current.selectedFields.filter((id) => id !== fieldId)
+        : [...current.selectedFields, fieldId],
+    }));
+  }
+
+  function selectAllFields() {
+    setJobForm((current) => ({ ...current, selectedFields: fieldsForSelectedFarmer.map((field) => field.id) }));
+  }
+
+  function templateToTask(taskOption: TaskTemplate): Task {
+    return {
+      id: crypto.randomUUID(),
+      name: taskOption.name,
+      subtasks: taskOption.workSteps,
+      mode: taskOption.mode,
+      allowMultipleWorkers: taskOption.mode !== "Einzelmodus",
+      maxVehicles: taskOption.mode === "Einzelmodus" ? 1 : taskOption.maxVehicles,
+      progressMetric: [taskOption.progressMetric],
+      requiredDrivers: taskOption.requiredDrivers,
+      requiredVehicles: taskOption.requiredVehicles,
+      requiredImplements: taskOption.requiredImplements,
+      estimatedHours: selectedAreaHa * taskOption.timePerHa,
+      timePerHa: taskOption.timePerHa,
+      targetValue: taskOption.progressMetric === "Menge" ? 25 : undefined,
+      plannedAmount: taskOption.progressMetric === "Menge" ? 25 : undefined,
+      unit: taskOption.unit || (taskOption.progressMetric === "Fläche" ? "ha" : taskOption.progressMetric === "Fuhren" ? t("driver.trips") : taskOption.progressMetric === "Zeit" ? "h" : undefined),
+      mapStyle: taskOption.mapStyle,
+    };
+  }
+
+  function buildEditableTasks() {
+    const sourceTasks = [
+      ...(selectedJobType?.tasks ?? []),
+      ...selectedTaskOptions.map(templateToTask),
+    ];
+    const fallbackTasks = sourceTasks.length > 0 ? sourceTasks : job.tasks;
+    return fallbackTasks.map((task) => {
+      const existing = job.tasks.find((item) => item.name === task.name);
+      return { ...task, id: existing?.id ?? task.id ?? crypto.randomUUID() };
+    });
+  }
+
+  function buildEditableSubtasks(tasks: Task[]) {
+    return jobForm.selectedFields.flatMap((fieldId) => tasks.map((task) => {
+      const existing = related.find((subtask) => {
+        const existingTask = job.tasks.find((item) => item.id === subtask.taskId);
+        return subtask.fieldId === fieldId && existingTask?.name === task.name;
+      });
+      return existing
+        ? {
+            ...existing,
+            taskId: task.id,
+            plannedCrews: existing.plannedCrews ?? jobForm.plannedCrews,
+            estimatedHours: existing.estimatedHours ?? (((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours)),
+            targetValue: existing.targetValue ?? task.targetValue,
+            targetUnit: existing.targetUnit ?? task.unit,
+          }
+        : {
+            id: crypto.randomUUID(),
+            jobId: job.id,
+            fieldId,
+            taskId: task.id,
+            status: "offen" as Status,
+            progress: 0,
+            activeDriverIds: [],
+            activeVehicleIds: [],
+            activeImplementIds: [],
+            activeAssignments: [],
+            plannedCrews: jobForm.plannedCrews,
+            estimatedHours: ((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours),
+            targetValue: task.targetValue,
+            targetUnit: task.unit,
+          };
+    }));
+  }
 
   async function saveJob() {
     try {
-      await Promise.resolve(onUpdateJob(job.id, jobForm));
+      const validSelectedFields = jobForm.selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId));
+      if (!selectedFarmerOrganization || !selectedContractorOrganization || validSelectedFields.length === 0) {
+        setSaveMessage({ type: "error", text: t("createJob.missingRequiredFields") });
+        return;
+      }
+      const nextTasks = buildEditableTasks();
+      if (nextTasks.length === 0) {
+        setSaveMessage({ type: "error", text: t("createJob.missingRequiredFields") });
+        return;
+      }
+      const nextJob: Job = {
+        ...job,
+        title: jobForm.title.trim() || selectedJobType?.name || selectedTaskOptions.map((taskOption) => taskOption.name).join(", ") || job.title,
+        customer: selectedFarmerOrganization.name,
+        contractor: selectedContractorOrganization.name,
+        farmerOrganizationId: selectedFarmerOrganization.id,
+        contractorOrganizationId: selectedContractorOrganization.id,
+        fieldIds: validSelectedFields,
+        tasks: nextTasks,
+        jobTypeId: selectedJobType?.id,
+        jobTypeName: selectedJobType?.name,
+        plannedCrews: jobForm.plannedCrews,
+        estimatedHours: jobForm.estimatedHours,
+        timeWindow: plannedTimeWindow,
+        priority: jobForm.priority || "normal",
+        notes: jobForm.notes,
+      };
+      if (onUpdateJobStructure) await Promise.resolve(onUpdateJobStructure(job.id, nextJob, buildEditableSubtasks(nextTasks)));
+      else await Promise.resolve(onUpdateJob(job.id, nextJob));
       setSaveMessage({ type: "success", text: t("jobs.editSaveSuccess") });
     } catch (error) {
       setSaveMessage({ type: "error", text: error instanceof Error ? error.message : t("jobs.editSaveError") });
@@ -179,19 +401,101 @@ export function JobEditModal({
 
           <div className="master-data-form">
             <div className="form-row resource-form-row modal-form-row">
+              <label>
+                {t("createJob.customerOrganization")}
+                <select disabled={showArchived || currentRole === "farmer_admin" || currentRole === "farmer_employee"} value={jobForm.selectedFarmerOrganizationId} onChange={(event) => setJobForm((current) => ({ ...current, selectedFarmerOrganizationId: event.target.value, selectedFields: [] }))}>
+                  <option value="">{t("createJob.selectFarmer")}</option>
+                  {farmerOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+                </select>
+              </label>
+              <label>
+                {t("createJob.contractorOrganization")}
+                <select disabled={showArchived} value={jobForm.selectedContractorOrganizationId} onChange={(event) => setJobForm((current) => ({ ...current, selectedContractorOrganizationId: event.target.value }))}>
+                  <option value="">{t("createJob.selectContractor")}</option>
+                  {contractorOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+                </select>
+              </label>
               <label>{t("terms.job")}<input disabled={showArchived} value={jobForm.title} onChange={(event) => setJobForm((current) => ({ ...current, title: event.target.value }))} /></label>
-              <label>{t("createJob.timeWindow")}<input disabled={showArchived} value={jobForm.timeWindow} onChange={(event) => setJobForm((current) => ({ ...current, timeWindow: event.target.value }))} /></label>
+              <label>
+                {t("createJob.dateMode")}
+                <select disabled={showArchived} value={jobForm.dateMode} onChange={(event) => setJobForm((current) => ({ ...current, dateMode: event.target.value as "wish" | "fixed" | "" }))}>
+                  <option value="">{t("createJob.selectOption")}</option>
+                  <option value="wish">{t("createJob.requestedDate")}</option>
+                  <option value="fixed">{t("createJob.fixedDate")}</option>
+                </select>
+              </label>
+              <label>{dateLabel}<input disabled={showArchived} value={jobForm.requestedDate} onChange={(event) => setJobForm((current) => ({ ...current, requestedDate: event.target.value }))} type="date" /></label>
+              <label>{t("createJob.startTime")}<input disabled={showArchived} value={jobForm.requestedStartTime} onChange={(event) => setJobForm((current) => ({ ...current, requestedStartTime: event.target.value }))} type="time" /></label>
+              <label>{t("createJob.endTime")}<input disabled={showArchived} value={jobForm.requestedEndTime} onChange={(event) => setJobForm((current) => ({ ...current, requestedEndTime: event.target.value }))} type="time" /></label>
+              <label>{t("createJob.timeWindow")}<input readOnly value={plannedTimeWindow} /></label>
               <label>{t("terms.priority")}<select disabled={showArchived} value={jobForm.priority} onChange={(event) => setJobForm((current) => ({ ...current, priority: event.target.value }))}><option value="low">{t("createJob.priorityLow")}</option><option value="normal">{t("createJob.priorityNormal")}</option><option value="high">{t("createJob.priorityHigh")}</option><option value="urgent">{t("createJob.priorityUrgent")}</option></select></label>
               <label>{t("createJob.estimatedHours")}<input disabled={showArchived} min={0} step={0.5} value={jobForm.estimatedHours} onChange={(event) => setJobForm((current) => ({ ...current, estimatedHours: Number(event.target.value) }))} type="number" /></label>
               <label>{t("createJob.plannedCrews")}<input disabled={showArchived} min={1} max={8} value={jobForm.plannedCrews} onChange={(event) => setJobForm((current) => ({ ...current, plannedCrews: Number(event.target.value) }))} type="number" /></label>
               <label>{t("terms.notes")}<input disabled={showArchived} value={jobForm.notes} onChange={(event) => setJobForm((current) => ({ ...current, notes: event.target.value }))} /></label>
             </div>
+            <div className="form-row resource-form-row modal-form-row job-edit-template-row">
+              <label>
+                {t("createJob.jobType")}
+                <select disabled={showArchived} value={jobForm.selectedJobTypeId} onChange={(event) => setJobForm((current) => ({ ...current, selectedJobTypeId: event.target.value }))}>
+                  <option value="">{t("createJob.noJobType")}</option>
+                  {jobTypes.map((jobType) => <option key={jobType.id} value={jobType.id}>{jobType.name}</option>)}
+                </select>
+              </label>
+              <label>
+                {selectedJobType ? t("createJob.additionalTask") : t("terms.task")}
+                <select disabled={showArchived} value={jobForm.taskToAdd} onChange={(event) => setJobForm((current) => ({ ...current, taskToAdd: event.target.value }))}>
+                  <option value="">{t("createJob.selectOption")}</option>
+                  {taskTemplates.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}
+                </select>
+              </label>
+              <button className="secondary-action task-add-button" disabled={showArchived || !jobForm.taskToAdd || jobForm.selectedTasks.includes(jobForm.taskToAdd)} onClick={addSelectedTask} type="button">
+                <Plus size={18} /> {selectedJobType ? t("createJob.addAdditionalTask") : t("createJob.addTask")}
+              </button>
+            </div>
+            {selectedTaskOptions.length > 0 && (
+              <div className="selected-task-list job-edit-selected-tasks">
+                <strong>{selectedJobType ? t("createJob.additionalTasks") : t("createJob.selectedTasks")}</strong>
+                {selectedTaskOptions.map((taskOption) => (
+                  <div className="selected-task-card" key={taskOption.id}>
+                    <div>
+                      <b>{taskOption.name}</b>
+                      <span>{taskOption.timePerHa} {t("createJob.hoursPerHa")}</span>
+                      <span>{t("createJob.subtasks")}: {taskOption.workSteps.join(", ")}</span>
+                    </div>
+                    {!showArchived && (
+                      <button aria-label={t("createJob.removeTask", { task: taskOption.name })} onClick={() => removeSelectedTask(taskOption.id)} type="button">
+                        <X size={16} />
+                      </button>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+            <div className="field-pick-list job-edit-field-list">
+              <div className="field-pick-list-heading">
+                <strong>{t("createJob.fieldQuickSelection")}</strong>
+                <button className="secondary-action compact-action" disabled={showArchived || fieldsForSelectedFarmer.length === 0} onClick={selectAllFields} type="button">
+                  <CheckCircle2 size={16} /> {t("createJob.selectAllFields")}
+                </button>
+              </div>
+              {fieldsForSelectedFarmer.length === 0 && <p className="permission-note">{t("createJob.noFieldSearchResults")}</p>}
+              {fieldsForSelectedFarmer.map((field) => (
+                <label className={selectedFieldSet.has(field.id) ? "active" : ""} key={field.id}>
+                  <input checked={selectedFieldSet.has(field.id)} disabled={showArchived} onChange={() => toggleSelectedField(field.id)} type="checkbox" />
+                  <span>
+                    <strong>{field.name}</strong>
+                    <small>{formatArea(field.areaHa, i18n.language)} · {field.crop}</small>
+                  </span>
+                </label>
+              ))}
+            </div>
           </div>
 
           <div className="job-meta">
-            <span>{t("terms.customer")}: {job.customer}</span>
-            <span>{t("terms.contractor")}: {job.contractor}</span>
-            <span>{t("createJob.plannedCrews")}: {job.plannedCrews ?? 1}</span>
+            <span>{t("terms.customer")}: {selectedFarmerOrganization?.name ?? job.customer}</span>
+            <span>{t("terms.contractor")}: {selectedContractorOrganization?.name ?? job.contractor}</span>
+            <span>{t("fields.selected", { count: jobForm.selectedFields.length })}</span>
+            <span>{t("createJob.tasksCount", { count: (selectedJobType?.tasks.length ?? 0) + selectedTaskOptions.length || job.tasks.length })}</span>
           </div>
           {saveMessage && <p className={`modal-save-message ${saveMessage.type}`}>{saveMessage.text}</p>}
 

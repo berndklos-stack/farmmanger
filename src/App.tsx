@@ -2392,6 +2392,41 @@ export function App() {
     }
   }
 
+  async function updateJobStructure(id: string, nextJob: Job, nextSubtasks: Subtask[]) {
+    const currentJob = jobs.find((job) => job.id === id);
+    const currentJobSubtasks = subtasks.filter((subtask) => subtask.jobId === id);
+    const nextSubtaskIds = new Set(nextSubtasks.map((subtask) => subtask.id));
+    const removedSubtaskIds = currentJobSubtasks.filter((subtask) => !nextSubtaskIds.has(subtask.id)).map((subtask) => subtask.id);
+    const nextFieldIds = new Set(nextJob.fieldIds);
+    const removedFieldIds = (currentJob?.fieldIds ?? []).filter((fieldId) => !nextFieldIds.has(fieldId));
+
+    setJobs((current) => current.map((job) => (job.id === id ? nextJob : job)));
+    setSubtasks((current) => [...current.filter((subtask) => subtask.jobId !== id), ...nextSubtasks]);
+    setLocalJobs((current) => {
+      const next = { ...current, [id]: nextJob };
+      saveLocalJobs(next);
+      return next;
+    });
+    setLocalSubtasks((current) => {
+      const next = { ...current, [id]: nextSubtasks };
+      saveLocalSubtasks(next);
+      return next;
+    });
+
+    if (isSupabaseConfigured && supabase) {
+      if (removedFieldIds.length > 0) {
+        const { error } = await supabase.from("job_fields").delete().eq("job_id", id).in("field_id", removedFieldIds);
+        if (error) throw new Error(`Auftragsflächen konnten nicht entfernt werden: ${error.message}`);
+      }
+      if (removedSubtaskIds.length > 0) {
+        const { error } = await supabase.from("job_tasks").delete().in("id", removedSubtaskIds);
+        if (error) throw new Error(`Teilaufträge konnten nicht entfernt werden: ${error.message}`);
+      }
+      const result = await syncJobToSupabase(nextJob, nextSubtasks);
+      if (!result.ok) throw new Error(result.error ?? "Auftrag konnte nicht in Supabase gespeichert werden.");
+    }
+  }
+
   async function archiveJob(id: string) {
     const currentJob = jobs.find((job) => job.id === id);
     if (currentJob && (currentJob.completionStatus !== "invoiced" || !currentJob.invoiceNumber?.trim())) {
@@ -4179,6 +4214,7 @@ async function addDriver(driver: Driver) {
                 jobs={visibleJobs}
                 subtasks={showArchivedJobs ? subtasks : activeSubtasks}
                 onUpdateJob={updateJob}
+                onUpdateJobStructure={updateJobStructure}
                 onUpdateSubtask={updateSubtask}
                 onSelectJob={setSelectedJobId}
                 onSetStatus={setSubtaskStatus}
@@ -4290,6 +4326,7 @@ async function addDriver(driver: Driver) {
             subtasks={activeSubtasks}
             onClose={() => setDispatchEditJobId("")}
             onUpdateJob={updateJob}
+            onUpdateJobStructure={updateJobStructure}
             onUpdateSubtask={updateSubtask}
             onSetStatus={setSubtaskStatus}
             onArchiveJob={archiveJob}

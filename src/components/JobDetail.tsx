@@ -35,6 +35,7 @@ export function JobDetail({
   jobs,
   subtasks,
   onUpdateJob,
+  onUpdateJobStructure,
   onUpdateSubtask,
   onSelectJob,
   onSetStatus,
@@ -52,6 +53,7 @@ export function JobDetail({
   jobs: Job[];
   subtasks: Subtask[];
   onUpdateJob: (id: string, patch: Partial<Job>) => void;
+  onUpdateJobStructure: (id: string, job: Job, subtasks: Subtask[]) => void | Promise<void>;
   onUpdateSubtask: (id: string, patch: Partial<Subtask>) => void;
   onSelectJob: (id: string) => void;
   onSetStatus: (id: string, status: Status) => void;
@@ -258,6 +260,7 @@ export function JobDetail({
           showArchived={showArchived}
           onClose={() => setEditingJobId(null)}
           onUpdateJob={onUpdateJob}
+          onUpdateJobStructure={onUpdateJobStructure}
           onUpdateSubtask={onUpdateSubtask}
           onSetStatus={onSetStatus}
           onArchiveJob={(id) => {
