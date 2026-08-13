@@ -86,6 +86,7 @@ const fieldReleaseMarker = "__farm-manager_released_contractors:";
 const localFieldsStorageKey = "farm-manager.localFields";
 const deletedFieldsStorageKey = "farm-manager.deletedFields";
 const localDriversStorageKey = "farm-manager.localDrivers";
+const deletedDriversStorageKey = "farm-manager.deletedDrivers";
 const localVehiclesStorageKey = "farm-manager.localVehicles";
 const localOrganizationsStorageKey = "farm-manager.localOrganizations";
 const deletedOrganizationsStorageKey = "farm-manager.deletedOrganizations";
@@ -514,10 +515,24 @@ function saveLocalDrivers(drivers: Record<string, Driver>) {
   window.localStorage.setItem(localDriversStorageKey, JSON.stringify(drivers));
 }
 
-function mergeLocalDrivers(loadedDrivers: Driver[], localDrivers: Record<string, Driver>) {
+function loadDeletedDriverIds() {
+  try {
+    const raw = window.localStorage.getItem(deletedDriversStorageKey);
+    return raw ? JSON.parse(raw) as string[] : [];
+  } catch {
+    return [];
+  }
+}
+
+function saveDeletedDriverIds(ids: string[]) {
+  window.localStorage.setItem(deletedDriversStorageKey, JSON.stringify(ids));
+}
+
+function mergeLocalDrivers(loadedDrivers: Driver[], localDrivers: Record<string, Driver>, deletedDriverIds: string[]) {
+  const deleted = new Set(deletedDriverIds);
   const merged = new globalThis.Map<string, Driver>();
-  loadedDrivers.forEach((driver) => merged.set(driver.id, driver));
-  Object.values(localDrivers).forEach((driver) => {
+  loadedDrivers.filter((driver) => !deleted.has(driver.id) && !deleted.has(driver.profileId ?? "")).forEach((driver) => merged.set(driver.id, driver));
+  Object.values(localDrivers).filter((driver) => !deleted.has(driver.id) && !deleted.has(driver.profileId ?? "")).forEach((driver) => {
     const loaded = merged.get(driver.id);
     merged.set(driver.id, { ...loaded, ...driver, profileId: driver.profileId ?? loaded?.profileId });
   });
@@ -1073,6 +1088,7 @@ export function App() {
   const [deletedFieldIds, setDeletedFieldIds] = useState<string[]>(() => loadDeletedFieldIds());
   const [driverRecords, setDriverRecords] = useState<Driver[]>([]);
   const [localDrivers, setLocalDrivers] = useState<Record<string, Driver>>(() => loadLocalDrivers());
+  const [deletedDriverIds, setDeletedDriverIds] = useState<string[]>(() => loadDeletedDriverIds());
   const [vehicleRecords, setVehicleRecords] = useState<Vehicle[]>([]);
   const [localVehicles, setLocalVehicles] = useState<Record<string, Vehicle>>(() => loadLocalVehicles());
   const [implementRecords, setImplementRecords] = useState<Implement[]>([]);
@@ -1242,7 +1258,7 @@ export function App() {
 
   useEffect(() => {
     setFieldRecords(mergeLocalFields(loadedData.fields, localFields, deletedFieldIds));
-    setDriverRecords(mergeLocalDrivers(loadedData.drivers, localDrivers));
+    setDriverRecords(mergeLocalDrivers(loadedData.drivers, localDrivers, deletedDriverIds));
     setVehicleRecords(mergeLocalVehicles(loadedData.vehicles, localVehicles));
     setImplementRecords(loadedData.implementsList);
     setOrganizationRecords(mergeLocalOrganizations(loadedData.isDemoMode ? mergeBaseOrganizations(loadedData.organizations, mockOrganizations) : loadedData.organizations, localOrganizations, deletedOrganizationIds));
@@ -1252,7 +1268,7 @@ export function App() {
     setSubtasks(mergeDispatchAssignmentOverrides(mergeLocalSubtasks(loadedData.subtasks, localSubtasks), dispatchAssignmentOverrides));
     setSelectedFieldId((current) => current || loadedData.fields[0]?.id || "");
     setSelectedJobId((current) => current || loadedData.jobs[0]?.id || "");
-  }, [deletedFieldIds, deletedOrganizationIds, dispatchAssignmentOverrides, loadedData.drivers, loadedData.fields, loadedData.implementsList, loadedData.jobs, loadedData.organizations, loadedData.subtasks, loadedData.taskTemplates, loadedData.vehicles, localArchivedJobs, localDrivers, localFields, localJobs, localJobTypes, localOrganizations, localSubtasks, localTaskTemplates, localVehicles]);
+  }, [deletedDriverIds, deletedFieldIds, deletedOrganizationIds, dispatchAssignmentOverrides, loadedData.drivers, loadedData.fields, loadedData.implementsList, loadedData.jobs, loadedData.organizations, loadedData.subtasks, loadedData.taskTemplates, loadedData.vehicles, localArchivedJobs, localDrivers, localFields, localJobs, localJobTypes, localOrganizations, localSubtasks, localTaskTemplates, localVehicles]);
 
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase || !authProfile?.organizationId) {
@@ -2709,6 +2725,11 @@ export function App() {
           saveLocalDrivers(next);
           return next;
         });
+        setDeletedDriverIds((current) => {
+          const next = Array.from(new Set([...current, ...Array.from(driverIds)]));
+          saveDeletedDriverIds(next);
+          return next;
+        });
         setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeDriverIds: subtask.activeDriverIds.filter((driverId) => !driverIds.has(driverId)) })));
       }
     }
@@ -3251,11 +3272,16 @@ function isResourcePayloadColumnError(message: string) {
   return ["manufacturer", "model", "construction_year", "operating_hours", "default_driver_id", "working_width", "archived_at"].some((column) => message.includes(column));
 }
 
-async function addDriver(driver: Driver) {
+  async function addDriver(driver: Driver) {
     setDriverRecords((current) => [driver, ...current]);
     setLocalDrivers((current) => {
       const next = { ...current, [driver.id]: driver };
       saveLocalDrivers(next);
+      return next;
+    });
+    setDeletedDriverIds((current) => {
+      const next = current.filter((driverId) => driverId !== driver.id && driverId !== driver.profileId && driverId !== supabaseDriverId(driver));
+      saveDeletedDriverIds(next);
       return next;
     });
     await saveDriverToSupabase(driver, "Personal konnte nicht in Supabase gespeichert werden");
@@ -3304,6 +3330,14 @@ async function addDriver(driver: Driver) {
         return next;
       });
     }
+    if (currentDriver) {
+      const identifiers = [currentDriver.id, currentDriver.profileId, supabaseDriverId(currentDriver)].filter((driverId): driverId is string => Boolean(driverId));
+      setDeletedDriverIds((current) => {
+        const next = current.filter((driverId) => !identifiers.includes(driverId));
+        saveDeletedDriverIds(next);
+        return next;
+      });
+    }
     if (isSupabaseConfigured && supabase) {
       const { error } = await supabase.from("personnel_resources").update({ archived_at: null }).eq("id", currentDriver ? supabaseDriverId(currentDriver) : id);
       if (error) console.error("Personal konnte nicht reaktiviert werden", error);
@@ -3311,18 +3345,30 @@ async function addDriver(driver: Driver) {
   }
 
   async function deleteDriver(id: string) {
+    const deletedDriver = driverRecords.find((driver) => driver.id === id);
+    const deletedDriverSupabaseId = deletedDriver ? supabaseDriverId(deletedDriver) : id;
+    const deletedDriverIdentifiers = [id, deletedDriver?.id, deletedDriver?.profileId, deletedDriverSupabaseId].filter((driverId): driverId is string => Boolean(driverId));
     setDriverRecords((current) => current.filter((driver) => driver.id !== id));
     setLocalDrivers((current) => {
       const next = { ...current };
-      delete next[id];
+      deletedDriverIdentifiers.forEach((driverId) => { delete next[driverId]; });
       saveLocalDrivers(next);
       return next;
     });
-    setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeDriverIds: subtask.activeDriverIds.filter((driverId) => driverId !== id) })));
+    setDeletedDriverIds((current) => {
+      const next = Array.from(new Set([...current, ...deletedDriverIdentifiers]));
+      saveDeletedDriverIds(next);
+      return next;
+    });
+    setSubtasks((current) => current.map((subtask) => ({ ...subtask, activeDriverIds: subtask.activeDriverIds.filter((driverId) => !deletedDriverIdentifiers.includes(driverId)) })));
     if (isSupabaseConfigured && supabase) {
-      const deletedDriver = driverRecords.find((driver) => driver.id === id);
-      const { error } = await supabase.from("personnel_resources").delete().eq("id", deletedDriver ? supabaseDriverId(deletedDriver) : id);
-      if (error) console.error("Personal konnte nicht endgültig gelöscht werden", error);
+      const { error } = await supabase.from("personnel_resources").delete().eq("id", deletedDriverSupabaseId);
+      if (error) {
+        console.error("Personal konnte nicht endgültig gelöscht werden", error);
+        const archivedAt = new Date().toISOString();
+        const archiveResult = await supabase.from("personnel_resources").update({ archived_at: archivedAt }).eq("id", deletedDriverSupabaseId);
+        if (archiveResult.error) console.error("Personal konnte nach fehlgeschlagenem Löschen nicht archiviert werden", archiveResult.error);
+      }
     }
   }
 
