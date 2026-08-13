@@ -757,6 +757,7 @@
     "editJob": "Edit job",
     "editSaveSuccess": "Changes have been saved.",
     "editSaveError": "Changes could not be saved.",
+    "subtasksRecalculated": "Subtasks have been recalculated.",
     "assignmentColumn": "Crew {{number}}",
     "addAssignmentColumn": "Add crew",
     "removeAssignment": "Remove assignment",

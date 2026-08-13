@@ -108,9 +108,11 @@ export function JobEditModal({
   const selectedFarmerOrganization = farmerOrganizations.find((organization) => organization.id === jobForm.selectedFarmerOrganizationId);
   const selectedContractorOrganization = contractorOrganizations.find((organization) => organization.id === jobForm.selectedContractorOrganizationId);
   const selectedJobType = jobTypes.find((jobType) => jobType.id === jobForm.selectedJobTypeId);
-  const selectedTaskOptions = jobForm.selectedTasks
-    .map((taskId) => taskTemplates.find((task) => task.id === taskId))
-    .filter((task): task is TaskTemplate => Boolean(task));
+  const selectedTaskOptions = useMemo(() => (
+    jobForm.selectedTasks
+      .map((taskId) => taskTemplates.find((task) => task.id === taskId))
+      .filter((task): task is TaskTemplate => Boolean(task))
+  ), [jobForm.selectedTasks, taskTemplates]);
   const dateLabel = jobForm.dateMode === "fixed" ? t("createJob.fixedDate") : t("createJob.requestedDate");
   const plannedTimeWindow = jobForm.dateMode && jobForm.requestedDate
     ? `${dateLabel}: ${jobForm.requestedDate}${jobForm.requestedStartTime || jobForm.requestedEndTime ? `, ${jobForm.requestedStartTime || "--:--"}-${jobForm.requestedEndTime || "--:--"}` : ""}`
@@ -253,6 +255,17 @@ export function JobEditModal({
     }));
   }
 
+  const previewTasks = useMemo(() => buildEditableTasks(), [fieldsForSelectedFarmer, job.tasks, jobForm, selectedJobType, selectedTaskOptions]);
+  const previewSubtasks = useMemo(() => buildEditableSubtasks(previewTasks), [fieldsForSelectedFarmer, jobForm.plannedCrews, jobForm.selectedFields, job.tasks, previewTasks, related]);
+  const previewJob = useMemo(() => ({ ...job, fieldIds: jobForm.selectedFields, tasks: previewTasks }), [job, jobForm.selectedFields, previewTasks]);
+  const persistedSubtaskIds = useMemo(() => new Set(related.map((subtask) => subtask.id)), [related]);
+
+  useEffect(() => {
+    if (saveMessage?.type !== "success") return undefined;
+    const timeout = window.setTimeout(() => setSaveMessage(null), 2800);
+    return () => window.clearTimeout(timeout);
+  }, [saveMessage]);
+
   async function saveJob() {
     try {
       const validSelectedFields = jobForm.selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId));
@@ -260,7 +273,7 @@ export function JobEditModal({
         setSaveMessage({ type: "error", text: t("createJob.missingRequiredFields") });
         return;
       }
-      const nextTasks = buildEditableTasks();
+      const nextTasks = previewTasks;
       if (nextTasks.length === 0) {
         setSaveMessage({ type: "error", text: t("createJob.missingRequiredFields") });
         return;
@@ -282,7 +295,7 @@ export function JobEditModal({
         priority: jobForm.priority || "normal",
         notes: jobForm.notes,
       };
-      if (onUpdateJobStructure) await Promise.resolve(onUpdateJobStructure(job.id, nextJob, buildEditableSubtasks(nextTasks)));
+      if (onUpdateJobStructure) await Promise.resolve(onUpdateJobStructure(job.id, nextJob, previewSubtasks));
       else await Promise.resolve(onUpdateJob(job.id, nextJob));
       setSaveMessage({ type: "success", text: t("jobs.editSaveSuccess") });
     } catch (error) {
@@ -515,11 +528,12 @@ export function JobEditModal({
               <span>{t("jobs.driverVehicles")}</span>
               <span>{t("terms.action")}</span>
             </div>
-            {related.map((subtask) => {
-              const task = getTask(subtask, jobs);
+            {previewSubtasks.map((subtask) => {
+              const task = previewJob.tasks.find((item) => item.id === subtask.taskId) ?? getTask(subtask, jobs);
               const target = subtask.targetValue ?? task?.targetValue;
               const doneValue = subtask.doneAmount ?? subtask.doneHa ?? subtask.trips ?? 0;
               const isOverTarget = Boolean(target && doneValue > target);
+              const isPreviewOnly = !persistedSubtaskIds.has(subtask.id);
               const rows = getAssignmentRows(subtask, task?.mode);
               const plannedCrews = subtask.plannedCrews ?? job.plannedCrews ?? 1;
               const capacity = assignmentCapacity(task?.mode, plannedCrews);
@@ -542,10 +556,10 @@ export function JobEditModal({
                     {isOverTarget && <small className="target-warning">{t("jobs.targetExceeded")}</small>}
                   </span>
                   <span>
-                    <input disabled={showArchived} min={0} step={0.5} value={subtask.estimatedHours ?? task?.estimatedHours ?? job.estimatedHours ?? 0} onChange={(event) => onUpdateSubtask(subtask.id, { estimatedHours: Number(event.target.value) })} type="number" />
+                    <input disabled={showArchived || isPreviewOnly} min={0} step={0.5} value={subtask.estimatedHours ?? task?.estimatedHours ?? job.estimatedHours ?? 0} onChange={(event) => onUpdateSubtask(subtask.id, { estimatedHours: Number(event.target.value) })} type="number" />
                   </span>
                   <span>
-                    <input disabled={showArchived} min={1} max={8} value={plannedCrews} onChange={(event) => updatePlannedCrews(subtask, task?.mode, rows, Number(event.target.value))} type="number" />
+                    <input disabled={showArchived || isPreviewOnly} min={1} max={8} value={plannedCrews} onChange={(event) => updatePlannedCrews(subtask, task?.mode, rows, Number(event.target.value))} type="number" />
                   </span>
                   <div className="driver-assignment-cell">
                     <div className="driver-assignment-main">
@@ -556,7 +570,7 @@ export function JobEditModal({
                             {key === "role_based" && (
                               <select
                                 aria-label={t("jobs.assignmentRole")}
-                                disabled={showArchived}
+                                disabled={showArchived || isPreviewOnly}
                                 value={assignment.role ?? ""}
                                 onChange={(event) => updateAssignment(subtask, rows, index, { role: event.target.value })}
                               >
@@ -570,7 +584,7 @@ export function JobEditModal({
                             {key === "area_split" && (
                               <input
                                 aria-label={t("jobs.assignmentAreaShare")}
-                                disabled={showArchived}
+                                disabled={showArchived || isPreviewOnly}
                                 min={0}
                                 max={100}
                                 value={assignment.areaShare ?? ""}
@@ -581,7 +595,7 @@ export function JobEditModal({
                             )}
                             <select
                               aria-label={t("actions.assignDriver")}
-                              disabled={showArchived}
+                              disabled={showArchived || isPreviewOnly}
                               value={assignment.driverId ?? ""}
                               onChange={(event) => updateAssignment(subtask, rows, index, { driverId: event.target.value || undefined })}
                             >
@@ -592,7 +606,7 @@ export function JobEditModal({
                             </select>
                             <select
                               aria-label={t("terms.vehicle")}
-                              disabled={showArchived}
+                              disabled={showArchived || isPreviewOnly}
                               value={assignment.vehicleId ?? ""}
                               onChange={(event) => updateAssignment(subtask, rows, index, { vehicleId: event.target.value || undefined })}
                             >
@@ -604,7 +618,7 @@ export function JobEditModal({
                             {needsImplement && (
                               <select
                                 aria-label={t("terms.implement")}
-                                disabled={showArchived}
+                                disabled={showArchived || isPreviewOnly}
                                 value={assignment.implementId ?? ""}
                                 onChange={(event) => updateAssignment(subtask, rows, index, { implementId: event.target.value || undefined })}
                               >
@@ -614,14 +628,14 @@ export function JobEditModal({
                                 ))}
                               </select>
                             )}
-                            {!showArchived && rows.length > 1 && (
+                            {!showArchived && !isPreviewOnly && rows.length > 1 && (
                               <button className="secondary-action assignment-remove" onClick={() => removeAssignment(subtask, rows, index)} type="button">
                                 {t("jobs.removeAssignment")}
                               </button>
                             )}
                           </div>
                         ))}
-                        {!showArchived && key !== "single" && rows.length < capacity && (
+                        {!showArchived && !isPreviewOnly && key !== "single" && rows.length < capacity && (
                           <button className="secondary-action assignment-add" onClick={() => addAssignment(subtask, rows)} type="button">
                             {t("jobs.addAssignmentColumn")}
                           </button>
@@ -635,7 +649,7 @@ export function JobEditModal({
                   <span>
                     <select
                       aria-label={t("jobs.changeStatus")}
-                      disabled={showArchived}
+                      disabled={showArchived || isPreviewOnly}
                       value={subtask.status}
                       onChange={(event) => onSetStatus(subtask.id, event.target.value as Status)}
                     >
@@ -648,7 +662,7 @@ export function JobEditModal({
           </div>
 
           <div className="modal-actions">
-            <button className="secondary-action" type="button"><RefreshCw size={18} /> {t("actions.recalculateSubtasks")}</button>
+            <button className="secondary-action" onClick={() => setSaveMessage({ type: "success", text: t("jobs.subtasksRecalculated") })} type="button"><RefreshCw size={18} /> {t("actions.recalculateSubtasks")}</button>
             {!showArchived && <button className="danger-action" onClick={archiveJob} type="button"><Archive size={16} /> {t("actions.archive")}</button>}
             {showArchived && <button className="danger-action" onClick={() => setConfirmDeleteOpen(true)} type="button"><Trash2 size={16} /> {t("actions.deletePermanent")}</button>}
             {!showArchived && <button className="primary-action" onClick={saveJob} type="button"><Save size={16} /> {t("masterData.saveChanges")}</button>}

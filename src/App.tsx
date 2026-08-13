@@ -2216,11 +2216,6 @@ export function App() {
     const jobFields = job.fieldIds
       .filter((fieldId) => knownFieldIds.has(fieldId))
       .map((fieldId) => ({ job_id: job.id, field_id: fieldId }));
-    const { error: deleteJobFieldsError } = await supabase.from("job_fields").delete().eq("job_id", job.id);
-    if (deleteJobFieldsError) {
-      console.error("Alte Auftragsflächen konnten nicht ersetzt werden", deleteJobFieldsError);
-      return { ok: false, error: `${job.jobNumber ?? job.title}: ${deleteJobFieldsError.message}` };
-    }
     if (jobFields.length > 0) {
       const { error } = await supabase.from("job_fields").upsert(jobFields, { onConflict: "job_id,field_id" });
       if (error) {
@@ -2436,6 +2431,8 @@ export function App() {
     }
 
     if (isSupabaseConfigured && supabase) {
+      const result = await syncJobToSupabase(nextJob, nextSubtasks);
+      if (!result.ok) throw new Error(result.error ?? "Auftrag konnte nicht in Supabase gespeichert werden.");
       if (removedFieldIds.length > 0) {
         const { error } = await supabase.from("job_fields").delete().eq("job_id", id).in("field_id", removedFieldIds);
         if (error) throw new Error(`Auftragsflächen konnten nicht entfernt werden: ${error.message}`);
@@ -2444,8 +2441,6 @@ export function App() {
         const { error } = await supabase.from("job_tasks").delete().in("id", removedSubtaskIds);
         if (error) throw new Error(`Teilaufträge konnten nicht entfernt werden: ${error.message}`);
       }
-      const result = await syncJobToSupabase(nextJob, nextSubtasks);
-      if (!result.ok) throw new Error(result.error ?? "Auftrag konnte nicht in Supabase gespeichert werden.");
     }
   }
 

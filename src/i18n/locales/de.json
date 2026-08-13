@@ -757,6 +757,7 @@
     "editJob": "Auftrag bearbeiten",
     "editSaveSuccess": "Änderungen wurden gespeichert.",
     "editSaveError": "Änderungen konnten nicht gespeichert werden.",
+    "subtasksRecalculated": "Teilaufträge wurden neu berechnet.",
     "assignmentColumn": "Kolonne {{number}}",
     "addAssignmentColumn": "Kolonne hinzufügen",
     "removeAssignment": "Zuweisung entfernen",

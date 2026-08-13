@@ -757,6 +757,7 @@
     "editJob": "Redigera uppdrag",
     "editSaveSuccess": "Ändringarna har sparats.",
     "editSaveError": "Ändringarna kunde inte sparas.",
+    "subtasksRecalculated": "Deluppdragen har beräknats om.",
     "assignmentColumn": "Arbetslag {{number}}",
     "addAssignmentColumn": "Lägg till arbetslag",
     "removeAssignment": "Ta bort tilldelning",
