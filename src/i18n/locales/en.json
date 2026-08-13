@@ -68,6 +68,7 @@
     "adminAppRequired": "This account belongs to the admin app. Please open /admin.",
     "driverLoginRequired": "Please sign in with a driver account.",
     "adminLoginRequired": "Please sign in with an admin, farmer or dispatcher account.",
+    "driverCredentialsMissing": "This driver account was not found or the password is incorrect. Please check email and driver password in personnel master data.",
     "wrongAppEyebrow": "Wrong app area",
     "adminSignedInTitle": "Admin account detected",
     "adminSignedInCopy": "You are signed in as an admin. Please open the admin app.",

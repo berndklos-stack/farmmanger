@@ -68,6 +68,7 @@
     "adminAppRequired": "Dieser Zugang gehört zur Admin-App. Bitte /admin öffnen.",
     "driverLoginRequired": "Bitte mit einem Fahrer-Zugang anmelden.",
     "adminLoginRequired": "Bitte mit einem Admin-, Landwirt- oder Einsatzleiter-Zugang anmelden.",
+    "driverCredentialsMissing": "Dieser Fahrer-Zugang wurde nicht gefunden oder das Passwort stimmt nicht. Bitte in den Personal-Stammdaten E-Mail und Fahrer-Passwort prüfen.",
     "wrongAppEyebrow": "Falscher App-Bereich",
     "adminSignedInTitle": "Admin-Zugang erkannt",
     "adminSignedInCopy": "Du bist als Admin angemeldet. Bitte öffne die Admin-App.",

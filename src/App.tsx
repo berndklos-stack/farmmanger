@@ -319,6 +319,40 @@ function getKnownAuthProfileFallback(email?: string | null) {
   return knownAuthProfileFallbacks[resolveAuthEmail(email)];
 }
 
+function driverFromPersonnelAccessRow(row: {
+  id: string;
+  profile_id?: string | null;
+  organization_id?: string | null;
+  full_name: string;
+  email?: string | null;
+  access_password?: string | null;
+  vehicle_name?: string | null;
+  job_visibility?: Driver["jobVisibility"] | null;
+  mobile?: string | null;
+  resource_type?: string | null;
+  operation_type?: string | null;
+}, fallbackEmail: string, fallbackPassword: string): Driver {
+  const access = personnelAccessFromOperationType(row.operation_type);
+  const appRole = access.role ?? "driver";
+  return {
+    id: row.id,
+    profileId: row.profile_id ?? undefined,
+    organizationId: row.organization_id ?? undefined,
+    name: row.full_name,
+    email: row.email ?? fallbackEmail,
+    accessPassword: row.access_password ?? fallbackPassword,
+    vehicle: row.vehicle_name ?? "",
+    jobVisibility: row.job_visibility ?? "assigned_only",
+    mobile: row.mobile ?? "",
+    employeeType: access.employeeType ?? (appRole === "driver" ? "field" : "administration"),
+    appRole,
+    allowedViews: access.allowedViews,
+    appPermissions: access.permissions,
+    resourceType: row.resource_type ?? "Personal",
+    operationType: stripMarkerBlock(row.operation_type, personnelAccessMarker),
+  };
+}
+
 function loadDispatchAssignmentOverrides() {
   try {
     const raw = window.localStorage.getItem(dispatchAssignmentsStorageKey);
@@ -3742,16 +3776,25 @@ async function addDriver(driver: Driver) {
     if (error) {
       let accessDriver = matchingDriver;
       if (!accessDriver) {
-        const { data: personnelDriver } = await supabase
+        const { data: personnelDrivers, error: personnelLookupError } = await supabase
           .from("personnel_resources")
           .select("*")
-          .ilike("email", authEmail)
-          .eq("access_password", password)
           .is("archived_at", null)
-          .maybeSingle();
+          .limit(200);
+        if (personnelLookupError) {
+          console.error("Fahrer-Stammdaten konnten für Login-Fallback nicht gelesen werden", personnelLookupError);
+        }
+        const personnelDriver = (personnelDrivers ?? []).find((row) => {
+          const rowEmail = typeof row.email === "string" ? row.email.trim().toLowerCase() : "";
+          return (
+            (rowEmail === normalizedEmail || resolveAuthEmail(rowEmail) === authEmail)
+            && row.access_password === password
+          );
+        });
         if (personnelDriver) {
-          const row = personnelDriver as {
+          accessDriver = driverFromPersonnelAccessRow(personnelDriver as {
             id: string;
+            profile_id?: string | null;
             organization_id?: string | null;
             full_name: string;
             email?: string | null;
@@ -3761,25 +3804,7 @@ async function addDriver(driver: Driver) {
             mobile?: string | null;
             resource_type?: string | null;
             operation_type?: string | null;
-          };
-          const access = personnelAccessFromOperationType(row.operation_type);
-          const appRole = access.role ?? "driver";
-          accessDriver = {
-            id: row.id,
-            organizationId: row.organization_id ?? undefined,
-            name: row.full_name,
-            email: row.email ?? normalizedEmail,
-            accessPassword: row.access_password ?? password,
-            vehicle: row.vehicle_name ?? "",
-            jobVisibility: row.job_visibility ?? "assigned_only",
-            mobile: row.mobile ?? "",
-            employeeType: access.employeeType ?? (appRole === "driver" ? "field" : "administration"),
-            appRole,
-            allowedViews: access.allowedViews,
-            appPermissions: access.permissions,
-            resourceType: row.resource_type ?? "Personal",
-            operationType: stripMarkerBlock(row.operation_type, personnelAccessMarker),
-          };
+          }, normalizedEmail, password);
         }
       }
       if (accessDriver && roleAllowedInAppMode(accessDriver.appRole ?? "driver", appMode)) {
@@ -3798,7 +3823,7 @@ async function addDriver(driver: Driver) {
         setAuthError("");
         if (demoProfile.role === "driver") setActiveView("driver");
       } else {
-        setAuthError(error.message);
+        setAuthError(appMode === "driver" ? t("auth.driverCredentialsMissing") : error.message);
       }
       setAuthLoading(false);
       return;

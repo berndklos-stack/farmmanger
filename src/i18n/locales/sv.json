@@ -68,6 +68,7 @@
     "adminAppRequired": "Detta konto hör till adminappen. Öppna /admin.",
     "driverLoginRequired": "Logga in med ett förarkonto.",
     "adminLoginRequired": "Logga in med ett admin-, lantbrukar- eller arbetsledarkonto.",
+    "driverCredentialsMissing": "Detta förarkonto hittades inte eller lösenordet stämmer inte. Kontrollera e-post och förarlösenord i personalens stamdata.",
     "wrongAppEyebrow": "Fel appområde",
     "adminSignedInTitle": "Adminkonto upptäckt",
     "adminSignedInCopy": "Du är inloggad som admin. Öppna adminappen.",
