@@ -1,6 +1,7 @@
 import { KeyRound, LogIn, Tractor } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { LanguageSwitcher } from "./LanguageSwitcher";
 import { APP_RELEASE_LABEL } from "../lib/appVersion";
 
 type LoginAppMode = "admin" | "driver" | "auto";
@@ -58,13 +59,20 @@ export function AuthLogin({
   return (
     <main className="auth-shell">
       <section className="auth-card">
-        <div className="brand auth-brand">
-          <div className="brand-mark">
-            <Tractor size={24} />
+        <div className="auth-card-header">
+          <div className="brand auth-brand">
+            <div className="brand-mark">
+              <Tractor size={24} />
+            </div>
+            <div>
+              <strong>Farm-Manager</strong>
+            </div>
           </div>
-          <div>
-            <strong>Farm-Manager</strong>
-            <span>{t("auth.subtitle")}</span>
+          <div className="auth-header-actions">
+            <div className="auth-version" title="Farm-Manager App-Version">
+              <strong>{APP_RELEASE_LABEL}</strong>
+            </div>
+            <LanguageSwitcher />
           </div>
         </div>
         <div>
@@ -125,10 +133,6 @@ export function AuthLogin({
             )}
           </div>
         )}
-        <div className="auth-version" title="Farm-Manager App-Version">
-          <span>Farm-Manager</span>
-          <strong>{APP_RELEASE_LABEL}</strong>
-        </div>
       </section>
     </main>
   );

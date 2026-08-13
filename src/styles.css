@@ -97,6 +97,21 @@ textarea:focus-visible {
   color: #1f2a24;
 }
 
+.auth-card-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
+}
+
+.auth-header-actions {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
 .auth-copy {
   margin: 8px 0 0;
   color: var(--color-muted);
@@ -184,14 +199,13 @@ textarea:focus-visible {
 }
 
 .auth-version {
-  border-top: 1px solid var(--color-border);
-  padding-top: 12px;
+  padding-top: 2px;
   display: flex;
-  justify-content: space-between;
-  gap: 12px;
+  justify-content: flex-end;
   color: var(--color-muted);
   font-size: 0.78rem;
   font-weight: 800;
+  white-space: nowrap;
 }
 
 .auth-version strong {
@@ -222,6 +236,23 @@ textarea:focus-visible {
 .demo-login-grid button:hover {
   border-color: var(--color-brand);
   background: var(--color-brand-soft);
+}
+
+@media (max-width: 520px) {
+  .auth-card-header {
+    align-items: flex-start;
+  }
+
+  .auth-version {
+    max-width: 46%;
+    font-size: 0.68rem;
+    white-space: normal;
+  }
+
+  .auth-header-actions {
+    max-width: 52%;
+    gap: 6px;
+  }
 }
 
 .app-shell {
