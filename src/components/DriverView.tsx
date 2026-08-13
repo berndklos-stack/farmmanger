@@ -285,6 +285,7 @@ export function DriverView({
   const [mapSubtaskId, setMapSubtaskId] = useState("");
   const [openTaskGroupId, setOpenTaskGroupId] = useState("");
   const [trackingSubtaskId, setTrackingSubtaskId] = useState("");
+  const [isDriverHeartbeatTracking, setIsDriverHeartbeatTracking] = useState(false);
   const [trackingNotice, setTrackingNotice] = useState("");
   const [noticeSubtaskId, setNoticeSubtaskId] = useState("");
   const [pendingFieldClaimId, setPendingFieldClaimId] = useState("");
@@ -339,15 +340,27 @@ export function DriverView({
     }, {})
     : {};
   const visibleSubtasksForSelectedGroup = selectedTaskGroup?.subtasks ?? [];
+  const isLocationTrackingActive = Boolean(trackingSubtaskId || isDriverHeartbeatTracking);
+  const liveLocationHeaderStatus = isLocationTrackingActive
+    ? t("liveLocation.trackingActive")
+    : selectedSubtask
+      ? t("liveLocation.ready")
+      : t("liveLocation.readyGeneral");
 
   useEffect(() => {
     if (!trackingSubtaskId || !driver) return undefined;
     const interval = window.setInterval(() => {
       const subtask = subtasks.find((item) => item.id === trackingSubtaskId);
       if (subtask) sendLocation(subtask, true);
+      else sendDriverHeartbeatLocation(true);
     }, 30000);
     return () => window.clearInterval(interval);
   }, [driver, trackingSubtaskId, subtasks, useTestLocation]);
+  useEffect(() => {
+    if (!isDriverHeartbeatTracking || !driver) return undefined;
+    const interval = window.setInterval(() => sendDriverHeartbeatLocation(true), 30000);
+    return () => window.clearInterval(interval);
+  }, [driver, isDriverHeartbeatTracking, useTestLocation]);
   useEffect(() => {
     if (!driver) return undefined;
     const sendAutomaticLocation = () => {
@@ -1351,6 +1364,31 @@ export function DriverView({
     );
   }
 
+  function sendHeaderLocation() {
+    if (selectedSubtask) {
+      sendLocation(selectedSubtask);
+      return;
+    }
+    sendDriverHeartbeatLocation(false);
+  }
+
+  function startHeaderTracking() {
+    if (selectedSubtask) {
+      setIsDriverHeartbeatTracking(false);
+      setTrackingSubtaskId(selectedSubtask.id);
+      sendLocation(selectedSubtask);
+      return;
+    }
+    setTrackingSubtaskId("");
+    setIsDriverHeartbeatTracking(true);
+    sendDriverHeartbeatLocation(false);
+  }
+
+  function stopHeaderTracking() {
+    setTrackingSubtaskId("");
+    setIsDriverHeartbeatTracking(false);
+  }
+
   function completeSubtask(subtask: Subtask) {
     const patch = feedbackPatch(subtask, "erledigt", 100);
     onUpdateSubtask(subtask.id, patch);
@@ -1417,19 +1455,19 @@ export function DriverView({
                 <RadioTower size={20} />
                 <span>
                   {t("liveLocation.driverPanelTitle")}
-                  <small>{trackingSubtaskId ? t("liveLocation.trackingActive") : selectedSubtask ? t("liveLocation.ready") : t("liveLocation.selectJobFirst")}</small>
+                  <small>{liveLocationHeaderStatus}</small>
                 </span>
               </summary>
               <div className="driver-header-live-menu">
-                <button disabled={!selectedSubtask} onClick={() => selectedSubtask && sendLocation(selectedSubtask)} type="button">
+                <button disabled={!driver} onClick={sendHeaderLocation} type="button">
                   <Crosshair size={16} /> {t("liveLocation.sendNow")}
                 </button>
-                {trackingSubtaskId ? (
-                  <button onClick={() => setTrackingSubtaskId("")} type="button">
+                {isLocationTrackingActive ? (
+                  <button onClick={stopHeaderTracking} type="button">
                     <RadioTower size={16} /> {t("liveLocation.stopTracking")}
                   </button>
                 ) : (
-                  <button disabled={!selectedSubtask} onClick={() => { if (selectedSubtask) { setTrackingSubtaskId(selectedSubtask.id); sendLocation(selectedSubtask); } }} type="button">
+                  <button disabled={!driver} onClick={startHeaderTracking} type="button">
                     <Radio size={16} /> {t("liveLocation.startTracking")}
                   </button>
                 )}

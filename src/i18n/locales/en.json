@@ -1443,6 +1443,7 @@
     "stopTracking": "Stop tracking",
     "driverPanelTitle": "Live location for dispatch",
     "ready": "Ready",
+    "readyGeneral": "Ready for driver location",
     "trackingActive": "Tracking active",
     "selectJobFirst": "Select job",
     "sending": "Sending location...",

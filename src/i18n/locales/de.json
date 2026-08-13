@@ -1444,6 +1444,7 @@
     "stopTracking": "Tracking stoppen",
     "driverPanelTitle": "Live-Standort für Einsatzleitung",
     "ready": "Bereit",
+    "readyGeneral": "Bereit für Fahrerstandort",
     "trackingActive": "Tracking aktiv",
     "selectJobFirst": "Auftrag wählen",
     "sending": "Standort wird gesendet...",

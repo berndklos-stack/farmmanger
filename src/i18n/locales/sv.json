@@ -1441,6 +1441,7 @@
     "stopTracking": "Stoppa spårning",
     "driverPanelTitle": "Liveposition för arbetsledning",
     "ready": "Klar",
+    "readyGeneral": "Redo för förarposition",
     "trackingActive": "Spårning aktiv",
     "selectJobFirst": "Välj uppdrag",
     "sending": "Skickar position...",
