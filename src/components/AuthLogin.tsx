@@ -1,6 +1,7 @@
 import { KeyRound, LogIn, Tractor } from "lucide-react";
 import { useState } from "react";
 import { useTranslation } from "react-i18next";
+import { APP_RELEASE_LABEL } from "../lib/appVersion";
 
 type LoginAppMode = "admin" | "driver" | "auto";
 const DEMO_ACCESS_PASSWORD = "Nici1202";
@@ -124,6 +125,10 @@ export function AuthLogin({
             )}
           </div>
         )}
+        <div className="auth-version" title="Farm-Manager App-Version">
+          <span>Farm-Manager</span>
+          <strong>{APP_RELEASE_LABEL}</strong>
+        </div>
       </section>
     </main>
   );
