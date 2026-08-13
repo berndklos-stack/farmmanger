@@ -956,6 +956,19 @@ function positiveInteger(value: number | undefined, fallback = 1) {
   return Number.isFinite(value) && value && value > 0 ? Math.round(value) : fallback;
 }
 
+const taskBillingMarker = "FM_TASK_BILLING:";
+
+function visibleTaskResourceHint(value: string | undefined) {
+  const raw = value ?? "";
+  const markerIndex = raw.indexOf(taskBillingMarker);
+  const visibleText = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+  return visibleText
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(taskBillingMarker))
+    .join("\n")
+    .trim();
+}
+
 function jobTaskPayload(job: Job, subtask: Subtask) {
   const task = job.tasks.find((item) => item.id === subtask.taskId) ?? job.tasks[0];
   const metric = task.progressMetric[0] ?? "Fläche";
@@ -978,7 +991,7 @@ function jobTaskPayload(job: Job, subtask: Subtask) {
     field_id: subtask.fieldId || null,
     task_type: task.name,
     title: task.name,
-    description: task.resourceHint ?? "",
+    description: visibleTaskResourceHint(task.resourceHint),
     work_mode: workModeToDatabase(task.mode),
     progress_type: progressMetricToDatabase(metric),
     target_area_ha: metric === "Fläche" ? task.targetValue ?? null : null,

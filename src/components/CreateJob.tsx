@@ -14,7 +14,14 @@ type CreateJobTemplate = {
 const taskBillingMarker = "FM_TASK_BILLING:";
 
 function stripMarkerBlock(value: string | undefined, marker: string) {
-  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+  const raw = value ?? "";
+  const markerIndex = raw.indexOf(marker);
+  const visibleText = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+  return visibleText
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(marker))
+    .join("\n")
+    .trim();
 }
 
 function visibleResourceHint(value: string | undefined) {
