@@ -494,7 +494,10 @@ function mergeLocalFields(loadedFields: Field[], localFields: Record<string, Fie
   const deleted = new Set(deletedFieldIds);
   const merged = new globalThis.Map<string, Field>();
   loadedFields.filter((field) => !deleted.has(field.id)).forEach((field) => merged.set(field.id, field));
-  Object.values(localFields).filter((field) => !deleted.has(field.id)).forEach((field) => merged.set(field.id, field));
+  Object.values(localFields).filter((field) => !deleted.has(field.id)).forEach((field) => {
+    const loaded = merged.get(field.id);
+    merged.set(field.id, loaded ? { ...loaded, ...field, organizationId: loaded.organizationId ?? field.organizationId } : field);
+  });
   return Array.from(merged.values());
 }
 
@@ -787,7 +790,7 @@ function fieldPayload(field: Field) {
   const notes = [...field.restrictedZones, releaseLine].filter(Boolean).join("\n");
   return {
     id: field.id,
-    organization_id: field.organizationId ?? farmerOrganizationId,
+    organization_id: field.organizationId ?? null,
     name: field.name,
     area_ha: field.areaHa,
     crop: field.crop,
