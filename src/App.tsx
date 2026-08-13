@@ -2170,6 +2170,33 @@ export function App() {
   async function syncJobToSupabase(job: Job, generatedSubtasks: Subtask[]) {
     if (!isSupabaseConfigured || !supabase) return { ok: false, error: "Supabase ist nicht aktiv." };
     const fallbackFarmerOrganizationId = organizationRecords.find((organization) => organization.kind === "farmer" && !organization.archivedAt)?.id ?? farmerOrganizationId;
+    const knownFieldIds = new Set(fieldRecords.map((field) => field.id));
+    const missingFieldIds = job.fieldIds.filter((fieldId) => !knownFieldIds.has(fieldId));
+    if (missingFieldIds.length > 0) {
+      return { ok: false, error: `${job.jobNumber ?? job.title}: Ausgewählte Flächen wurden lokal nicht gefunden (${missingFieldIds.join(", ")}).` };
+    }
+    const selectedFields = fieldRecords.filter((field) => job.fieldIds.includes(field.id));
+    const selectedOrganizationIds = new Set(selectedFields.map((field) => field.organizationId ?? fallbackFarmerOrganizationId));
+    for (const organization of organizationRecords.filter((record) => selectedOrganizationIds.has(record.id))) {
+      let { error } = await supabase.from("organizations").upsert(organizationPayload(organization));
+      if (error && isOrganizationPayloadColumnError(error.message)) {
+        const retry = await supabase.from("organizations").upsert(organizationPayloadCompatible(organization));
+        error = retry.error;
+      }
+      if (error) {
+        console.error("Betrieb für Auftragsfläche konnte nicht in Supabase gespeichert werden", error);
+        return { ok: false, error: `${organization.name}: ${error.message}` };
+      }
+    }
+    for (const field of selectedFields) {
+      const { error } = await supabase.from("fields").upsert(fieldPayload(field), { onConflict: "id" });
+      if (error) {
+        console.error("Auftragsfläche konnte nicht vor dem Auftrag in Supabase gespeichert werden", error);
+        return { ok: false, error: `${field.name}: ${error.message}` };
+      }
+      await syncFieldBoundary(field);
+      await syncFieldHazards(field);
+    }
     const jobPayload = {
       id: job.id,
       job_number: job.jobNumber ?? generateJobNumber(),
@@ -2212,7 +2239,6 @@ export function App() {
       return { ok: false, error: `${job.jobNumber ?? job.title}: ${jobError.message}` };
     }
 
-    const knownFieldIds = new Set(fieldRecords.map((field) => field.id));
     const jobFields = job.fieldIds
       .filter((fieldId) => knownFieldIds.has(fieldId))
       .map((fieldId) => ({ job_id: job.id, field_id: fieldId }));
