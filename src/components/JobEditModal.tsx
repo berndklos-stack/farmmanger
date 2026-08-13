@@ -1,5 +1,5 @@
 import { Archive, CheckCircle2, Plus, RefreshCw, Save, Trash2, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { formatArea } from "../i18n/format";
@@ -50,6 +50,7 @@ export function JobEditModal({
   const [confirmDeleteOpen, setConfirmDeleteOpen] = useState(false);
   const [saveMessage, setSaveMessage] = useState<{ type: "success" | "error"; text: string } | null>(null);
   const parsedInitialTimeWindow = parseEditTimeWindow(job.timeWindow);
+  const lastFilteredFarmerOrganizationId = useRef(job.farmerOrganizationId ?? "");
   const [jobForm, setJobForm] = useState({
     title: job.title,
     selectedFarmerOrganizationId: job.farmerOrganizationId ?? "",
@@ -146,14 +147,17 @@ export function JobEditModal({
       estimatedHours: job.estimatedHours ?? 0,
       plannedCrews: job.plannedCrews ?? 1,
     });
-  }, [job, jobTypes, taskTemplates]);
+    lastFilteredFarmerOrganizationId.current = job.farmerOrganizationId ?? "";
+  }, [job.id]);
 
   useEffect(() => {
+    if (lastFilteredFarmerOrganizationId.current === jobForm.selectedFarmerOrganizationId) return;
+    lastFilteredFarmerOrganizationId.current = jobForm.selectedFarmerOrganizationId;
     setJobForm((current) => ({
       ...current,
       selectedFields: current.selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId)),
     }));
-  }, [fieldsForSelectedFarmer]);
+  }, [fieldsForSelectedFarmer, jobForm.selectedFarmerOrganizationId]);
 
   function addSelectedTask() {
     if (!jobForm.taskToAdd) return;

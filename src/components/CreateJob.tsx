@@ -1,5 +1,5 @@
 import { AlertTriangle, CheckCircle2, Plus, Save, X } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { formatArea } from "../i18n/format";
@@ -10,6 +10,16 @@ import { FieldSelectionMap } from "./FieldSelectionMap";
 type CreateJobTemplate = {
   job: Job;
 };
+
+const taskBillingMarker = "FM_TASK_BILLING:";
+
+function stripMarkerBlock(value: string | undefined, marker: string) {
+  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+}
+
+function visibleResourceHint(value: string | undefined) {
+  return stripMarkerBlock(value, taskBillingMarker);
+}
 
 function parseTemplateTimeWindow(value: string) {
   const dateMatch = value.match(/(\d{4}-\d{2}-\d{2})/);
@@ -49,6 +59,7 @@ export function CreateJob({
   const [requestedEndTime, setRequestedEndTime] = useState("");
   const [priority, setPriority] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
+  const lastFilteredFarmerOrganizationId = useRef("");
   const selectedJobType = jobTypes.find((jobType) => jobType.id === selectedJobTypeId);
   const activeRelationshipPartnerIds = useMemo(() => {
     const ids = new Set<string>();
@@ -130,8 +141,10 @@ export function CreateJob({
   }, [authProfile?.organizationId, currentRole]);
 
   useEffect(() => {
+    if (lastFilteredFarmerOrganizationId.current === selectedFarmerOrganizationId) return;
+    lastFilteredFarmerOrganizationId.current = selectedFarmerOrganizationId;
     setSelectedFields((current) => current.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId)));
-  }, [fieldsForSelectedFarmer]);
+  }, [fieldsForSelectedFarmer, selectedFarmerOrganizationId]);
 
   useEffect(() => {
     if (!initialTemplate) return;
@@ -353,12 +366,16 @@ export function CreateJob({
         {selectedJobType && (
           <div className="resource-need-box">
             <strong>{selectedJobType.description}</strong>
-            {selectedJobType.tasks.map((task) => (
-              <span key={task.id}>
-                {task.name}: {task.requiredDrivers ?? 0} {t("terms.driver")} · {task.requiredVehicles ?? 0} {t("terms.vehicle")} · {task.requiredImplements ?? 0} {t("terms.implement")} · {task.resourceHint}
-                {task.timePerHa ? ` · ${task.timePerHa} ${t("createJob.hoursPerHa")}` : ""}
-              </span>
-            ))}
+            {selectedJobType.tasks.map((task) => {
+              const resourceHint = visibleResourceHint(task.resourceHint);
+              return (
+                <span key={task.id}>
+                  {task.name}: {task.requiredDrivers ?? 0} {t("terms.driver")} · {task.requiredVehicles ?? 0} {t("terms.vehicle")} · {task.requiredImplements ?? 0} {t("terms.implement")}
+                  {resourceHint ? ` · ${resourceHint}` : ""}
+                  {task.timePerHa ? ` · ${task.timePerHa} ${t("createJob.hoursPerHa")}` : ""}
+                </span>
+              );
+            })}
           </div>
         )}
         <div className="form-row">

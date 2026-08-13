@@ -2203,6 +2203,11 @@ export function App() {
     const jobFields = job.fieldIds
       .filter((fieldId) => knownFieldIds.has(fieldId))
       .map((fieldId) => ({ job_id: job.id, field_id: fieldId }));
+    const { error: deleteJobFieldsError } = await supabase.from("job_fields").delete().eq("job_id", job.id);
+    if (deleteJobFieldsError) {
+      console.error("Alte Auftragsflächen konnten nicht ersetzt werden", deleteJobFieldsError);
+      return { ok: false, error: `${job.jobNumber ?? job.title}: ${deleteJobFieldsError.message}` };
+    }
     if (jobFields.length > 0) {
       const { error } = await supabase.from("job_fields").upsert(jobFields, { onConflict: "job_id,field_id" });
       if (error) {
@@ -2319,16 +2324,18 @@ export function App() {
   function addJob(job: Job, generatedSubtasks: Subtask[]) {
     const jobWithNumber = { ...job, jobNumber: job.jobNumber ?? generateJobNumber() };
     const subtasksWithJobId = generatedSubtasks.map((subtask) => ({ ...subtask, jobId: jobWithNumber.id }));
-    setLocalJobs((current) => {
-      const next = { ...current, [jobWithNumber.id]: jobWithNumber };
-      saveLocalJobs(next);
-      return next;
-    });
-    setLocalSubtasks((current) => {
-      const next = { ...current, [jobWithNumber.id]: subtasksWithJobId };
-      saveLocalSubtasks(next);
-      return next;
-    });
+    if (!isSupabaseConfigured) {
+      setLocalJobs((current) => {
+        const next = { ...current, [jobWithNumber.id]: jobWithNumber };
+        saveLocalJobs(next);
+        return next;
+      });
+      setLocalSubtasks((current) => {
+        const next = { ...current, [jobWithNumber.id]: subtasksWithJobId };
+        saveLocalSubtasks(next);
+        return next;
+      });
+    }
     setJobs((current) => [jobWithNumber, ...current]);
     setSubtasks((current) => [...subtasksWithJobId, ...current]);
     setSelectedJobId(jobWithNumber.id);
@@ -2402,16 +2409,18 @@ export function App() {
 
     setJobs((current) => current.map((job) => (job.id === id ? nextJob : job)));
     setSubtasks((current) => [...current.filter((subtask) => subtask.jobId !== id), ...nextSubtasks]);
-    setLocalJobs((current) => {
-      const next = { ...current, [id]: nextJob };
-      saveLocalJobs(next);
-      return next;
-    });
-    setLocalSubtasks((current) => {
-      const next = { ...current, [id]: nextSubtasks };
-      saveLocalSubtasks(next);
-      return next;
-    });
+    if (!isSupabaseConfigured) {
+      setLocalJobs((current) => {
+        const next = { ...current, [id]: nextJob };
+        saveLocalJobs(next);
+        return next;
+      });
+      setLocalSubtasks((current) => {
+        const next = { ...current, [id]: nextSubtasks };
+        saveLocalSubtasks(next);
+        return next;
+      });
+    }
 
     if (isSupabaseConfigured && supabase) {
       if (removedFieldIds.length > 0) {
