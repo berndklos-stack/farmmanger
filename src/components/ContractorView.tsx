@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { useAppData } from "../data/DataContext";
 import { deleteDriverTimeEntry as deleteStoredDriverTimeEntry, loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, type DriverTimeEntryKind, writeDriverTimeEntries } from "../lib/driverTimeEntries";
 import { isSupabaseConfigured, supabase } from "../lib/supabase";
+import { getPublicDocumentUrl, uploadDocument } from "../services/storage";
 import { decideVacationRequest, loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest } from "../lib/vacationRequests";
 import type { Driver, DriverLocation, ExternalContact, ExternalContactType, FieldMapPattern, Implement, Job, Organization, OrganizationRelationship, OrganizationResetArea, OrganizationResetMode, OrganizationResetOptions, OrganizationResetResult, PersonnelAppPermissionKey, PersonnelEmployeeType, ProgressMetric, Subtask, Task, TaskTemplate, UserRole, Vehicle, ViewKey, WorkMode } from "../types";
 import { DriverChips, FieldName, ProgressBar, StatusBadge, getTask } from "./shared";
@@ -250,6 +251,23 @@ function mergeById<T extends { id: string }>(localRows: T[], remoteRows: T[]) {
   return Array.from(merged.values());
 }
 
+function mergeProducts(localRows: ProductInventoryItem[], remoteRows: ProductInventoryItem[]) {
+  const localById = new Map(localRows.map((row) => [row.id, row]));
+  const merged = new Map<string, ProductInventoryItem>();
+  remoteRows.forEach((remote) => {
+    const local = localById.get(remote.id);
+    merged.set(remote.id, {
+      ...remote,
+      photoUrl: remote.photoUrl || local?.photoUrl,
+      photoName: remote.photoName || local?.photoName,
+    });
+  });
+  localRows.forEach((row) => {
+    if (!merged.has(row.id)) merged.set(row.id, row);
+  });
+  return Array.from(merged.values());
+}
+
 function productFromRow(row: ProductInventoryRow): ProductInventoryItem {
   return {
     id: row.id,
@@ -354,6 +372,14 @@ function productMovementToRow(movement: ProductMovement): ProductMovementRow {
 
 function createLocalId(prefix: string) {
   return globalThis.crypto?.randomUUID?.() ?? `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function storageSafeFileName(fileName: string) {
+  return (fileName || "artikelbild").replace(/[^a-zA-Z0-9._-]/g, "_");
+}
+
+function productPhotoPath(organizationId: string | undefined, fileId: string, file: File) {
+  return `${organizationId ?? "shared"}/products/photos/${fileId}-${storageSafeFileName(file.name)}`;
 }
 
 function fileToDataDocument(file: File): Promise<ProductMovementDocument> {
@@ -1439,7 +1465,7 @@ export function ContractorView({
       const remoteProducts = ((productRows ?? []) as ProductInventoryRow[]).map(productFromRow);
       const remoteMovements = ((movementRows ?? []) as ProductMovementRow[]).map(productMovementFromRow);
       setProducts((current) => {
-        const next = mergeById(current, remoteProducts);
+        const next = mergeProducts(current, remoteProducts);
         writeJsonArray(productInventoryStorageKey, next);
         return next;
       });
@@ -1779,11 +1805,21 @@ export function ContractorView({
   async function addProductPhoto(fileList: FileList | null) {
     const file = fileList?.[0];
     if (!file) return;
-    const document = await fileToDataDocument(file);
+    const fileId = createLocalId("product-photo");
+    let photoUrl = URL.createObjectURL(file);
+    if (isSupabaseConfigured && supabase) {
+      const path = productPhotoPath(resourceOrganizationId ?? authProfile?.organizationId, fileId, file);
+      const upload = await uploadDocument("job-documents", path, file);
+      if (upload.error) {
+        console.warn("Artikelfoto konnte nicht dauerhaft gespeichert werden.", upload.error);
+      } else {
+        photoUrl = getPublicDocumentUrl("job-documents", path);
+      }
+    }
     setProductForm((current) => ({
       ...current,
-      photoName: document.name,
-      photoUrl: document.url,
+      photoName: file.name || "Artikelfoto",
+      photoUrl,
     }));
   }
 
@@ -1825,8 +1861,8 @@ export function ContractorView({
       unit: productForm.unit.trim() || "Stk",
       supplierName: productForm.supplierName.trim() || undefined,
       articleNumber: productForm.articleNumber.trim() || undefined,
-      photoUrl: productForm.photoUrl || undefined,
-      photoName: productForm.photoName || undefined,
+      photoUrl: productForm.photoUrl || editableProduct?.photoUrl,
+      photoName: productForm.photoName || editableProduct?.photoName,
       currency: productForm.currency || "SEK",
       purchasePrice: optionalNumberFromForm(productForm.purchasePrice),
       salesPrice: optionalNumberFromForm(productForm.salesPrice),
