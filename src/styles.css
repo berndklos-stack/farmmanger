@@ -9312,6 +9312,17 @@ select {
   max-height: calc(100dvh - 390px);
 }
 
+.job-type-master-page > .resource-editor-block {
+  max-height: calc(100dvh - 245px);
+  overflow: auto;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.job-type-master-page > .resource-editor-block + .resource-list-panel.master-list-full {
+  max-height: 180px;
+}
+
 .product-toolbar {
   align-items: center;
   display: grid;

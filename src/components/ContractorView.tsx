@@ -1345,7 +1345,7 @@ export function ContractorView({
       requiredDrivers: selectedTaskTemplate.requiredDrivers ?? 1,
       requiredVehicles: selectedTaskTemplate.requiredVehicles ?? 1,
       requiredImplements: selectedTaskTemplate.requiredImplements ?? 0,
-      resourceHint: selectedTaskTemplate.resourceHint ?? "",
+      resourceHint: visibleResourceHint(selectedTaskTemplate.resourceHint),
       unit: selectedTaskTemplate.unit ?? "",
       billingUnit: billing.billingUnit,
       standardPrice: billing.price?.toString() ?? "",
@@ -1634,6 +1634,10 @@ export function ContractorView({
   function withMarkerJson(value: string | undefined, marker: string, data: unknown) {
     const base = stripMarkerBlock(value, marker);
     return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
+  }
+
+  function visibleResourceHint(value: string | undefined) {
+    return stripMarkerBlock(value, taskBillingMarker);
   }
 
   function billingConditionFromTaskTemplate(taskTemplate?: TaskTemplate): TaskBillingCondition {
@@ -2873,7 +2877,7 @@ export function ContractorView({
       requiredDrivers: taskTemplate.requiredDrivers,
       requiredVehicles: taskTemplate.requiredVehicles,
       requiredImplements: taskTemplate.requiredImplements,
-      resourceHint: taskTemplate.resourceHint,
+      resourceHint: visibleResourceHint(taskTemplate.resourceHint),
       unit: taskTemplate.unit || (taskTemplate.progressMetric === "Fläche" ? "ha" : taskTemplate.progressMetric === "Fuhren" ? t("driver.trips") : taskTemplate.progressMetric === "Zeit" ? "h" : undefined),
       mapStyle: taskTemplate.mapStyle,
       timePerHa: taskTemplate.timePerHa,
@@ -2946,16 +2950,16 @@ export function ContractorView({
       requiredDrivers: taskTemplateForm.requiredDrivers,
       requiredVehicles: taskTemplateForm.requiredVehicles,
       requiredImplements: taskTemplateForm.requiredImplements,
-      resourceHint: withMarkerJson(taskTemplateForm.resourceHint, taskBillingMarker, billingCondition),
+      resourceHint: withMarkerJson(visibleResourceHint(taskTemplateForm.resourceHint), taskBillingMarker, billingCondition),
       unit: taskTemplateForm.unit.trim() || undefined,
       billingUnit: billingCondition.billingUnit,
       standardPrice: billingCondition.price,
       standardPriceCurrency: billingCondition.currency,
       standardPriceValidFrom: billingCondition.validFrom,
       standardPriceValidTo: billingCondition.validTo,
-      mapStyle: taskTemplateForm.mapStyleLabel.trim()
+      mapStyle: taskTemplateForm.mapStyleLabel.trim() || taskTemplateForm.mapStyleColor !== "#7fcf6b" || taskTemplateForm.mapStylePattern !== "none"
         ? {
-            label: taskTemplateForm.mapStyleLabel.trim(),
+            label: taskTemplateForm.mapStyleLabel.trim() || taskTemplateForm.name.trim(),
             color: taskTemplateForm.mapStyleColor,
             pattern: taskTemplateForm.mapStylePattern,
           }
@@ -5708,7 +5712,7 @@ export function ContractorView({
                 type="button"
               >
                 <strong>{taskTemplate.name}</strong>
-                <span>{taskTemplate.timePerHa} {t("createJob.hoursPerHa")} · {t(`mode.${taskTemplate.mode}`)} · {taskTemplate.resourceHint || t("createJob.dispatchPlannerDecides")}</span>
+                <span>{taskTemplate.timePerHa} {t("createJob.hoursPerHa")} · {t(`mode.${taskTemplate.mode}`)} · {visibleResourceHint(taskTemplate.resourceHint) || t("createJob.dispatchPlannerDecides")}</span>
                 {currentRole === "support_admin" && (
                   <span className="template-owner-line">{t("masterData.templateOwner")}: <b>{taskTemplateOwnerLabel(taskTemplate)}</b></span>
                 )}
@@ -5751,8 +5755,8 @@ export function ContractorView({
                     <label>{t("masterData.templateOwner")}<input disabled value={taskTemplateOwnerLabel(selectedTaskTemplate)} /></label>
                   )}
                   <label>{t("mapStatus.label")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} placeholder={t("mapStatus.none")} value={taskTemplateForm.mapStyleLabel} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStyleLabel: event.target.value }))} /></label>
-                  <label>{t("mapStatus.color")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates || !taskTemplateForm.mapStyleLabel.trim()} value={taskTemplateForm.mapStyleColor} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStyleColor: event.target.value }))} type="color" /></label>
-                  <label>{t("mapStatus.pattern")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates || !taskTemplateForm.mapStyleLabel.trim()} value={taskTemplateForm.mapStylePattern} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStylePattern: event.target.value as FieldMapPattern }))}>{mapPatterns.map((pattern) => <option key={pattern} value={pattern}>{t(`mapStatus.patterns.${pattern}`)}</option>)}</select></label>
+                  <label>{t("mapStatus.color")}<input disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.mapStyleColor} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStyleColor: event.target.value }))} type="color" /></label>
+                  <label>{t("mapStatus.pattern")}<select disabled={!canEditSelectedTaskTemplate || showArchivedTaskTemplates} value={taskTemplateForm.mapStylePattern} onChange={(event) => setTaskTemplateForm((current) => ({ ...current, mapStylePattern: event.target.value as FieldMapPattern }))}>{mapPatterns.map((pattern) => <option key={pattern} value={pattern}>{t(`mapStatus.patterns.${pattern}`)}</option>)}</select></label>
                 </div>
                 <div className="field-help-box">
                   <strong>{t("createJob.workModeHelpTitle")}</strong>
@@ -5785,7 +5789,7 @@ export function ContractorView({
       )}
 
       {activeSection === "jobTypes" && (
-        <div className="panel resource-master-page">
+        <div className="panel resource-master-page job-type-master-page">
           <div className="section-heading master-detail-heading">
             <h2>{t("contractor.jobTypeMasterData")}</h2>
             <div className="modal-actions">
@@ -5891,10 +5895,10 @@ export function ContractorView({
                       <label>{t("terms.driver")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} min={0} max={10} value={task.requiredDrivers ?? 0} onChange={(event) => updateSelectedJobTypeTask(task.id, { requiredDrivers: Number(event.target.value) })} type="number" /></label>
                       <label>{t("terms.vehicle")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} min={0} max={10} value={task.requiredVehicles ?? 0} onChange={(event) => updateSelectedJobTypeTask(task.id, { requiredVehicles: Number(event.target.value) })} type="number" /></label>
                       <label>{t("terms.implement")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} min={0} max={10} value={task.requiredImplements ?? 0} onChange={(event) => updateSelectedJobTypeTask(task.id, { requiredImplements: Number(event.target.value) })} type="number" /></label>
-                      <label>{t("createJob.resourceNeed")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} value={task.resourceHint ?? ""} onChange={(event) => updateSelectedJobTypeTask(task.id, { resourceHint: event.target.value })} /></label>
+                      <label>{t("createJob.resourceNeed")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} value={visibleResourceHint(task.resourceHint)} onChange={(event) => updateSelectedJobTypeTask(task.id, { resourceHint: event.target.value })} /></label>
                       <label>{t("mapStatus.label")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} placeholder={t("mapStatus.none")} value={task.mapStyle?.label ?? ""} onChange={(event) => updateSelectedJobTypeTask(task.id, { mapStyle: event.target.value.trim() ? { label: event.target.value, color: task.mapStyle?.color ?? "#7fcf6b", pattern: task.mapStyle?.pattern ?? "none" } : undefined })} /></label>
-                      <label>{t("mapStatus.color")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes || !task.mapStyle?.label} value={task.mapStyle?.color ?? "#7fcf6b"} onChange={(event) => updateSelectedJobTypeTask(task.id, { mapStyle: { label: task.mapStyle?.label ?? task.name, color: event.target.value, pattern: task.mapStyle?.pattern ?? "none" } })} type="color" /></label>
-                      <label>{t("mapStatus.pattern")}<select disabled={!canEditSelectedJobType || showArchivedJobTypes || !task.mapStyle?.label} value={task.mapStyle?.pattern ?? "none"} onChange={(event) => updateSelectedJobTypeTask(task.id, { mapStyle: { label: task.mapStyle?.label ?? task.name, color: task.mapStyle?.color ?? "#7fcf6b", pattern: event.target.value as FieldMapPattern } })}>{mapPatterns.map((pattern) => <option key={pattern} value={pattern}>{t(`mapStatus.patterns.${pattern}`)}</option>)}</select></label>
+                      <label>{t("mapStatus.color")}<input disabled={!canEditSelectedJobType || showArchivedJobTypes} value={task.mapStyle?.color ?? "#7fcf6b"} onChange={(event) => updateSelectedJobTypeTask(task.id, { mapStyle: { label: task.mapStyle?.label ?? task.name, color: event.target.value, pattern: task.mapStyle?.pattern ?? "none" } })} type="color" /></label>
+                      <label>{t("mapStatus.pattern")}<select disabled={!canEditSelectedJobType || showArchivedJobTypes} value={task.mapStyle?.pattern ?? "none"} onChange={(event) => updateSelectedJobTypeTask(task.id, { mapStyle: { label: task.mapStyle?.label ?? task.name, color: task.mapStyle?.color ?? "#7fcf6b", pattern: event.target.value as FieldMapPattern } })}>{mapPatterns.map((pattern) => <option key={pattern} value={pattern}>{t(`mapStatus.patterns.${pattern}`)}</option>)}</select></label>
                       {canEditSelectedJobType && !showArchivedJobTypes && (
                         <button className="danger-action" onClick={() => removeSelectedJobTypeTask(task.id)} type="button">
                           <Trash2 size={16} /> {t("masterData.removeTaskFromJobType")}
