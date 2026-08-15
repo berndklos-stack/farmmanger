@@ -614,7 +614,7 @@ function mapSubtasks(
 
 function mapDrivers(driverRows: DriverRow[]): Driver[] {
   return driverRows
-    .filter((driver) => driver.role === "driver" || driver.role === "farmer_employee" || driver.role === "contractor_admin" || driver.role === "advisor")
+    .filter((driver) => driver.role === "driver")
     .map((driver) => ({
       id: driver.id,
       profileId: driver.id,
