@@ -24,9 +24,11 @@ type Props = {
   compact?: boolean;
   editable?: boolean;
   defaultMapLayer?: "map" | "imagery";
+  skipRecenterForFieldId?: string | null;
   onBoundaryChange?: (boundary: GeoPoint[]) => void;
   onAccessPointChange?: (accessPoint: FieldAccessPoint) => void;
   onHazardAdd?: (hazard: FieldHazard) => void;
+  onViewportChange?: (center: GeoPoint) => void;
 };
 
 type MapEditMode = "none" | "boundary" | "access" | "hazard";
@@ -38,9 +40,11 @@ export function FieldMap({
   compact = false,
   editable = false,
   defaultMapLayer,
+  skipRecenterForFieldId,
   onBoundaryChange,
   onAccessPointChange,
   onHazardAdd,
+  onViewportChange,
 }: Props) {
   const { t, i18n } = useTranslation();
   const access = field.accessPoint;
@@ -210,7 +214,8 @@ export function FieldMap({
         scrollWheelZoom={false}
         zoom={15}
       >
-        <RecenterMap center={field.center} />
+        <RecenterMap center={field.center} fieldId={field.id} skipForFieldId={skipRecenterForFieldId} />
+        {onViewportChange && <MapViewportTracker onViewportChange={onViewportChange} />}
         <DrawClickHandler enabled={editMode !== "none"} onAddPoint={handleMapEditClick} />
         <MapBaseLayers defaultLayer={defaultMapLayer ?? "imagery"} />
         <FieldMapPatternDefs fieldMapStatuses={fieldMapStatuses} fields={[field, ...contextFields]} />
@@ -462,12 +467,35 @@ function DrawClickHandler({ enabled, onAddPoint }: { enabled: boolean; onAddPoin
   return null;
 }
 
-function RecenterMap({ center }: { center: GeoPoint }) {
+function MapViewportTracker({ onViewportChange }: { onViewportChange: (center: GeoPoint) => void }) {
   const map = useMap();
 
   useEffect(() => {
+    const center = map.getCenter();
+    onViewportChange({ lat: center.lat, lng: center.lng });
+  }, [map, onViewportChange]);
+
+  useMapEvents({
+    moveend() {
+      const center = map.getCenter();
+      onViewportChange({ lat: center.lat, lng: center.lng });
+    },
+    zoomend() {
+      const center = map.getCenter();
+      onViewportChange({ lat: center.lat, lng: center.lng });
+    },
+  });
+
+  return null;
+}
+
+function RecenterMap({ center, fieldId, skipForFieldId }: { center: GeoPoint; fieldId: string; skipForFieldId?: string | null }) {
+  const map = useMap();
+
+  useEffect(() => {
+    if (skipForFieldId === fieldId) return;
     map.setView([center.lat, center.lng], map.getZoom());
-  }, [center.lat, center.lng, map]);
+  }, [center.lat, center.lng, fieldId, map, skipForFieldId]);
 
   return null;
 }

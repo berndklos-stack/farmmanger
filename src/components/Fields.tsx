@@ -110,6 +110,8 @@ export function Fields({
   const [bulkReleaseNotice, setBulkReleaseNotice] = useState("");
   const [bulkReleaseNoticeType, setBulkReleaseNoticeType] = useState<"applied" | "removed">("applied");
   const [farmerFilterId, setFarmerFilterId] = useState("");
+  const [lastMapCenter, setLastMapCenter] = useState<GeoPoint | null>(null);
+  const [skipRecenterFieldId, setSkipRecenterFieldId] = useState<string | null>(null);
   const [historyFilters, setHistoryFilters] = useState<FieldHistoryFilters>({
     date: "",
     activityTime: "",
@@ -124,8 +126,9 @@ export function Fields({
   });
   const photoInputRef = useRef<HTMLInputElement>(null);
   const documentInputRef = useRef<HTMLInputElement>(null);
-  const activeFields = fields.filter((field) => !field.archivedAt);
-  const archivedFields = fields.filter((field) => Boolean(field.archivedAt));
+  const sortFieldsByName = (items: typeof fields) => [...items].sort((a, b) => a.name.localeCompare(b.name, i18n.language, { numeric: true, sensitivity: "base" }));
+  const activeFields = sortFieldsByName(fields.filter((field) => !field.archivedAt));
+  const archivedFields = sortFieldsByName(fields.filter((field) => Boolean(field.archivedAt)));
   const baseVisibleFields = showArchivedFields ? archivedFields : activeFields;
   const farmerOrganizations = organizations.filter((organization) => organization.kind === "farmer" && !organization.archivedAt);
   const fieldFarmerOptions = farmerOrganizations.filter((organization) => (
@@ -827,24 +830,23 @@ export function Fields({
   }
 
   function createNewField() {
-    const reference = activeFields[0] ?? fields[0];
     const id = crypto.randomUUID();
-    const center = reference?.center ?? { lat: 55.72, lng: 13.18 };
-    const offsetCenter = { lat: center.lat + 0.002, lng: center.lng + 0.002 };
+    const center = lastMapCenter ?? selectedField?.center ?? activeFields[0]?.center ?? fields[0]?.center ?? { lat: 55.72, lng: 13.18 };
+    setSkipRecenterFieldId(id);
     addField({
       id,
       name: t("masterData.newFieldName"),
       areaHa: 1,
       crop: "",
       tenure: "Eigentum",
-      center: offsetCenter,
-      accessPoint: { ...offsetCenter, label: t("terms.accessPoint") },
+      center,
+      accessPoint: { ...center, label: t("terms.accessPoint") },
       accessDescription: "",
       boundary: [
-        { lat: offsetCenter.lat + 0.0005, lng: offsetCenter.lng - 0.0005 },
-        { lat: offsetCenter.lat + 0.0005, lng: offsetCenter.lng + 0.0005 },
-        { lat: offsetCenter.lat - 0.0005, lng: offsetCenter.lng + 0.0005 },
-        { lat: offsetCenter.lat - 0.0005, lng: offsetCenter.lng - 0.0005 },
+        { lat: center.lat + 0.0005, lng: center.lng - 0.0005 },
+        { lat: center.lat + 0.0005, lng: center.lng + 0.0005 },
+        { lat: center.lat - 0.0005, lng: center.lng + 0.0005 },
+        { lat: center.lat - 0.0005, lng: center.lng - 0.0005 },
       ],
       hazards: [],
       attachments: [],
@@ -920,7 +922,10 @@ export function Fields({
             <button
               key={field.id}
               className={field.id === selected.id ? "field-list-item active" : "field-list-item"}
-              onClick={() => onSelectField(field.id)}
+              onClick={() => {
+                setSkipRecenterFieldId(null);
+                onSelectField(field.id);
+              }}
               type="button"
             >
               <span className="map-dot" />
@@ -941,9 +946,11 @@ export function Fields({
           editable={permissions.canEditFields && !showArchivedFields}
           field={selected}
           fieldMapStatuses={fieldMapStatuses}
+          skipRecenterForFieldId={skipRecenterFieldId}
           onBoundaryChange={updateSelectedBoundary}
           onAccessPointChange={updateAccessPoint}
           onHazardAdd={addHazard}
+          onViewportChange={setLastMapCenter}
         />
 
         <div className="panel">
