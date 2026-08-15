@@ -434,6 +434,12 @@ export type Job = {
   estimatedHours?: number;
   timeWindow: string;
   priority?: string;
+  serviceLocation?: {
+    address?: string;
+    lat?: number;
+    lng?: number;
+    label?: string;
+  };
   notes: string;
   completionStatus?: JobCompletionStatus;
   completionStatusChangedAt?: string;

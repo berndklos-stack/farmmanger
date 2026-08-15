@@ -34,7 +34,14 @@ function withTimeout<T>(promise: Promise<T>, timeoutMs: number, message: string)
 }
 
 function stripMarkerBlock(value: string | undefined | null, marker: string) {
-  return (value ?? "").split("\n").filter((line) => !line.startsWith(marker)).join("\n").trim();
+  const raw = value ?? "";
+  const markerIndex = raw.indexOf(marker);
+  const visibleText = markerIndex >= 0 ? raw.slice(0, markerIndex) : raw;
+  return visibleText
+    .split("\n")
+    .filter((line) => !line.trim().startsWith(marker))
+    .join("\n")
+    .trim();
 }
 
 function parseMarkerJson<T>(value: string | undefined | null, marker: string, fallback: T): T {
@@ -46,6 +53,8 @@ function parseMarkerJson<T>(value: string | undefined | null, marker: string, fa
     return fallback;
   }
 }
+
+const serviceLocationMarker = "FM_SERVICE_LOCATION:";
 
 function personnelAccessFromOperationType(value: string | undefined | null) {
   return parseMarkerJson<Partial<PersonnelAppAccess> & { employeeType?: PersonnelEmployeeType }>(value, personnelAccessMarker, {});
@@ -465,7 +474,8 @@ function mapJobs(jobRows: JobRow[], jobFieldRows: JobFieldRow[], taskRows: JobTa
       fieldIds: jobFieldRows.filter((field) => field.job_id === row.id).map((field) => field.field_id),
       tasks,
       timeWindow: formatTimeWindow(row.planned_start, row.planned_end),
-      notes: row.description ?? row.status ?? "",
+      serviceLocation: parseMarkerJson<Job["serviceLocation"]>(row.description, serviceLocationMarker, undefined),
+      notes: stripMarkerBlock(row.description ?? row.status ?? "", serviceLocationMarker),
       completionStatus: row.completion_status ?? undefined,
       completionStatusChangedAt: row.completion_status_changed_at ?? undefined,
       completionStatusChangedBy: row.completion_status_changed_by ?? undefined,

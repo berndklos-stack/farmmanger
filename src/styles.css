@@ -3432,6 +3432,65 @@ button:disabled {
   align-self: end;
 }
 
+.quick-task-panel,
+.service-location-panel {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: #f8fbf5;
+  display: grid;
+  gap: 10px;
+  margin-top: 12px;
+  padding: 12px;
+}
+
+.quick-task-head,
+.service-location-panel > div:first-child {
+  align-items: center;
+  display: flex;
+  gap: 12px;
+  justify-content: space-between;
+}
+
+.quick-task-head > div,
+.service-location-panel > div:first-child {
+  min-width: 0;
+}
+
+.quick-task-head strong,
+.service-location-panel strong {
+  color: var(--color-ink);
+  display: block;
+  font-size: 1rem;
+}
+
+.quick-task-head span,
+.service-location-panel span {
+  color: #607166;
+  display: block;
+  font-size: 0.9rem;
+  font-weight: 700;
+}
+
+.quick-task-grid,
+.service-location-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.service-location-grid {
+  grid-template-columns: minmax(260px, 2fr) minmax(130px, 0.75fr) minmax(130px, 0.75fr);
+}
+
+.quick-task-wide {
+  grid-column: span 3;
+}
+
+.quick-task-save {
+  align-self: end;
+  min-height: 38px;
+}
+
 .selected-task-list {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
@@ -7886,11 +7945,23 @@ select {
   .select-grid.compact,
   .master-overview-grid,
   .form-row,
+  .quick-task-grid,
+  .service-location-grid,
   .selected-field-card,
   .assignment-picker,
   .report-grid,
   .dispatch-item {
     grid-template-columns: 1fr;
+  }
+
+  .quick-task-head,
+  .service-location-panel > div:first-child {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .quick-task-wide {
+    grid-column: auto;
   }
 
   .master-overview-tile {

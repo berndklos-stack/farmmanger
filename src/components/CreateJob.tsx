@@ -12,6 +12,7 @@ type CreateJobTemplate = {
 };
 
 const taskBillingMarker = "FM_TASK_BILLING:";
+const serviceLocationMarker = "FM_SERVICE_LOCATION:";
 
 function stripMarkerBlock(value: string | undefined, marker: string) {
   const raw = value ?? "";
@@ -26,6 +27,26 @@ function stripMarkerBlock(value: string | undefined, marker: string) {
 
 function visibleResourceHint(value: string | undefined) {
   return stripMarkerBlock(value, taskBillingMarker);
+}
+
+function withMarkerJson(value: string | undefined, marker: string, data: unknown) {
+  const base = stripMarkerBlock(value, marker);
+  return [base, `${marker}${JSON.stringify(data)}`].filter(Boolean).join("\n");
+}
+
+function numberFromForm(value: string) {
+  const parsed = Number(value.replace(",", "."));
+  return Number.isFinite(parsed) ? parsed : undefined;
+}
+
+function serviceLocationFromNotes(value: string | undefined) {
+  const line = (value ?? "").split("\n").find((item) => item.startsWith(serviceLocationMarker));
+  if (!line) return undefined;
+  try {
+    return JSON.parse(line.slice(serviceLocationMarker.length)) as Job["serviceLocation"];
+  } catch {
+    return undefined;
+  }
 }
 
 function parseTemplateTimeWindow(value: string) {
@@ -50,7 +71,7 @@ export function CreateJob({
   onSaved?: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
+  const { addTaskTemplate, authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [jobScope, setJobScope] = useState<"field" | "service">("field");
   const [selectedFarmerOrganizationId, setSelectedFarmerOrganizationId] = useState("");
@@ -67,6 +88,21 @@ export function CreateJob({
   const [requestedEndTime, setRequestedEndTime] = useState("");
   const [priority, setPriority] = useState("");
   const [savedNotice, setSavedNotice] = useState("");
+  const [serviceAddress, setServiceAddress] = useState("");
+  const [serviceLat, setServiceLat] = useState("");
+  const [serviceLng, setServiceLng] = useState("");
+  const [showQuickTaskForm, setShowQuickTaskForm] = useState(false);
+  const [quickTaskForm, setQuickTaskForm] = useState({
+    name: "",
+    billingUnit: "hour" as NonNullable<TaskTemplate["billingUnit"]>,
+    unit: "h",
+    standardPrice: "",
+    standardPriceCurrency: "SEK",
+    resourceHint: "",
+    requiredDrivers: 1,
+    requiredVehicles: 1,
+    requiredImplements: 0,
+  });
   const lastFilteredFarmerOrganizationId = useRef("");
   const selectedJobType = jobTypes.find((jobType) => jobType.id === selectedJobTypeId);
   const activeRelationshipPartnerIds = useMemo(() => {
@@ -174,9 +210,14 @@ export function CreateJob({
     setRequestedStartTime(parsedTimeWindow.requestedStartTime);
     setRequestedEndTime(parsedTimeWindow.requestedEndTime);
     setPriority(sourceJob.priority ?? "");
+    const sourceServiceLocation = sourceJob.serviceLocation ?? serviceLocationFromNotes(sourceJob.notes);
+    setServiceAddress(sourceServiceLocation?.address ?? "");
+    setServiceLat(sourceServiceLocation?.lat !== undefined ? String(sourceServiceLocation.lat) : "");
+    setServiceLng(sourceServiceLocation?.lng !== undefined ? String(sourceServiceLocation.lng) : "");
     setFieldSearch("");
     setTaskToAdd("");
     setSavedNotice("");
+    setShowQuickTaskForm(false);
   }, [initialTemplate, jobTypes, taskTemplates]);
 
   function addSelectedTask() {
@@ -186,6 +227,77 @@ export function CreateJob({
 
   function removeSelectedTask(taskValue: string) {
     setSelectedTasks((current) => current.filter((item) => item !== taskValue));
+  }
+
+  function addQuickTask() {
+    const taskName = quickTaskForm.name.trim();
+    if (!taskName) {
+      setSavedNotice(t("createJob.quickTaskMissingName"));
+      return;
+    }
+    const ownerOrganizationId = authProfile?.organizationId || selectedContractorOrganizationId || selectedFarmerOrganizationId || undefined;
+    const existingTask = taskTemplates.find((task) => (
+      task.name.trim().toLowerCase() === taskName.toLowerCase()
+      && (!ownerOrganizationId || task.organizationId === ownerOrganizationId)
+    ));
+    if (existingTask) {
+      setSelectedTasks((current) => current.includes(existingTask.id) ? current : [...current, existingTask.id]);
+      setTaskToAdd("");
+      setSavedNotice(t("createJob.quickTaskAlreadyExists"));
+      return;
+    }
+    const price = numberFromForm(quickTaskForm.standardPrice);
+    const validFrom = new Date().toISOString().slice(0, 10);
+    const progressMetric = quickTaskForm.billingUnit === "ha"
+      ? "Fläche"
+      : quickTaskForm.billingUnit === "trip"
+        ? "Fuhren"
+        : quickTaskForm.billingUnit === "quantity"
+          ? "Menge"
+          : "Zeit";
+    const quickTask: TaskTemplate = {
+      id: crypto.randomUUID(),
+      organizationId: ownerOrganizationId,
+      isSystemTemplate: false,
+      templateOwnerType: "organization",
+      createdByAdmin: currentRole === "support_admin",
+      name: taskName,
+      workSteps: [taskName],
+      timePerHa: 0,
+      mode: "Einzelmodus",
+      maxVehicles: Math.max(quickTaskForm.requiredVehicles, 1),
+      progressMetric,
+      requiredDrivers: quickTaskForm.requiredDrivers,
+      requiredVehicles: quickTaskForm.requiredVehicles,
+      requiredImplements: quickTaskForm.requiredImplements,
+      resourceHint: withMarkerJson(quickTaskForm.resourceHint.trim(), taskBillingMarker, {
+        billingUnit: quickTaskForm.billingUnit,
+        price,
+        currency: quickTaskForm.standardPriceCurrency || "SEK",
+        validFrom,
+      }),
+      unit: quickTaskForm.unit.trim() || (quickTaskForm.billingUnit === "hour" ? "h" : quickTaskForm.billingUnit),
+      billingUnit: quickTaskForm.billingUnit,
+      standardPrice: price,
+      standardPriceCurrency: quickTaskForm.standardPriceCurrency || "SEK",
+      standardPriceValidFrom: validFrom,
+    };
+    addTaskTemplate(quickTask);
+    setSelectedTasks((current) => current.includes(quickTask.id) ? current : [...current, quickTask.id]);
+    setTaskToAdd("");
+    setQuickTaskForm({
+      name: "",
+      billingUnit: "hour",
+      unit: "h",
+      standardPrice: "",
+      standardPriceCurrency: "SEK",
+      resourceHint: "",
+      requiredDrivers: 1,
+      requiredVehicles: 1,
+      requiredImplements: 0,
+    });
+    setShowQuickTaskForm(false);
+    setSavedNotice(t("createJob.quickTaskSaved"));
   }
 
   function toggleSelectedField(fieldId: string) {
@@ -215,6 +327,16 @@ export function CreateJob({
     const plannedCrewsValue = selectedJobType?.defaultCrews ?? 1;
     const estimatedHoursValue = calculatedEstimatedHours || selectedJobType?.defaultEstimatedHours || 0;
     const priorityValue = priority || "normal";
+    const parsedServiceLat = numberFromForm(serviceLat);
+    const parsedServiceLng = numberFromForm(serviceLng);
+    const serviceLocation = jobScope === "service" && (serviceAddress.trim() || parsedServiceLat !== undefined || parsedServiceLng !== undefined)
+      ? {
+          address: serviceAddress.trim() || undefined,
+          lat: parsedServiceLat,
+          lng: parsedServiceLng,
+          label: serviceAddress.trim() || t("createJob.serviceLocation"),
+        }
+      : undefined;
     const jobTypeTasks: Task[] = selectedJobType
       ? selectedJobType.tasks.map((task) => ({
           ...task,
@@ -264,6 +386,7 @@ export function CreateJob({
       estimatedHours: estimatedHoursValue,
       timeWindow: plannedTimeWindow,
       priority: priorityValue,
+      serviceLocation,
       notes: jobNotes.trim() || selectedJobType?.resourceSummary || initialTemplate?.job.notes || t("createJob.freeDispatchPlanning"),
     };
 
@@ -381,6 +504,19 @@ export function CreateJob({
             </label>
           </div>
         </div>
+        {jobScope === "service" && (
+          <div className="service-location-panel">
+            <div>
+              <strong>{t("createJob.serviceLocation")}</strong>
+              <span>{t("createJob.serviceLocationHint")}</span>
+            </div>
+            <div className="service-location-grid">
+              <label>{t("createJob.serviceAddress")}<input value={serviceAddress} onChange={(event) => setServiceAddress(event.target.value)} placeholder={t("createJob.serviceAddressPlaceholder")} /></label>
+              <label>{t("createJob.latitude")}<input inputMode="decimal" value={serviceLat} onChange={(event) => setServiceLat(event.target.value)} placeholder="56.75399" /></label>
+              <label>{t("createJob.longitude")}<input inputMode="decimal" value={serviceLng} onChange={(event) => setServiceLng(event.target.value)} placeholder="15.87492" /></label>
+            </div>
+          </div>
+        )}
         <div className="form-row">
           <label>
             {t("createJob.jobType")}
@@ -416,6 +552,41 @@ export function CreateJob({
           <button className="secondary-action task-add-button" disabled={!taskToAdd || selectedTasks.includes(taskToAdd)} onClick={addSelectedTask} type="button">
             <Plus size={18} /> {selectedJobType ? t("createJob.addAdditionalTask") : t("createJob.addTask")}
           </button>
+        </div>
+        <div className="quick-task-panel">
+          <div className="quick-task-head">
+            <div>
+              <strong>{t("createJob.quickTaskTitle")}</strong>
+              <span>{t("createJob.quickTaskHint")}</span>
+            </div>
+            <button className="secondary-action" onClick={() => setShowQuickTaskForm((current) => !current)} type="button">
+              <Plus size={16} /> {t("createJob.quickTaskToggle")}
+            </button>
+          </div>
+          {showQuickTaskForm && (
+            <div className="quick-task-grid">
+              <label>{t("terms.task")}<input value={quickTaskForm.name} onChange={(event) => setQuickTaskForm((current) => ({ ...current, name: event.target.value }))} placeholder={t("createJob.quickTaskNamePlaceholder")} /></label>
+              <label>{t("pricing.billingUnit")}<select value={quickTaskForm.billingUnit} onChange={(event) => setQuickTaskForm((current) => ({ ...current, billingUnit: event.target.value as NonNullable<TaskTemplate["billingUnit"]>, unit: event.target.value === "hour" ? "h" : event.target.value === "flat" ? "pauschal" : current.unit }))}>
+                <option value="hour">{t("pricing.units.hour")}</option>
+                <option value="flat">{t("pricing.units.flat")}</option>
+                <option value="quantity">{t("pricing.units.quantity")}</option>
+                <option value="trip">{t("pricing.units.trip")}</option>
+                <option value="ha">{t("pricing.units.ha")}</option>
+              </select></label>
+              <label>{t("masterData.taskUnit")}<input value={quickTaskForm.unit} onChange={(event) => setQuickTaskForm((current) => ({ ...current, unit: event.target.value }))} placeholder={t("masterData.taskUnitPlaceholder")} /></label>
+              <label>{t("pricing.standardPrice")}<input inputMode="decimal" value={quickTaskForm.standardPrice} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPrice: event.target.value }))} /></label>
+              <label>{t("pricing.currency")}<select value={quickTaskForm.standardPriceCurrency} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPriceCurrency: event.target.value }))}>
+                {["SEK", "EUR", "DKK", "NOK"].map((currency) => <option key={currency} value={currency}>{currency}</option>)}
+              </select></label>
+              <label>{t("terms.driver")}<input min={0} max={10} type="number" value={quickTaskForm.requiredDrivers} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredDrivers: Number(event.target.value) }))} /></label>
+              <label>{t("terms.vehicle")}<input min={0} max={10} type="number" value={quickTaskForm.requiredVehicles} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredVehicles: Number(event.target.value) }))} /></label>
+              <label>{t("terms.implement")}<input min={0} max={10} type="number" value={quickTaskForm.requiredImplements} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredImplements: Number(event.target.value) }))} /></label>
+              <label className="quick-task-wide">{t("createJob.resourceNeed")}<input value={quickTaskForm.resourceHint} onChange={(event) => setQuickTaskForm((current) => ({ ...current, resourceHint: event.target.value }))} placeholder={t("createJob.dispatchPlannerDecides")} /></label>
+              <button className="primary-action quick-task-save" onClick={addQuickTask} type="button">
+                <Save size={16} /> {t("createJob.quickTaskSave")}
+              </button>
+            </div>
+          )}
         </div>
         {selectedTaskOptions.length > 0 && (
           <div className="selected-task-list">

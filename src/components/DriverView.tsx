@@ -7,7 +7,7 @@ import { APP_RELEASE_LABEL } from "../lib/appVersion";
 import { loadDriverTimeEntries, readDriverTimeEntries, subscribeDriverTimeEntries, type DriverTimeEntry, type DriverTimeEntryKind, writeDriverTimeEntries } from "../lib/driverTimeEntries";
 import { openHtmlPreview } from "../lib/printPreview";
 import { loadVacationRequests, readVacationRequests, subscribeVacationRequests, type VacationRequest, writeVacationRequests } from "../lib/vacationRequests";
-import type { DriverLocation, Job, Organization, Subtask } from "../types";
+import type { DriverLocation, Field, Job, Organization, Subtask } from "../types";
 import { DriverFieldMap } from "./DriverFieldMap";
 import { DriverTaskGroupMap } from "./DriverTaskGroupMap";
 import { NewHazardForm } from "./NewHazardForm";
@@ -53,6 +53,7 @@ const equipmentLogStorageKey = "farm-manager.driverEquipmentLog";
 const driverTestLocationStorageKey = "farm-manager.driverTestLocation";
 const employeeTimeEditWindowStorageKey = "farm-manager.employeeTimeEditWindowDays";
 const automaticDriverLocationIntervalMs = 5 * 60 * 1000;
+const serviceLocationMarker = "FM_SERVICE_LOCATION:";
 
 function appendEquipmentLog(entry: Record<string, unknown>) {
   try {
@@ -78,6 +79,45 @@ function distanceKm(a?: { lat: number; lng: number }, b?: { lat: number; lng: nu
   const lat2 = (b.lat * Math.PI) / 180;
   const haversine = Math.sin(dLat / 2) ** 2 + Math.cos(lat1) * Math.cos(lat2) * Math.sin(dLng / 2) ** 2;
   return 2 * earthRadiusKm * Math.asin(Math.sqrt(haversine));
+}
+
+function serviceLocationFromJob(job?: Job) {
+  if (job?.serviceLocation) return job.serviceLocation;
+  const line = (job?.notes ?? "").split("\n").find((item) => item.startsWith(serviceLocationMarker));
+  if (!line) return undefined;
+  try {
+    return JSON.parse(line.slice(serviceLocationMarker.length)) as Job["serviceLocation"];
+  } catch {
+    return undefined;
+  }
+}
+
+function serviceLocationField(job?: Job): Field | undefined {
+  const location = serviceLocationFromJob(job);
+  if (location?.lat === undefined || location.lng === undefined) return undefined;
+  const lat = location.lat;
+  const lng = location.lng;
+  return {
+    id: `service-${job?.id ?? "job"}`,
+    organizationId: job?.farmerOrganizationId,
+    name: location.label || location.address || job?.title || "Einsatzadresse",
+    areaHa: 0,
+    crop: "Einsatzadresse",
+    tenure: "Pacht",
+    center: { lat, lng },
+    accessPoint: { lat, lng, label: location.label || location.address || "Einsatzadresse" },
+    accessDescription: location.address ?? "",
+    boundary: [
+      { lat: lat - 0.00025, lng: lng - 0.00025 },
+      { lat: lat - 0.00025, lng: lng + 0.00025 },
+      { lat: lat + 0.00025, lng: lng + 0.00025 },
+      { lat: lat + 0.00025, lng: lng - 0.00025 },
+    ],
+    hazards: [],
+    attachments: [],
+    restrictedZones: [],
+    history: [],
+  };
 }
 
 function draftFromSubtask(subtask?: Subtask): DriverFeedbackDraft {
@@ -1109,7 +1149,8 @@ export function DriverView({
   }
 
   function openDriverMap(subtask: Subtask) {
-    const field = fields.find((item) => item.id === subtask.fieldId);
+    const job = jobs.find((item) => item.id === subtask.jobId);
+    const field = fields.find((item) => item.id === subtask.fieldId) ?? serviceLocationField(job);
     if (!field) {
       setNoticeSubtaskId(subtask.id);
       setTrackingNotice(t("driver.noMapData"));
@@ -1199,7 +1240,8 @@ export function DriverView({
   }
 
   function fallbackPoint(subtask: Subtask) {
-    const field = fields.find((item) => item.id === subtask.fieldId);
+    const job = jobs.find((item) => item.id === subtask.jobId);
+    const field = fields.find((item) => item.id === subtask.fieldId) ?? serviceLocationField(job);
     const base = field?.accessPoint ?? field?.center ?? { lat: 55.72572, lng: 13.17942 };
     return {
       lat: base.lat + (Math.random() - 0.5) * 0.001,
@@ -1881,8 +1923,8 @@ export function DriverView({
             {(() => {
               const subtask = selectedSubtask;
               const task = selectedTask;
-              const field = selectedField;
               const job = jobs.find((item) => item.id === subtask.jobId);
+              const field = selectedField ?? serviceLocationField(job);
               const farmerOrganization = organizations.find((organization) => organization.id === job?.farmerOrganizationId);
               const contractorOrganization = organizations.find((organization) => organization.id === job?.contractorOrganizationId);
               const travelDraft = travelDrafts[subtask.id] ?? { km: "", minutes: "" };
@@ -1907,7 +1949,7 @@ export function DriverView({
                     </div>
                     <div className="driver-job-title-line">
                       <strong>{task?.name}</strong>
-                      <span><FieldName id={subtask.fieldId} /></span>
+                      <span>{field?.name ?? <FieldName id={subtask.fieldId} />}</span>
                       <span>{t("driver.estimatedTime", { time: formatDriverHours(estimatedHours) })}</span>
                       <span>{t("driver.vehiclesActive", { mode: task?.mode ? t(`mode.${task.mode}`) : "", active: activeCount, max: maxWorkers, free: freeSlots })}</span>
                     </div>

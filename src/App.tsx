@@ -1007,6 +1007,7 @@ function positiveInteger(value: number | undefined, fallback = 1) {
 }
 
 const taskBillingMarker = "FM_TASK_BILLING:";
+const serviceLocationMarker = "FM_SERVICE_LOCATION:";
 
 function visibleTaskResourceHint(value: string | undefined) {
   const raw = value ?? "";
@@ -1017,6 +1018,12 @@ function visibleTaskResourceHint(value: string | undefined) {
     .filter((line) => !line.trim().startsWith(taskBillingMarker))
     .join("\n")
     .trim();
+}
+
+function notesWithServiceLocation(job: Job) {
+  return job.serviceLocation
+    ? withMarkerJson(job.notes, serviceLocationMarker, job.serviceLocation)
+    : job.notes;
 }
 
 function jobTaskPayload(job: Job, subtask: Subtask) {
@@ -2260,7 +2267,7 @@ export function App() {
       farmer_organization_id: job.farmerOrganizationId ?? fallbackFarmerOrganizationId,
       contractor_organization_id: job.contractorOrganizationId ?? null,
       title: job.title,
-      description: job.notes,
+      description: notesWithServiceLocation(job),
       planned_start: parseTimeWindowDate(job.timeWindow, 8),
       planned_end: parseTimeWindowDate(job.timeWindow, 17),
       priority: job.priority ?? "normal",
@@ -2458,7 +2465,7 @@ export function App() {
     if (isSupabaseConfigured && supabase) {
       const payload: Record<string, unknown> = {};
       if (patch.title !== undefined) payload.title = patch.title;
-      if (patch.notes !== undefined) payload.description = patch.notes;
+      if ((patch.notes !== undefined || patch.serviceLocation !== undefined) && nextJob) payload.description = notesWithServiceLocation(nextJob);
       if (patch.timeWindow !== undefined) {
         payload.planned_start = parseTimeWindowDate(patch.timeWindow, 8);
         payload.planned_end = parseTimeWindowDate(patch.timeWindow, 17);
