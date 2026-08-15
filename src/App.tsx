@@ -1329,18 +1329,24 @@ export function App() {
       const localContacts = loadLocalExternalContacts();
       const relationships = relationshipsResult.error
         ? localRelationships
-        : [
-            ...(relationshipsResult.data ?? []).map((row) => relationshipFromRow(row as OrganizationRelationshipRow)),
-            ...localRelationships,
-          ];
+        : Array.from(new globalThis.Map([
+            ...localRelationships.map((relationship) => [relationship.id, relationship] as const),
+            ...(relationshipsResult.data ?? []).map((row) => {
+              const relationship = relationshipFromRow(row as OrganizationRelationshipRow);
+              return [relationship.id, relationship] as const;
+            }),
+          ]).values());
       const contacts = externalContactsResult.error
         ? localContacts
-        : [
-            ...(externalContactsResult.data ?? []).map((row) => externalContactFromRow(row as ExternalContactRow)),
-            ...localContacts,
-          ];
-      setOrganizationRelationshipRecords(Array.from(new globalThis.Map(relationships.map((relationship) => [relationship.id, relationship])).values()));
-      setExternalContactRecords(Array.from(new globalThis.Map(contacts.map((contact) => [contact.id, contact])).values()));
+        : Array.from(new globalThis.Map([
+            ...localContacts.map((contact) => [contact.id, contact] as const),
+            ...(externalContactsResult.data ?? []).map((row) => {
+              const contact = externalContactFromRow(row as ExternalContactRow);
+              return [contact.id, contact] as const;
+            }),
+          ]).values());
+      setOrganizationRelationshipRecords(relationships);
+      setExternalContactRecords(contacts);
     }
 
     void loadCollaborationData();
@@ -3672,13 +3678,15 @@ function isResourcePayloadColumnError(message: string) {
       return next;
     });
     if (isSupabaseConfigured && supabase) {
-      const { error } = await supabase.from("organization_relationships").update({
-        status: patch.status,
-        accepted_by: patch.acceptedBy,
-        accepted_at: patch.acceptedAt,
-        ended_at: patch.endedAt,
-        notes: patch.notes,
-      }).eq("id", id);
+      const updatePayload: Record<string, string | null> = {};
+      if ("status" in patch && patch.status) updatePayload.status = patch.status;
+      if ("acceptedBy" in patch) updatePayload.accepted_by = patch.acceptedBy ?? null;
+      if ("acceptedAt" in patch) updatePayload.accepted_at = patch.acceptedAt ?? null;
+      if ("endedAt" in patch) updatePayload.ended_at = patch.endedAt ?? null;
+      if ("notes" in patch) updatePayload.notes = patch.notes ?? null;
+      const { error } = Object.keys(updatePayload).length
+        ? await supabase.from("organization_relationships").update(updatePayload).eq("id", id)
+        : { error: null };
       if (error && nextRelationship) {
         const retry = await supabase.from("organization_relationships").upsert(relationshipPayload(nextRelationship));
         if (retry.error) console.error("Zusammenarbeit konnte nicht in Supabase aktualisiert werden", retry.error);
