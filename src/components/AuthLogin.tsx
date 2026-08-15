@@ -11,9 +11,13 @@ const demoAccounts = [
   { labelKey: "auth.demoSupport", email: "support@farm-manager.app", password: "1234", app: "admin" },
   { labelKey: "auth.demoFarmer", email: "landwirt@farm-manager.app", app: "admin" },
   { labelKey: "auth.demoFarmerAndersson", email: "andersson@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoSalesFarmerRamsjo", email: "pm.ramsjo@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoSalesFarmerLindstrom", email: "lindstrom@farm-manager.app", password: "1234", app: "admin" },
   { labelKey: "auth.demoDispatcher", email: "einsatzleiter@farm-manager.app", app: "admin" },
   { labelKey: "auth.demoBerndDispatcher", email: "bernd@kolaretorp.se", password: "1234", app: "admin" },
   { labelKey: "auth.demoNordDispatcher", email: "nord@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoSalesContractorLarge", email: "demo20@farm-manager.app", password: "1234", app: "admin" },
+  { labelKey: "auth.demoSalesContractorSmall", email: "demo3@farm-manager.app", password: "1234", app: "admin" },
 ];
 
 export function AuthLogin({

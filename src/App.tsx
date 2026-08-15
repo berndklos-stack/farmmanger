@@ -275,6 +275,34 @@ const demoAuthProfiles: Record<string, AuthProfile> = {
     role: "contractor_admin",
     organizationId: "44444444-4444-4444-8444-444444444444",
   },
+  "demo20@farm-manager.app": {
+    id: "24f6ea00-1111-4222-8333-000000000020",
+    fullName: "Ramsjö Maskinservice Admin",
+    email: "demo20@farm-manager.app",
+    role: "contractor_admin",
+    organizationId: "4408b618-1309-41b2-811c-565d1e1f450c",
+  },
+  "demo3@farm-manager.app": {
+    id: "24f6ea00-1111-4222-8333-000000000003",
+    fullName: "Klos Agrar & Transport Admin",
+    email: "demo3@farm-manager.app",
+    role: "contractor_admin",
+    organizationId: "4de8b83d-3bc4-4230-8909-24002d41d44f",
+  },
+  "pm.ramsjo@farm-manager.app": {
+    id: "24f6ea00-1111-4222-8333-000000001001",
+    fullName: "P & M Ramsjö Gård Admin",
+    email: "pm.ramsjo@farm-manager.app",
+    role: "farmer_admin",
+    organizationId: "7ff87390-3873-4e11-8b77-e78789e0aba9",
+  },
+  "lindstrom@farm-manager.app": {
+    id: "24f6ea00-1111-4222-8333-000000002002",
+    fullName: "Hof Lindström Demo Admin",
+    email: "lindstrom@farm-manager.app",
+    role: "farmer_admin",
+    organizationId: "d8cd4709-dadf-4056-889c-1b678ef2b154",
+  },
 };
 
 const demoAuthPasswords: Record<string, string> = {
@@ -282,6 +310,10 @@ const demoAuthPasswords: Record<string, string> = {
   "bernd@kolaretorp.se": "1234",
   "andersson@farm-manager.app": "1234",
   "nord@farm-manager.app": "1234",
+  "demo20@farm-manager.app": "1234",
+  "demo3@farm-manager.app": "1234",
+  "pm.ramsjo@farm-manager.app": "1234",
+  "lindstrom@farm-manager.app": "1234",
 };
 
 const knownAuthProfileFallbacks: Record<string, AuthProfile> = {
