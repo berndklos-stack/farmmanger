@@ -3,6 +3,6 @@
  * Increase VERSION and BUILD whenever a new Farm-Manager update is deployed.
  * The same BUILD value should also be used in public/sw.js as cache version.
  */
-export const APP_VERSION = "0.4.22";
-export const APP_BUILD = "2026-08-15.1337";
+export const APP_VERSION = "0.4.25";
+export const APP_BUILD = "2026-08-15.1410";
 export const APP_RELEASE_LABEL = `v${APP_VERSION} · Build ${APP_BUILD}`;

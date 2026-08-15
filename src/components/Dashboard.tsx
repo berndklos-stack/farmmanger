@@ -24,6 +24,7 @@ type DriverEquipmentLogEntry = {
   implementNames?: string[];
   machineProblem?: boolean;
   problemRecipient?: string;
+  organizationId?: string;
 };
 
 type ProductInventoryItem = {
@@ -131,11 +132,14 @@ function getDashboardJobStatus(job: Job, subtasks: Subtask[]): Status {
   return "offen";
 }
 
-function readEquipmentProblemRows() {
+function readEquipmentProblemRows(currentOrganizationId?: string, currentRole?: string) {
   try {
     const raw = window.localStorage.getItem("farm-manager.driverEquipmentLog");
     const rows = raw ? JSON.parse(raw) as DriverEquipmentLogEntry[] : [];
-    return rows.filter((row) => row.machineProblem || row.placement === "defect").slice(0, 8);
+    return rows
+      .filter((row) => row.machineProblem || row.placement === "defect")
+      .filter((row) => currentRole === "support_admin" || Boolean(currentOrganizationId && row.organizationId === currentOrganizationId))
+      .slice(0, 8);
   } catch {
     return [];
   }
@@ -200,7 +204,7 @@ export function Dashboard({ jobs, archivedJobs, subtasks, allSubtasks, onOpenFie
   const openJobs = jobs.filter((job) => getDashboardJobStatus(job, subtasks) === "offen").length;
   const doneJobs = archivedJobs.filter((job) => getDashboardJobStatus(job, allSubtasks) === "erledigt").length;
   const problems = subtasks.filter((subtask) => subtask.status === "Problem");
-  const machineProblems = readEquipmentProblemRows();
+  const machineProblems = readEquipmentProblemRows(authProfile?.organizationId, currentRole);
   const openVacationRequests = vacationRequests.filter((request) => request.status === "requested");
   const lowStockProducts = dashboardProducts
     .filter((product) => !product.archivedAt)

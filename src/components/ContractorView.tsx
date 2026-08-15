@@ -88,6 +88,7 @@ type DriverEquipmentLogEntry = {
   machineProblem?: boolean;
   problemRecipient?: string;
   notificationStatus?: string;
+  organizationId?: string;
 };
 
 type DispatchGroup = {
@@ -700,6 +701,7 @@ export function ContractorView({
   const problems = subtasks.filter((subtask) => subtask.status === "Problem");
   const machineProblems = readJsonArray<DriverEquipmentLogEntry>(equipmentLogStorageKey)
     .filter((row) => row.machineProblem || row.placement === "defect")
+    .filter((row) => currentRole === "support_admin" || Boolean(authProfile?.organizationId && row.organizationId === authProfile.organizationId))
     .slice(0, 12);
   const openVacationRequests = vacationRequests.filter((request) => request.status === "requested");
   const resourceOrganizationId = currentRole === "contractor_admin" || currentRole === "farmer_admin" ? authProfile?.organizationId : undefined;

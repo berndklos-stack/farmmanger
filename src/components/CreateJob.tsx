@@ -1,11 +1,13 @@
-import { AlertTriangle, CheckCircle2, Plus, Save, X } from "lucide-react";
+import { AlertTriangle, CheckCircle2, MapPin, Maximize2, Minimize2, Plus, Save, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
+import { CircleMarker, MapContainer, Popup, useMap } from "react-leaflet";
 import { useAppData } from "../data/DataContext";
 import { formatArea } from "../i18n/format";
-import type { Job, Subtask, Task, TaskTemplate } from "../types";
+import type { GeoPoint, Job, Organization, OrganizationRelationship, Subtask, Task, TaskTemplate } from "../types";
 import { getFieldGeoChecks } from "../utils/geo";
 import { FieldSelectionMap } from "./FieldSelectionMap";
+import { MapBaseLayers } from "./MapBaseLayers";
 
 type CreateJobTemplate = {
   job: Job;
@@ -49,6 +51,16 @@ function serviceLocationFromNotes(value: string | undefined) {
   }
 }
 
+function organizationAddress(organization?: Organization) {
+  if (!organization) return "";
+  return organization.address
+    || [
+      organization.street,
+      [organization.postalCode, organization.city].filter(Boolean).join(" "),
+      organization.country,
+    ].filter(Boolean).join(", ");
+}
+
 function parseTemplateTimeWindow(value: string) {
   const dateMatch = value.match(/(\d{4}-\d{2}-\d{2})/);
   const timeMatch = value.match(/(\d{2}:\d{2}|--:--)-(\d{2}:\d{2}|--:--)/);
@@ -71,7 +83,7 @@ export function CreateJob({
   onSaved?: () => void;
 }) {
   const { t, i18n } = useTranslation();
-  const { addTaskTemplate, authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
+  const { addOrganization, addOrganizationRelationship, addTaskTemplate, authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
   const [jobScope, setJobScope] = useState<"field" | "service">("field");
   const [selectedFarmerOrganizationId, setSelectedFarmerOrganizationId] = useState("");
@@ -79,6 +91,7 @@ export function CreateJob({
   const [fieldSearch, setFieldSearch] = useState("");
   const [selectedJobTypeId, setSelectedJobTypeId] = useState("");
   const [taskToAdd, setTaskToAdd] = useState("");
+  const [isTaskPickerOpen, setIsTaskPickerOpen] = useState(false);
   const [selectedTasks, setSelectedTasks] = useState<string[]>([]);
   const [jobTitle, setJobTitle] = useState("");
   const [jobNotes, setJobNotes] = useState("");
@@ -91,6 +104,23 @@ export function CreateJob({
   const [serviceAddress, setServiceAddress] = useState("");
   const [serviceLat, setServiceLat] = useState("");
   const [serviceLng, setServiceLng] = useState("");
+  const [isServiceMapOpen, setIsServiceMapOpen] = useState(false);
+  const [serviceMapSize, setServiceMapSize] = useState<"compact" | "wide" | "large">("wide");
+  const [isQuickCustomerOpen, setIsQuickCustomerOpen] = useState(false);
+  const [quickCustomerForm, setQuickCustomerForm] = useState({
+    name: "",
+    customerNumber: "",
+    organizationNumber: "",
+    street: "",
+    postalCode: "",
+    city: "",
+    country: "",
+    contactPerson: "",
+    phone: "",
+    email: "",
+    vatId: "",
+    billingDetails: "",
+  });
   const [showQuickTaskForm, setShowQuickTaskForm] = useState(false);
   const [quickTaskForm, setQuickTaskForm] = useState({
     name: "",
@@ -143,6 +173,12 @@ export function CreateJob({
   ));
   const selectedFarmerOrganization = farmerOrganizations.find((organization) => organization.id === selectedFarmerOrganizationId);
   const selectedContractorOrganization = contractorOrganizations.find((organization) => organization.id === selectedContractorOrganizationId);
+  const customerAddress = organizationAddress(selectedFarmerOrganization);
+  const servicePreviewPoint = useMemo(() => {
+    const lat = numberFromForm(serviceLat);
+    const lng = numberFromForm(serviceLng);
+    return lat !== undefined && lng !== undefined ? { lat, lng } : undefined;
+  }, [serviceLat, serviceLng]);
   const selectedTaskOptions = selectedTasks
     .map((taskId) => taskTemplates.find((task) => task.id === taskId))
     .filter((task): task is TaskTemplate => Boolean(task));
@@ -317,6 +353,97 @@ export function CreateJob({
     setSelectedFields([]);
   }
 
+  function applyCustomerAddress() {
+    if (!customerAddress) return;
+    setServiceAddress(customerAddress);
+    setSavedNotice(t("createJob.customerAddressApplied"));
+  }
+
+  function pickTask(taskId: string) {
+    setTaskToAdd(taskId);
+    setIsTaskPickerOpen(false);
+  }
+
+  function addQuickCustomer() {
+    const name = quickCustomerForm.name.trim();
+    if (!name) {
+      setSavedNotice(t("createJob.quickCustomerMissingName"));
+      return;
+    }
+    const existingCustomer = farmerOrganizations.find((organization) => (
+      organization.name.trim().toLowerCase() === name.toLowerCase()
+      || (quickCustomerForm.organizationNumber.trim() && organization.organizationNumber?.trim().toLowerCase() === quickCustomerForm.organizationNumber.trim().toLowerCase())
+    ));
+    if (existingCustomer) {
+      setSelectedFarmerOrganizationId(existingCustomer.id);
+      setIsQuickCustomerOpen(false);
+      setSavedNotice(t("createJob.quickCustomerAlreadyExists"));
+      return;
+    }
+    const addressParts = [
+      quickCustomerForm.street.trim(),
+      [quickCustomerForm.postalCode.trim(), quickCustomerForm.city.trim()].filter(Boolean).join(" "),
+      quickCustomerForm.country.trim(),
+    ].filter(Boolean);
+    const customer: Organization = {
+      id: crypto.randomUUID(),
+      name,
+      kind: "farmer",
+      organizationNumber: quickCustomerForm.organizationNumber.trim() || undefined,
+      customerNumber: quickCustomerForm.customerNumber.trim() || undefined,
+      street: quickCustomerForm.street.trim() || undefined,
+      postalCode: quickCustomerForm.postalCode.trim() || undefined,
+      city: quickCustomerForm.city.trim() || undefined,
+      country: quickCustomerForm.country.trim() || undefined,
+      address: addressParts.join(", ") || undefined,
+      phone: quickCustomerForm.phone.trim() || undefined,
+      email: quickCustomerForm.email.trim() || undefined,
+      vatId: quickCustomerForm.vatId.trim() || undefined,
+      billingDetails: quickCustomerForm.billingDetails.trim() || undefined,
+      contacts: quickCustomerForm.contactPerson.trim()
+        ? [{
+            id: crypto.randomUUID(),
+            name: quickCustomerForm.contactPerson.trim(),
+            phone: quickCustomerForm.phone.trim() || undefined,
+            email: quickCustomerForm.email.trim() || undefined,
+          }]
+        : [],
+    };
+    addOrganization(customer);
+    if (authProfile?.organizationId && currentRole === "contractor_admin") {
+      const relationship: OrganizationRelationship = {
+        id: crypto.randomUUID(),
+        farmerOrganizationId: customer.id,
+        contractorOrganizationId: authProfile.organizationId,
+        status: "active",
+        invitedBy: authProfile.id,
+        acceptedBy: authProfile.id,
+        createdAt: new Date().toISOString(),
+        acceptedAt: new Date().toISOString(),
+        invitationEmail: customer.email,
+        invitationMessage: t("createJob.quickCustomerRelationshipNote"),
+      };
+      addOrganizationRelationship(relationship);
+    }
+    setSelectedFarmerOrganizationId(customer.id);
+    setQuickCustomerForm({
+      name: "",
+      customerNumber: "",
+      organizationNumber: "",
+      street: "",
+      postalCode: "",
+      city: "",
+      country: "",
+      contactPerson: "",
+      phone: "",
+      email: "",
+      vatId: "",
+      billingDetails: "",
+    });
+    setIsQuickCustomerOpen(false);
+    setSavedNotice(t("createJob.quickCustomerSaved"));
+  }
+
   function saveJob() {
     const validSelectedFields = selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId));
     const needsFields = jobScope === "field";
@@ -439,14 +566,19 @@ export function CreateJob({
           </label>
           <label>
             {t("createJob.customerOrganization")}
-            <select
-              disabled={currentRole === "farmer_admin" || currentRole === "farmer_employee"}
-              value={selectedFarmerOrganizationId}
-              onChange={(event) => setSelectedFarmerOrganizationId(event.target.value)}
-            >
-              <option value="">{t("createJob.selectFarmer")}</option>
-              {farmerOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
-            </select>
+            <div className="inline-select-action">
+              <select
+                disabled={currentRole === "farmer_admin" || currentRole === "farmer_employee"}
+                value={selectedFarmerOrganizationId}
+                onChange={(event) => setSelectedFarmerOrganizationId(event.target.value)}
+              >
+                <option value="">{t("createJob.selectFarmer")}</option>
+                {farmerOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
+              </select>
+              <button className="icon-action" disabled={!permissions.canCreateJobs || currentRole === "farmer_admin" || currentRole === "farmer_employee"} onClick={() => setIsQuickCustomerOpen(true)} title={t("createJob.quickCustomerOpen")} type="button">
+                <Plus size={16} />
+              </button>
+            </div>
           </label>
           <label>
             {t("createJob.contractorOrganization")}
@@ -506,14 +638,26 @@ export function CreateJob({
         </div>
         {jobScope === "service" && (
           <div className="service-location-panel">
-            <div>
-              <strong>{t("createJob.serviceLocation")}</strong>
-              <span>{t("createJob.serviceLocationHint")}</span>
+            <div className="service-location-head">
+              <div>
+                <strong>{t("createJob.serviceLocation")}</strong>
+                <span>{t("createJob.serviceLocationHint")}</span>
+              </div>
+              <button className="secondary-action" disabled={!customerAddress} onClick={applyCustomerAddress} type="button">
+                <MapPin size={16} /> {t("createJob.useCustomerAddress")}
+              </button>
             </div>
-            <div className="service-location-grid">
-              <label>{t("createJob.serviceAddress")}<input value={serviceAddress} onChange={(event) => setServiceAddress(event.target.value)} placeholder={t("createJob.serviceAddressPlaceholder")} /></label>
-              <label>{t("createJob.latitude")}<input inputMode="decimal" value={serviceLat} onChange={(event) => setServiceLat(event.target.value)} placeholder="56.75399" /></label>
-              <label>{t("createJob.longitude")}<input inputMode="decimal" value={serviceLng} onChange={(event) => setServiceLng(event.target.value)} placeholder="15.87492" /></label>
+            <div className="service-location-layout">
+              <div className="service-location-grid">
+                <label>{t("createJob.serviceAddress")}<input value={serviceAddress} onChange={(event) => setServiceAddress(event.target.value)} placeholder={t("createJob.serviceAddressPlaceholder")} /></label>
+                <label>{t("createJob.latitude")}<input inputMode="decimal" value={serviceLat} onChange={(event) => setServiceLat(event.target.value)} placeholder="56.75399" /></label>
+                <label>{t("createJob.longitude")}<input inputMode="decimal" value={serviceLng} onChange={(event) => setServiceLng(event.target.value)} placeholder="15.87492" /></label>
+              </div>
+              <ServiceLocationMapPreview
+                address={serviceAddress}
+                onOpen={() => setIsServiceMapOpen(true)}
+                point={servicePreviewPoint}
+              />
             </div>
           </div>
         )}
@@ -544,10 +688,10 @@ export function CreateJob({
         <div className="form-row">
           <label>
             {selectedJobType ? t("createJob.additionalTask") : t("terms.task")}
-            <select value={taskToAdd} onChange={(event) => setTaskToAdd(event.target.value)}>
-              <option value="">{t("createJob.selectOption")}</option>
-              {taskTemplates.map((task) => <option key={task.id} value={task.id}>{task.name}</option>)}
-            </select>
+            <button className="task-picker-trigger" onClick={() => setIsTaskPickerOpen(true)} type="button">
+              <span>{taskTemplates.find((task) => task.id === taskToAdd)?.name ?? t("createJob.selectOption")}</span>
+              <Plus size={16} />
+            </button>
           </label>
           <button className="secondary-action task-add-button" disabled={!taskToAdd || selectedTasks.includes(taskToAdd)} onClick={addSelectedTask} type="button">
             <Plus size={18} /> {selectedJobType ? t("createJob.addAdditionalTask") : t("createJob.addTask")}
@@ -574,14 +718,13 @@ export function CreateJob({
                 <option value="ha">{t("pricing.units.ha")}</option>
               </select></label>
               <label>{t("masterData.taskUnit")}<input value={quickTaskForm.unit} onChange={(event) => setQuickTaskForm((current) => ({ ...current, unit: event.target.value }))} placeholder={t("masterData.taskUnitPlaceholder")} /></label>
-              <label>{t("pricing.standardPrice")}<input inputMode="decimal" value={quickTaskForm.standardPrice} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPrice: event.target.value }))} /></label>
-              <label>{t("pricing.currency")}<select value={quickTaskForm.standardPriceCurrency} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPriceCurrency: event.target.value }))}>
+              <label className="quick-task-price-currency"><span>{t("pricing.standardPrice")}</span><div><input inputMode="decimal" value={quickTaskForm.standardPrice} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPrice: event.target.value }))} /><select aria-label={t("pricing.currency")} value={quickTaskForm.standardPriceCurrency} onChange={(event) => setQuickTaskForm((current) => ({ ...current, standardPriceCurrency: event.target.value }))}>
                 {["SEK", "EUR", "DKK", "NOK"].map((currency) => <option key={currency} value={currency}>{currency}</option>)}
-              </select></label>
+              </select></div></label>
               <label>{t("terms.driver")}<input min={0} max={10} type="number" value={quickTaskForm.requiredDrivers} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredDrivers: Number(event.target.value) }))} /></label>
               <label>{t("terms.vehicle")}<input min={0} max={10} type="number" value={quickTaskForm.requiredVehicles} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredVehicles: Number(event.target.value) }))} /></label>
               <label>{t("terms.implement")}<input min={0} max={10} type="number" value={quickTaskForm.requiredImplements} onChange={(event) => setQuickTaskForm((current) => ({ ...current, requiredImplements: Number(event.target.value) }))} /></label>
-              <label className="quick-task-wide">{t("createJob.resourceNeed")}<input value={quickTaskForm.resourceHint} onChange={(event) => setQuickTaskForm((current) => ({ ...current, resourceHint: event.target.value }))} placeholder={t("createJob.dispatchPlannerDecides")} /></label>
+              <label className="quick-task-wide">{t("createJob.quickTaskNotes")}<input value={quickTaskForm.resourceHint} onChange={(event) => setQuickTaskForm((current) => ({ ...current, resourceHint: event.target.value }))} placeholder={t("createJob.quickTaskNotesPlaceholder")} /></label>
               <button className="primary-action quick-task-save" onClick={addQuickTask} type="button">
                 <Save size={16} /> {t("createJob.quickTaskSave")}
               </button>
@@ -719,6 +862,145 @@ export function CreateJob({
         {!permissions.canCreateJobs && <p className="permission-note">{t("permissions.jobsReadOnly")}</p>}
         {savedNotice && <p className="save-notice">{savedNotice}</p>}
       </div>
+      {isQuickCustomerOpen && (
+        <div className="quick-customer-overlay" role="presentation">
+          <div className="resource-modal quick-customer-modal" role="dialog" aria-modal="true" aria-labelledby="quick-customer-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="quick-customer-title">{t("createJob.quickCustomerTitle")}</h2>
+                <p>{t("createJob.quickCustomerHint")}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="primary-action" onClick={addQuickCustomer} type="button">
+                  <Save size={18} /> {t("createJob.quickCustomerSave")}
+                </button>
+                <button className="icon-action" onClick={() => setIsQuickCustomerOpen(false)} type="button" aria-label={t("actions.close")}>
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <div className="quick-customer-form">
+              <label>{t("masterData.organizationName")}<input value={quickCustomerForm.name} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, name: event.target.value }))} /></label>
+              <label>{t("masterData.customerNumber")}<input value={quickCustomerForm.customerNumber} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, customerNumber: event.target.value }))} /></label>
+              <label>{t("masterData.organizationNumber")}<input value={quickCustomerForm.organizationNumber} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, organizationNumber: event.target.value }))} /></label>
+              <label>{t("masterData.street")}<input value={quickCustomerForm.street} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, street: event.target.value }))} /></label>
+              <label>{t("masterData.postalCode")}<input value={quickCustomerForm.postalCode} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, postalCode: event.target.value }))} /></label>
+              <label>{t("masterData.city")}<input value={quickCustomerForm.city} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, city: event.target.value }))} /></label>
+              <label>{t("masterData.country")}<input value={quickCustomerForm.country} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, country: event.target.value }))} /></label>
+              <label>{t("masterData.contactName")}<input value={quickCustomerForm.contactPerson} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, contactPerson: event.target.value }))} /></label>
+              <label>{t("masterData.phone")}<input value={quickCustomerForm.phone} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, phone: event.target.value }))} /></label>
+              <label>{t("masterData.email")}<input value={quickCustomerForm.email} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, email: event.target.value }))} /></label>
+              <label>{t("masterData.vatId")}<input value={quickCustomerForm.vatId} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, vatId: event.target.value }))} /></label>
+              <label className="quick-customer-wide">{t("masterData.billingDetails")}<input value={quickCustomerForm.billingDetails} onChange={(event) => setQuickCustomerForm((current) => ({ ...current, billingDetails: event.target.value }))} /></label>
+            </div>
+          </div>
+        </div>
+      )}
+      {isServiceMapOpen && (
+        <div className="quick-customer-overlay" role="presentation">
+          <div className={`resource-modal service-map-modal service-map-modal-${serviceMapSize}`} role="dialog" aria-modal="true" aria-labelledby="service-map-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="service-map-title">{t("createJob.serviceLocationMap")}</h2>
+                <p>{serviceAddress || t("createJob.noServiceLocation")}</p>
+              </div>
+              <div className="modal-actions">
+                <button className="icon-action" disabled={serviceMapSize === "compact"} onClick={() => setServiceMapSize(serviceMapSize === "large" ? "wide" : "compact")} type="button" aria-label={t("createJob.shrinkServiceMap")}>
+                  <Minimize2 size={18} />
+                </button>
+                <button className="icon-action" disabled={serviceMapSize === "large"} onClick={() => setServiceMapSize(serviceMapSize === "compact" ? "wide" : "large")} type="button" aria-label={t("createJob.expandServiceMap")}>
+                  <Maximize2 size={18} />
+                </button>
+                <button className="icon-action" onClick={() => setIsServiceMapOpen(false)} type="button" aria-label={t("actions.close")}>
+                  <X size={20} />
+                </button>
+              </div>
+            </div>
+            <ServiceLocationMap point={servicePreviewPoint} address={serviceAddress} expanded />
+          </div>
+        </div>
+      )}
+      {isTaskPickerOpen && (
+        <div className="quick-customer-overlay" role="presentation">
+          <div className="resource-modal task-picker-modal" role="dialog" aria-modal="true" aria-labelledby="task-picker-title">
+            <div className="section-heading">
+              <div>
+                <h2 id="task-picker-title">{t("createJob.taskPickerTitle")}</h2>
+                <p>{t("createJob.taskPickerHint")}</p>
+              </div>
+              <button className="icon-action" onClick={() => setIsTaskPickerOpen(false)} type="button" aria-label={t("actions.close")}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="task-picker-list">
+              {taskTemplates.map((task) => {
+                const resourceHint = visibleResourceHint(task.resourceHint);
+                const price = task.standardPrice !== undefined
+                  ? `${task.standardPrice.toLocaleString(i18n.language)} ${task.standardPriceCurrency ?? "SEK"}`
+                  : t("pricing.noPriceStored");
+                return (
+                  <button className={task.id === taskToAdd ? "task-picker-item selected" : "task-picker-item"} key={task.id} onClick={() => pickTask(task.id)} type="button">
+                    <span className="task-picker-main">
+                      <strong>{task.name}</strong>
+                      <span>{task.billingUnit ? t(`pricing.units.${task.billingUnit}`) : task.unit || "-"} · {price}</span>
+                    </span>
+                    <span>{t("createJob.taskPickerResources", { drivers: task.requiredDrivers ?? 0, vehicles: task.requiredVehicles ?? 0, implements: task.requiredImplements ?? 0 })}</span>
+                    <span>{resourceHint || t("createJob.noTaskNotes")}</span>
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+        </div>
+      )}
     </section>
   );
+}
+
+function ServiceLocationMapPreview({ address, onOpen, point }: { address: string; onOpen: () => void; point?: GeoPoint }) {
+  const { t } = useTranslation();
+  return (
+    <button className="service-location-preview" onClick={onOpen} type="button">
+      <ServiceLocationMap point={point} address={address} />
+      <span>
+        <Maximize2 size={16} /> {t("createJob.openServiceLocationMap")}
+      </span>
+    </button>
+  );
+}
+
+function ServiceLocationMap({ address, expanded = false, point }: { address: string; expanded?: boolean; point?: GeoPoint }) {
+  const { t } = useTranslation();
+  const center = point ?? { lat: 56.75399, lng: 15.87492 };
+  return (
+    <div className={expanded ? "service-location-map service-location-map-expanded" : "service-location-map"}>
+      <MapContainer center={[center.lat, center.lng]} className="leaflet-map" scrollWheelZoom={expanded} zoom={point ? 14 : 6}>
+        <InvalidateMapSize watchKey={`${expanded}-${point?.lat ?? "none"}-${point?.lng ?? "none"}`} />
+        <MapBaseLayers />
+        {point && (
+          <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: "#23683a", fillColor: "#2f7a45", fillOpacity: 0.95 }} radius={9}>
+            <Popup>
+              <strong>{t("createJob.serviceLocation")}</strong>
+              <br />
+              {address || t("createJob.noServiceLocation")}
+              <br />
+              {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
+            </Popup>
+          </CircleMarker>
+        )}
+      </MapContainer>
+      {!point && <div className="service-location-map-empty">{t("createJob.enterCoordinatesForMap")}</div>}
+    </div>
+  );
+}
+
+function InvalidateMapSize({ watchKey }: { watchKey: string }) {
+  const map = useMap();
+
+  useEffect(() => {
+    const timeout = window.setTimeout(() => map.invalidateSize(), 80);
+    return () => window.clearTimeout(timeout);
+  }, [map, watchKey]);
+
+  return null;
 }

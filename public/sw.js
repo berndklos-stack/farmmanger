@@ -1,4 +1,4 @@
-const CACHE_VERSION = "farm-manager-v0-4-22";
+const CACHE_VERSION = "farm-manager-v0-4-25";
 const APP_CACHE = `${CACHE_VERSION}-app`;
 const RUNTIME_CACHE = `${CACHE_VERSION}-runtime`;
 const APP_SHELL = [
