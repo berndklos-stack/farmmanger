@@ -50,7 +50,7 @@ function serviceLocationFromNotes(value: string | undefined) {
 }
 
 function googleMapEmbedUrl(address: string, point?: GeoPoint) {
-  const query = point ? `${point.lat},${point.lng}` : address.trim();
+  const query = address.trim() || (point ? `${point.lat},${point.lng}` : "");
   return query ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed` : "";
 }
 
@@ -979,6 +979,7 @@ function ServiceLocationMap({ address, expanded = false, point }: { address: str
     <div className={expanded ? "service-location-map service-location-map-expanded" : "service-location-map"}>
       {googleMapUrl ? (
         <iframe
+          key={googleMapUrl}
           loading="lazy"
           referrerPolicy="no-referrer-when-downgrade"
           src={googleMapUrl}
