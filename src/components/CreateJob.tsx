@@ -1,13 +1,11 @@
 import { AlertTriangle, CheckCircle2, MapPin, Maximize2, Minimize2, Plus, Save, X } from "lucide-react";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useTranslation } from "react-i18next";
-import { CircleMarker, MapContainer, Popup, useMap } from "react-leaflet";
 import { useAppData } from "../data/DataContext";
 import { formatArea } from "../i18n/format";
 import type { GeoPoint, Job, Organization, OrganizationRelationship, Subtask, Task, TaskTemplate } from "../types";
 import { getFieldGeoChecks } from "../utils/geo";
 import { FieldSelectionMap } from "./FieldSelectionMap";
-import { MapBaseLayers } from "./MapBaseLayers";
 
 type CreateJobTemplate = {
   job: Job;
@@ -49,6 +47,11 @@ function serviceLocationFromNotes(value: string | undefined) {
   } catch {
     return undefined;
   }
+}
+
+function googleMapEmbedUrl(address: string, point?: GeoPoint) {
+  const query = point ? `${point.lat},${point.lng}` : address.trim();
+  return query ? `https://www.google.com/maps?q=${encodeURIComponent(query)}&z=15&output=embed` : "";
 }
 
 function organizationAddress(organization?: Organization) {
@@ -576,7 +579,7 @@ export function CreateJob({
                 {farmerOrganizations.map((organization) => <option key={organization.id} value={organization.id}>{organization.name}</option>)}
               </select>
               <button className="icon-action" disabled={!permissions.canCreateJobs || currentRole === "farmer_admin" || currentRole === "farmer_employee"} onClick={() => setIsQuickCustomerOpen(true)} title={t("createJob.quickCustomerOpen")} type="button">
-                <Plus size={16} />
+                <Plus size={14} />
               </button>
             </div>
           </label>
@@ -971,36 +974,19 @@ function ServiceLocationMapPreview({ address, onOpen, point }: { address: string
 
 function ServiceLocationMap({ address, expanded = false, point }: { address: string; expanded?: boolean; point?: GeoPoint }) {
   const { t } = useTranslation();
-  const center = point ?? { lat: 56.75399, lng: 15.87492 };
+  const googleMapUrl = googleMapEmbedUrl(address, point);
   return (
     <div className={expanded ? "service-location-map service-location-map-expanded" : "service-location-map"}>
-      <MapContainer center={[center.lat, center.lng]} className="leaflet-map" scrollWheelZoom={expanded} zoom={point ? 14 : 6}>
-        <InvalidateMapSize watchKey={`${expanded}-${point?.lat ?? "none"}-${point?.lng ?? "none"}`} />
-        <MapBaseLayers />
-        {point && (
-          <CircleMarker center={[point.lat, point.lng]} pathOptions={{ color: "#23683a", fillColor: "#2f7a45", fillOpacity: 0.95 }} radius={9}>
-            <Popup>
-              <strong>{t("createJob.serviceLocation")}</strong>
-              <br />
-              {address || t("createJob.noServiceLocation")}
-              <br />
-              {point.lat.toFixed(5)}, {point.lng.toFixed(5)}
-            </Popup>
-          </CircleMarker>
-        )}
-      </MapContainer>
-      {!point && <div className="service-location-map-empty">{t("createJob.enterCoordinatesForMap")}</div>}
+      {googleMapUrl ? (
+        <iframe
+          loading="lazy"
+          referrerPolicy="no-referrer-when-downgrade"
+          src={googleMapUrl}
+          title={t("createJob.serviceLocationMap")}
+        />
+      ) : (
+        <div className="service-location-map-empty">{t("createJob.enterCoordinatesForMap")}</div>
+      )}
     </div>
   );
-}
-
-function InvalidateMapSize({ watchKey }: { watchKey: string }) {
-  const map = useMap();
-
-  useEffect(() => {
-    const timeout = window.setTimeout(() => map.invalidateSize(), 80);
-    return () => window.clearTimeout(timeout);
-  }, [map, watchKey]);
-
-  return null;
 }

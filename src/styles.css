@@ -3456,7 +3456,7 @@ button:disabled {
 
 .inline-select-action {
   display: grid;
-  grid-template-columns: minmax(0, 1fr) 38px;
+  grid-template-columns: minmax(0, 1fr) 32px;
   gap: 8px;
   align-items: end;
 }
@@ -3467,8 +3467,9 @@ button:disabled {
 
 .inline-select-action .icon-action {
   border-radius: 8px;
-  min-height: 38px;
-  width: 38px;
+  min-height: 32px;
+  padding: 0;
+  width: 32px;
 }
 
 .quick-task-panel,
@@ -3642,13 +3643,15 @@ button:disabled {
   position: relative;
 }
 
-.service-location-map .leaflet-map {
+.service-location-map iframe {
+  border: 0;
   height: 100%;
   min-height: 124px;
+  width: 100%;
 }
 
 .service-location-map-expanded,
-.service-location-map-expanded .leaflet-map {
+.service-location-map-expanded iframe {
   min-height: min(68dvh, 720px);
 }
 

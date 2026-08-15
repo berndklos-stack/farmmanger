@@ -783,7 +783,7 @@
     "openServiceLocationMap": "Expand map",
     "expandServiceMap": "Expand map",
     "shrinkServiceMap": "Shrink map",
-    "enterCoordinatesForMap": "Enter latitude and longitude to show the map here.",
+    "enterCoordinatesForMap": "Enter an address or latitude and longitude to show the Google map here.",
     "noServiceLocation": "No job site address stored yet",
     "latitude": "Latitude",
     "longitude": "Longitude",

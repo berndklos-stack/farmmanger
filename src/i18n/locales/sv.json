@@ -783,7 +783,7 @@
     "openServiceLocationMap": "Förstora karta",
     "expandServiceMap": "Förstora karta",
     "shrinkServiceMap": "Förminska karta",
-    "enterCoordinatesForMap": "Ange latitud och longitud så visas kartan här.",
+    "enterCoordinatesForMap": "Ange adress eller latitud och longitud så visas Google-kartan här.",
     "noServiceLocation": "Ingen uppdragsadress sparad ännu",
     "latitude": "Latitud",
     "longitude": "Longitud",

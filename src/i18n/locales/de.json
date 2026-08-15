@@ -783,7 +783,7 @@
     "openServiceLocationMap": "Karte vergrößern",
     "expandServiceMap": "Karte vergrößern",
     "shrinkServiceMap": "Karte verkleinern",
-    "enterCoordinatesForMap": "Breiten- und Längengrad eingeben, dann erscheint hier die Karte.",
+    "enterCoordinatesForMap": "Adresse oder Breiten- und Längengrad eingeben, dann erscheint hier die Google-Karte.",
     "noServiceLocation": "Noch keine Einsatzadresse hinterlegt",
     "latitude": "Breitengrad",
     "longitude": "Längengrad",
