@@ -28,6 +28,7 @@ export function ProgressBar({ value }: { value: number }) {
 export function FieldName({ id }: { id: string }) {
   const { t } = useTranslation();
   const { allFields, fields } = useAppData();
+  if (!id) return <>{t("createJob.noFieldAssigned")}</>;
   return <>{allFields.find((field) => field.id === id)?.name ?? fields.find((field) => field.id === id)?.name ?? t("fields.unknownField")}</>;
 }
 

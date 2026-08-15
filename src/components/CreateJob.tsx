@@ -52,6 +52,7 @@ export function CreateJob({
   const { t, i18n } = useTranslation();
   const { authProfile, currentRole, fields, jobTypes, organizations, organizationRelationships, permissions, taskTemplates } = useAppData();
   const [selectedFields, setSelectedFields] = useState<string[]>([]);
+  const [jobScope, setJobScope] = useState<"field" | "service">("field");
   const [selectedFarmerOrganizationId, setSelectedFarmerOrganizationId] = useState("");
   const [selectedContractorOrganizationId, setSelectedContractorOrganizationId] = useState("");
   const [fieldSearch, setFieldSearch] = useState("");
@@ -161,6 +162,7 @@ export function CreateJob({
       .map((task) => taskTemplates.find((template) => template.name === task.name)?.id)
       .filter((taskId): taskId is string => Boolean(taskId));
     setSelectedFields(sourceJob.fieldIds);
+    setJobScope(sourceJob.fieldIds.length > 0 ? "field" : "service");
     setSelectedFarmerOrganizationId(sourceJob.farmerOrganizationId ?? "");
     setSelectedContractorOrganizationId(sourceJob.contractorOrganizationId ?? "");
     setSelectedJobTypeId(sourceJob.jobTypeId && jobTypes.some((jobType) => jobType.id === sourceJob.jobTypeId) ? sourceJob.jobTypeId : "");
@@ -205,7 +207,8 @@ export function CreateJob({
 
   function saveJob() {
     const validSelectedFields = selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId));
-    if (!selectedFarmerOrganization || !selectedContractorOrganization || validSelectedFields.length === 0 || (taskCount === 0 && templateTaskCount === 0)) {
+    const needsFields = jobScope === "field";
+    if (!selectedFarmerOrganization || !selectedContractorOrganization || (needsFields && validSelectedFields.length === 0) || (taskCount === 0 && templateTaskCount === 0)) {
       setSavedNotice(t("createJob.missingRequiredFields"));
       return;
     }
@@ -216,7 +219,7 @@ export function CreateJob({
       ? selectedJobType.tasks.map((task) => ({
           ...task,
           id: crypto.randomUUID(),
-          estimatedHours: task.timePerHa ? selectedAreaHa * task.timePerHa : task.estimatedHours,
+          estimatedHours: needsFields && task.timePerHa ? selectedAreaHa * task.timePerHa : task.estimatedHours,
         }))
       : [];
     const additionalTasks: Task[] = selectedTaskOptions.map((taskOption) => ({
@@ -230,7 +233,7 @@ export function CreateJob({
           requiredDrivers: taskOption.requiredDrivers,
           requiredVehicles: taskOption.requiredVehicles,
           requiredImplements: taskOption.requiredImplements,
-          estimatedHours: selectedAreaHa * taskOption.timePerHa,
+          estimatedHours: needsFields ? selectedAreaHa * taskOption.timePerHa : 0,
           timePerHa: taskOption.timePerHa,
           targetValue: taskOption.progressMetric === "Menge" ? 25 : undefined,
           plannedAmount: taskOption.progressMetric === "Menge" ? 25 : undefined,
@@ -253,7 +256,7 @@ export function CreateJob({
       contractor: selectedContractorOrganization.name,
       farmerOrganizationId: selectedFarmerOrganization.id,
       contractorOrganizationId: selectedContractorOrganization.id,
-      fieldIds: validSelectedFields,
+      fieldIds: needsFields ? validSelectedFields : [],
       tasks,
       jobTypeId: selectedJobType?.id,
       jobTypeName: selectedJobType?.name,
@@ -264,9 +267,10 @@ export function CreateJob({
       notes: jobNotes.trim() || selectedJobType?.resourceSummary || initialTemplate?.job.notes || t("createJob.freeDispatchPlanning"),
     };
 
-    // Teilaufträge entstehen direkt aus jeder Kombination aus Fläche und Aufgabe.
-    const generatedSubtasks: Subtask[] = validSelectedFields.flatMap((fieldId) =>
-      tasks.map((task, index) => ({
+    // Flächenaufträge entstehen aus Fläche mal Aufgabe, allgemeine Aufträge direkt je Aufgabe.
+    const subtaskFieldIds = needsFields ? validSelectedFields : [""];
+    const generatedSubtasks: Subtask[] = subtaskFieldIds.flatMap((fieldId) =>
+      tasks.map((task) => ({
         id: crypto.randomUUID(),
         jobId: job.id,
         fieldId,
@@ -275,7 +279,9 @@ export function CreateJob({
         progress: 0,
         activeDriverIds: [],
         plannedCrews: plannedCrewsValue,
-        estimatedHours: ((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? estimatedHoursValue),
+        estimatedHours: needsFields
+          ? (((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? estimatedHoursValue))
+          : (task.estimatedHours ?? estimatedHoursValue),
         targetValue: task.targetValue,
         targetUnit: task.unit,
       })),
@@ -294,6 +300,20 @@ export function CreateJob({
           <span>{t("createJob.tasksCount", { count: taskCount })}</span>
         </div>
         <div className="form-row create-template-row">
+          <label>
+            {t("createJob.orderType")}
+            <select
+              value={jobScope}
+              onChange={(event) => {
+                const nextScope = event.target.value as "field" | "service";
+                setJobScope(nextScope);
+                if (nextScope === "service") setSelectedFields([]);
+              }}
+            >
+              <option value="field">{t("createJob.orderTypeField")}</option>
+              <option value="service">{t("createJob.orderTypeService")}</option>
+            </select>
+          </label>
           <label>
             {t("createJob.customerOrganization")}
             <select
@@ -418,6 +438,7 @@ export function CreateJob({
             ))}
           </div>
         )}
+        {jobScope === "field" ? (
         <div className="inline-field-assignment">
           <div className="section-heading">
             <h2>{t("createJob.assignFieldsAfterTask")}</h2>
@@ -509,6 +530,15 @@ export function CreateJob({
             })}
           </div>
         </div>
+        ) : (
+          <div className="inline-field-assignment service-order-note">
+            <div className="section-heading">
+              <h2>{t("createJob.noFieldAssignmentTitle")}</h2>
+              <span>{t("createJob.serviceOrderBadge")}</span>
+            </div>
+            <p className="permission-note">{t("createJob.noFieldAssignmentHint")}</p>
+          </div>
+        )}
 
         {permissions.canCreateJobs && (
           <button className="primary-action wide create-job-save-button" onClick={saveJob} type="button">

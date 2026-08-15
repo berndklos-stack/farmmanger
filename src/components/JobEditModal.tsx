@@ -55,6 +55,7 @@ export function JobEditModal({
     title: job.title,
     selectedFarmerOrganizationId: job.farmerOrganizationId ?? "",
     selectedContractorOrganizationId: job.contractorOrganizationId ?? "",
+    jobScope: job.fieldIds.length > 0 ? "field" as const : "service" as const,
     selectedJobTypeId: job.jobTypeId ?? "",
     selectedFields: job.fieldIds,
     selectedTasks: [] as string[],
@@ -136,6 +137,7 @@ export function JobEditModal({
       title: job.title,
       selectedFarmerOrganizationId: job.farmerOrganizationId ?? "",
       selectedContractorOrganizationId: job.contractorOrganizationId ?? "",
+      jobScope: job.fieldIds.length > 0 ? "field" : "service",
       selectedJobTypeId: job.jobTypeId ?? "",
       selectedFields: job.fieldIds,
       selectedTasks: Array.from(new Set(matchingTaskTemplateIds)),
@@ -222,7 +224,8 @@ export function JobEditModal({
   }
 
   function buildEditableSubtasks(tasks: Task[]) {
-    return jobForm.selectedFields.flatMap((fieldId) => tasks.map((task) => {
+    const subtaskFieldIds = jobForm.jobScope === "field" ? jobForm.selectedFields : [""];
+    return subtaskFieldIds.flatMap((fieldId) => tasks.map((task) => {
       const existing = related.find((subtask) => {
         const existingTask = job.tasks.find((item) => item.id === subtask.taskId);
         return subtask.fieldId === fieldId && existingTask?.name === task.name;
@@ -232,7 +235,7 @@ export function JobEditModal({
             ...existing,
             taskId: task.id,
             plannedCrews: existing.plannedCrews ?? jobForm.plannedCrews,
-            estimatedHours: existing.estimatedHours ?? (((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours)),
+            estimatedHours: existing.estimatedHours ?? (jobForm.jobScope === "field" ? (((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours)) : (task.estimatedHours ?? jobForm.estimatedHours)),
             targetValue: existing.targetValue ?? task.targetValue,
             targetUnit: existing.targetUnit ?? task.unit,
           }
@@ -248,7 +251,7 @@ export function JobEditModal({
             activeImplementIds: [],
             activeAssignments: [],
             plannedCrews: jobForm.plannedCrews,
-            estimatedHours: ((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours),
+            estimatedHours: jobForm.jobScope === "field" ? (((fieldsForSelectedFarmer.find((field) => field.id === fieldId)?.areaHa ?? 0) * (task.timePerHa ?? 0)) || (task.estimatedHours ?? jobForm.estimatedHours)) : (task.estimatedHours ?? jobForm.estimatedHours),
             targetValue: task.targetValue,
             targetUnit: task.unit,
           };
@@ -256,8 +259,8 @@ export function JobEditModal({
   }
 
   const previewTasks = useMemo(() => buildEditableTasks(), [fieldsForSelectedFarmer, job.tasks, jobForm, selectedJobType, selectedTaskOptions]);
-  const previewSubtasks = useMemo(() => buildEditableSubtasks(previewTasks), [fieldsForSelectedFarmer, jobForm.plannedCrews, jobForm.selectedFields, job.tasks, previewTasks, related]);
-  const previewJob = useMemo(() => ({ ...job, fieldIds: jobForm.selectedFields, tasks: previewTasks }), [job, jobForm.selectedFields, previewTasks]);
+  const previewSubtasks = useMemo(() => buildEditableSubtasks(previewTasks), [fieldsForSelectedFarmer, jobForm.jobScope, jobForm.plannedCrews, jobForm.selectedFields, job.tasks, previewTasks, related]);
+  const previewJob = useMemo(() => ({ ...job, fieldIds: jobForm.jobScope === "field" ? jobForm.selectedFields : [], tasks: previewTasks }), [job, jobForm.jobScope, jobForm.selectedFields, previewTasks]);
   const persistedSubtaskIds = useMemo(() => new Set(related.map((subtask) => subtask.id)), [related]);
 
   useEffect(() => {
@@ -269,7 +272,7 @@ export function JobEditModal({
   async function saveJob() {
     try {
       const validSelectedFields = jobForm.selectedFields.filter((fieldId) => fieldsForSelectedFarmer.some((field) => field.id === fieldId));
-      if (!selectedFarmerOrganization || !selectedContractorOrganization || validSelectedFields.length === 0) {
+      if (!selectedFarmerOrganization || !selectedContractorOrganization || (jobForm.jobScope === "field" && validSelectedFields.length === 0)) {
         setSaveMessage({ type: "error", text: t("createJob.missingRequiredFields") });
         return;
       }
@@ -285,7 +288,7 @@ export function JobEditModal({
         contractor: selectedContractorOrganization.name,
         farmerOrganizationId: selectedFarmerOrganization.id,
         contractorOrganizationId: selectedContractorOrganization.id,
-        fieldIds: validSelectedFields,
+        fieldIds: jobForm.jobScope === "field" ? validSelectedFields : [],
         tasks: nextTasks,
         jobTypeId: selectedJobType?.id,
         jobTypeName: selectedJobType?.name,
@@ -419,6 +422,24 @@ export function JobEditModal({
           <div className="master-data-form">
             <div className="form-row resource-form-row modal-form-row">
               <label>
+                {t("createJob.orderType")}
+                <select
+                  disabled={showArchived}
+                  value={jobForm.jobScope}
+                  onChange={(event) => {
+                    const nextScope = event.target.value as "field" | "service";
+                    setJobForm((current) => ({
+                      ...current,
+                      jobScope: nextScope,
+                      selectedFields: nextScope === "service" ? [] : current.selectedFields,
+                    }));
+                  }}
+                >
+                  <option value="field">{t("createJob.orderTypeField")}</option>
+                  <option value="service">{t("createJob.orderTypeService")}</option>
+                </select>
+              </label>
+              <label>
                 {t("createJob.customerOrganization")}
                 <select disabled={showArchived || currentRole === "farmer_admin" || currentRole === "farmer_employee"} value={jobForm.selectedFarmerOrganizationId} onChange={(event) => setJobForm((current) => ({ ...current, selectedFarmerOrganizationId: event.target.value, selectedFields: [] }))}>
                   <option value="">{t("createJob.selectFarmer")}</option>
@@ -488,6 +509,7 @@ export function JobEditModal({
                 ))}
               </div>
             )}
+            {jobForm.jobScope === "field" ? (
             <div className="field-pick-list job-edit-field-list">
               <div className="field-pick-list-heading">
                 <strong>{t("createJob.fieldQuickSelection")}</strong>
@@ -506,12 +528,21 @@ export function JobEditModal({
                 </label>
               ))}
             </div>
+            ) : (
+              <div className="field-pick-list job-edit-field-list">
+                <div className="field-pick-list-heading">
+                  <strong>{t("createJob.noFieldAssignmentTitle")}</strong>
+                  <span>{t("createJob.serviceOrderBadge")}</span>
+                </div>
+                <p className="permission-note">{t("createJob.noFieldAssignmentHint")}</p>
+              </div>
+            )}
           </div>
 
           <div className="job-meta">
             <span>{t("terms.customer")}: {selectedFarmerOrganization?.name ?? job.customer}</span>
             <span>{t("terms.contractor")}: {selectedContractorOrganization?.name ?? job.contractor}</span>
-            <span>{t("fields.selected", { count: jobForm.selectedFields.length })}</span>
+            <span>{jobForm.jobScope === "field" ? t("fields.selected", { count: jobForm.selectedFields.length }) : t("createJob.serviceOrderBadge")}</span>
             <span>{t("createJob.tasksCount", { count: (selectedJobType?.tasks.length ?? 0) + selectedTaskOptions.length || job.tasks.length })}</span>
           </div>
           {saveMessage && <p className={`modal-save-message ${saveMessage.type}`}>{saveMessage.text}</p>}
