@@ -112,6 +112,7 @@
     "contractor": "Arbetsledning",
     "masterData": "Stamdata",
     "userManagement": "Användarhantering",
+    "invoices": "Fakturor",
     "report": "Avslut"
   },
   "terms": {
@@ -1361,6 +1362,35 @@
     "estimatedAmount": "Beräknat belopp",
     "noCondition": "Inget villkor sparat",
     "noPriceStored": "Inget pris sparat"
+  },
+  "invoices": {
+    "title": "Fakturor",
+    "hint": "Utgående fakturabok, fakturerbara uppdrag och faktura-PDF med företags-, kund-, skatte- och betalningsdata.",
+    "outgoingBook": "Utgående fakturabok",
+    "readyForInvoice": "Klar för faktura",
+    "createInvoice": "Skapa faktura",
+    "invoice": "Faktura",
+    "invoiceNumber": "Fakturanummer",
+    "invoiceNumberPrompt": "Ange fakturanummer",
+    "invoiceDate": "Fakturadatum",
+    "invoicePreview": "Fakturaförhandsvisning",
+    "openPdfPreview": "Öppna PDF-förhandsvisning",
+    "seller": "Säljare",
+    "customer": "Kund",
+    "dueDate": "Förfallodatum",
+    "description": "Tjänst",
+    "quantity": "Mängd",
+    "unitPrice": "Enhetspris",
+    "netAmount": "Netto",
+    "netTotal": "Nettosumma",
+    "vat": "Moms",
+    "grossTotal": "Bruttosumma",
+    "paymentDetails": "Bank-/betalningsuppgifter",
+    "noPaymentDetails": "Inga bankuppgifter är sparade i företagsstamdata ännu.",
+    "noInvoices": "Inga fakturor i utgående fakturabok ännu.",
+    "generatedFooter": "Skapad med Farm-Manager. Kontrollera skatteuppgifter före utskick.",
+    "legalGermany": "Standardnotering Tyskland: Fakturan innehåller löpande fakturanummer, fakturadatum, tjänstebeskrivning, ersättning, skatt, skattesats samt uppgifter om säljare och kund. Specialfall som omvänd skattskyldighet, småföretagsregler eller skattefria tjänster måste läggas till separat.",
+    "legalSweden": "Standardnotering Sverige: Fakturan innehåller fakturanummer, fakturadatum, säljar- och köparuppgifter, organisations-/moms-ID, tjänstebeskrivning, ersättning, momssats och momsbelopp. Specialfall som omvänd skattskyldighet, EU-tjänster eller skattebefrielser måste läggas till separat."
   },
   "report": {
     "completionOverview": "Avslutsöversikt",

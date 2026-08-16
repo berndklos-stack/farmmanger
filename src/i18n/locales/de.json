@@ -112,6 +112,7 @@
     "contractor": "Einsatzleitung",
     "masterData": "Stammdaten",
     "userManagement": "Benutzerverwaltung",
+    "invoices": "Rechnungen",
     "report": "Abschluss"
   },
   "terms": {
@@ -1364,6 +1365,35 @@
     "estimatedAmount": "Kalkulierter Betrag",
     "noCondition": "Keine Kondition hinterlegt",
     "noPriceStored": "Kein Preis hinterlegt"
+  },
+  "invoices": {
+    "title": "Rechnungen",
+    "hint": "Rechnungsausgangsbuch, abrechenbare Aufträge und Rechnungs-PDF mit Firmen-, Kunden-, Steuer- und Zahlungsdaten.",
+    "outgoingBook": "Rechnungsausgangsbuch",
+    "readyForInvoice": "Fertig zur Rechnung",
+    "createInvoice": "Rechnung erstellen",
+    "invoice": "Rechnung",
+    "invoiceNumber": "Rechnungsnummer",
+    "invoiceNumberPrompt": "Bitte Rechnungsnummer eingeben",
+    "invoiceDate": "Rechnungsdatum",
+    "invoicePreview": "Rechnungsvorschau",
+    "openPdfPreview": "PDF-Vorschau öffnen",
+    "seller": "Rechnungssteller",
+    "customer": "Kunde",
+    "dueDate": "Fällig am",
+    "description": "Leistung",
+    "quantity": "Menge",
+    "unitPrice": "Einzelpreis",
+    "netAmount": "Netto",
+    "netTotal": "Nettosumme",
+    "vat": "Umsatzsteuer",
+    "grossTotal": "Bruttosumme",
+    "paymentDetails": "Bankverbindung / Zahlungsangaben",
+    "noPaymentDetails": "Noch keine Bankverbindung in den Firmenstammdaten hinterlegt.",
+    "noInvoices": "Noch keine Rechnungen im Ausgangsbuch.",
+    "generatedFooter": "Erstellt mit Farm-Manager. Bitte vor Versand steuerlich prüfen.",
+    "legalGermany": "Standardhinweis Deutschland: Die Rechnung enthält fortlaufende Rechnungsnummer, Rechnungsdatum, Leistungsbeschreibung, Entgelt, Steuerbetrag, Steuersatz sowie Angaben zu Rechnungssteller und Leistungsempfänger. Sonderfälle wie Reverse-Charge, Kleinunternehmerregelung oder steuerfreie Leistungen müssen gesondert ergänzt werden.",
+    "legalSweden": "Standardhinweis Schweden: Die Rechnung enthält Rechnungsnummer, Rechnungsdatum, Verkäufer- und Käuferdaten, Organisations-/USt-Identifikation, Leistungsbeschreibung, Entgelt, Moms-Satz und Moms-Betrag. Sonderfälle wie omvänd skattskyldighet, EU-Leistungen oder Steuerbefreiungen müssen gesondert ergänzt werden."
   },
   "report": {
     "completionOverview": "Abschlussübersicht",

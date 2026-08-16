@@ -5,6 +5,7 @@ import {
   Database,
   FileText,
   Map,
+  ReceiptText,
   Settings,
   Smartphone,
   Tractor,
@@ -22,6 +23,7 @@ import { CreateJob } from "./components/CreateJob";
 import { Dashboard } from "./components/Dashboard";
 import { DriverView } from "./components/DriverView";
 import { Fields } from "./components/Fields";
+import { InvoiceModule } from "./components/InvoiceModule";
 import { JobEditModal } from "./components/JobEditModal";
 import { JobDetail } from "./components/JobDetail";
 import { LanguageSwitcher } from "./components/LanguageSwitcher";
@@ -41,6 +43,7 @@ const navItems: { key: ViewKey; labelKey: string; icon: ElementType }[] = [
   { key: "contractor", labelKey: "nav.contractor", icon: Users },
   { key: "masterData", labelKey: "nav.masterData", icon: Database },
   { key: "userManagement", labelKey: "nav.userManagement", icon: Users },
+  { key: "invoices", labelKey: "nav.invoices", icon: ReceiptText },
   { key: "report", labelKey: "nav.report", icon: FileText },
 ];
 
@@ -1523,9 +1526,9 @@ export function App() {
       return navItems.filter((item) => allowed.has(item.key));
     }
     if (currentRole === "driver") return navItems.filter((item) => item.key === "driver");
-    if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "userManagement", "report"].includes(item.key));
-    if (currentRole === "contractor_admin") return navItems.filter((item) => ["dashboard", "fields", "contractor", "masterData", "jobs", "report"].includes(item.key));
-    if (currentRole === "farmer_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "report"].includes(item.key));
+    if (currentRole === "support_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "userManagement", "invoices", "report"].includes(item.key));
+    if (currentRole === "contractor_admin") return navItems.filter((item) => ["dashboard", "fields", "contractor", "masterData", "jobs", "invoices", "report"].includes(item.key));
+    if (currentRole === "farmer_admin") return navItems.filter((item) => ["dashboard", "fields", "jobs", "contractor", "masterData", "invoices", "report"].includes(item.key));
     if (currentRole === "farmer_employee") return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
     return navItems.filter((item) => ["dashboard", "fields", "jobs", "report"].includes(item.key));
   }, [appMode, authProfile?.allowedViews, currentRole]);
@@ -4454,6 +4457,13 @@ function isResourcePayloadColumnError(message: string) {
           <CompletionReport
             jobs={[...activeJobs, ...archivedJobs]}
             onArchiveJob={archiveJob}
+            onUpdateJob={updateJob}
+            subtasks={subtasks}
+          />
+        )}
+        {activeView === "invoices" && (
+          <InvoiceModule
+            jobs={[...activeJobs, ...archivedJobs]}
             onUpdateJob={updateJob}
             subtasks={subtasks}
           />

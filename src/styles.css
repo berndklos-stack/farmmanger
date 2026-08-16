@@ -7766,6 +7766,75 @@ select {
   padding: 0 11px;
 }
 
+.invoices-view {
+  overflow: auto;
+}
+
+.invoices-control-panel {
+  display: grid;
+  gap: 12px;
+}
+
+.invoice-filter-row {
+  align-items: end;
+  display: grid;
+  gap: 12px;
+  grid-template-columns: minmax(180px, 1fr) minmax(150px, 0.7fr) minmax(180px, 1fr) auto;
+}
+
+.invoice-filter-row label {
+  display: grid;
+  gap: 5px;
+}
+
+.invoice-filter-row button {
+  min-height: 42px;
+}
+
+.invoice-job-list,
+.invoice-book-table {
+  display: grid;
+  gap: 8px;
+}
+
+.invoice-job-row,
+.invoice-book-row {
+  align-items: center;
+  background: #fff;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  display: grid;
+  gap: 10px;
+  min-height: 54px;
+  padding: 10px 12px;
+}
+
+.invoice-job-row {
+  grid-template-columns: minmax(110px, 0.5fr) minmax(180px, 1fr) minmax(160px, 0.9fr) auto;
+}
+
+.invoice-book-row {
+  grid-template-columns: minmax(120px, 0.7fr) minmax(120px, 0.7fr) minmax(180px, 1.2fr) repeat(3, minmax(120px, 0.75fr)) auto;
+}
+
+.invoice-book-header {
+  background: #eaf3e4;
+  color: #31483a;
+  font-size: 0.83rem;
+  font-weight: 900;
+  min-height: 38px;
+  text-transform: uppercase;
+}
+
+.invoice-job-row button,
+.invoice-book-row button {
+  align-items: center;
+  display: inline-flex;
+  gap: 6px;
+  justify-content: center;
+  min-height: 36px;
+}
+
 .completion-table-panel {
   overflow-x: auto;
   padding: 12px;
@@ -8188,6 +8257,17 @@ select {
 
   .driver-form-section h3 {
     margin-top: 0;
+  }
+
+  .invoice-filter-row,
+  .invoice-job-row,
+  .invoice-book-row {
+    align-items: stretch;
+    grid-template-columns: 1fr;
+  }
+
+  .invoice-book-header {
+    display: none;
   }
 
   .user-session-pill {

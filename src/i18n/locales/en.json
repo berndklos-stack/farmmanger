@@ -112,6 +112,7 @@
     "contractor": "Dispatch",
     "masterData": "Master data",
     "userManagement": "User management",
+    "invoices": "Invoices",
     "report": "Completion"
   },
   "terms": {
@@ -1363,6 +1364,35 @@
     "estimatedAmount": "Estimated amount",
     "noCondition": "No condition stored",
     "noPriceStored": "No price stored"
+  },
+  "invoices": {
+    "title": "Invoices",
+    "hint": "Outgoing invoice book, billable jobs and invoice PDF with company, customer, tax and payment data.",
+    "outgoingBook": "Outgoing invoice book",
+    "readyForInvoice": "Ready for invoice",
+    "createInvoice": "Create invoice",
+    "invoice": "Invoice",
+    "invoiceNumber": "Invoice number",
+    "invoiceNumberPrompt": "Enter invoice number",
+    "invoiceDate": "Invoice date",
+    "invoicePreview": "Invoice preview",
+    "openPdfPreview": "Open PDF preview",
+    "seller": "Seller",
+    "customer": "Customer",
+    "dueDate": "Due date",
+    "description": "Service",
+    "quantity": "Quantity",
+    "unitPrice": "Unit price",
+    "netAmount": "Net",
+    "netTotal": "Net total",
+    "vat": "VAT",
+    "grossTotal": "Gross total",
+    "paymentDetails": "Bank / payment details",
+    "noPaymentDetails": "No bank details have been stored in company master data yet.",
+    "noInvoices": "No invoices in the outgoing invoice book yet.",
+    "generatedFooter": "Generated with Farm-Manager. Please review tax details before sending.",
+    "legalGermany": "Standard note Germany: The invoice contains a consecutive invoice number, invoice date, service description, consideration, tax amount, tax rate and details of seller and customer. Special cases such as reverse charge, small-business rules or tax-exempt services must be added separately.",
+    "legalSweden": "Standard note Sweden: The invoice contains invoice number, invoice date, seller and buyer details, organisation/VAT identification, service description, consideration, VAT rate and VAT amount. Special cases such as reverse charge, EU services or tax exemptions must be added separately."
   },
   "report": {
     "completionOverview": "Completion overview",

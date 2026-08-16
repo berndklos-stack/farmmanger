@@ -7,6 +7,7 @@ export type ViewKey =
   | "contractor"
   | "masterData"
   | "userManagement"
+  | "invoices"
   | "report";
 
 export type UserRole =
